@@ -1,0 +1,17 @@
+{
+  "id": "07-form-nomenclature-kind",
+  "genre": "form",
+  "intent": "form",
+  "task": "Поменяй обработчик ВидНоменклатурыПриИзменении на форме элемента справочника Номенклатура — нужно скрывать несовместимые упаковки при смене вида номенклатуры",
+  "target": {
+    "kind": "form_element",
+    "component": "Catalogs",
+    "owner": "Номенклатура",
+    "form": "ФормаЭлемента",
+    "element": "ВидНоменклатуры",
+    "handler": "ВидНоменклатурыПриИзменении"
+  },
+  "requiredCategories": ["binding", "handler", "server_calls", "attributes"],
+  "expectedTools": ["get_context_for_task", "get_form_handlers"],
+  "notes": "Второй form-сценарий, справочник вместо документа: реальный обработчик подтверждён в Catalogs/Номенклатура/Forms/ФормаЭлемента/Ext/Form/Module.bsl (строка 892)."
+}

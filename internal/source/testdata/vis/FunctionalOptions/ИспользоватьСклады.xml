@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<FunctionalOption uuid="9e555555-0000-0000-0000-000000000002">
+		<Properties>
+			<Name>ИспользоватьСклады</Name>
+			<Location>InformationRegister.Настройки.Resource.ИспользоватьСклады</Location>
+			<Content>
+				<xr:Object>Document.ЗаказКлиента.Attribute.Склад</xr:Object>
+				<xr:Object>Document.ЗаказКлиента.TabularSection.Товары.Attribute.Склад</xr:Object>
+			</Content>
+		</Properties>
+	</FunctionalOption>
+</MetaDataObject>

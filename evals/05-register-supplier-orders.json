@@ -1,0 +1,14 @@
+{
+  "id": "05-register-supplier-orders",
+  "genre": "register",
+  "intent": "register",
+  "task": "Кто пишет в регистр накопления ЗаказыПоставщикам — нужно понять, какие документы формируют остатки заказов поставщикам",
+  "target": {
+    "kind": "metadata_object",
+    "type": "AccumulationRegister",
+    "name": "ЗаказыПоставщикам"
+  },
+  "requiredCategories": ["writes_movements", "owning_symbols"],
+  "expectedTools": ["get_context_for_task", "find_register_writes"],
+  "notes": "Второй register-сценарий на другом регистре — проверяет, что покрытие не завязано на один частный случай."
+}

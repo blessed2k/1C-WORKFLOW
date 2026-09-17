@@ -1,0 +1,14 @@
+{
+  "id": "08-add-attribute-act-executor",
+  "genre": "add-attribute",
+  "intent": "add-attribute",
+  "task": "Добавь реквизит ОтветственныйИсполнитель в документ АктВыполненныхРабот и оцени impact — какие формы, права и обмены это затронет",
+  "target": {
+    "kind": "metadata_object",
+    "type": "Document",
+    "name": "АктВыполненныхРабот"
+  },
+  "requiredCategories": ["structure", "usages", "forms", "rights", "exchanges"],
+  "expectedTools": ["get_context_for_task", "get_object", "find_impact"],
+  "notes": "Реальный документ dumps/ut_demo/Documents/АктВыполненныхРабот.xml с существующими реквизитами (Контрагент, Менеджер, Организация и др., подтверждено grep). Новый реквизит ОтветственныйИсполнитель гипотетический (задача формулируется как developer intent), сам объект и его текущая структура реальны."
+}

@@ -1,0 +1,14 @@
+{
+  "id": "04-register-goods-in-stock",
+  "genre": "register",
+  "intent": "register",
+  "task": "Кто пишет в регистр накопления ТоварыНаСкладах и какие документы делают движения",
+  "target": {
+    "kind": "metadata_object",
+    "type": "AccumulationRegister",
+    "name": "ТоварыНаСкладах"
+  },
+  "requiredCategories": ["writes_movements", "owning_symbols"],
+  "expectedTools": ["get_context_for_task", "find_register_writes"],
+  "notes": "Тот же регистр, что и §25 пример 3 архитектуры (использован здесь для сравнения с новым MCP на реальных данных, не для дублирования unit-теста таска 15 — тот сценарий проверяет пайплайн изолированно, этот прогон меряет end-to-end метрики §30 через живой stdio-сервер)."
+}

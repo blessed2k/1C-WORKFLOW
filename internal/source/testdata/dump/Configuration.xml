@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<Configuration uuid="11111111-2222-3333-4444-555555555555">
+		<Properties>
+			<Name>ДемоКонфигурация</Name>
+			<Synonym>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Демонстрационная конфигурация</v8:content>
+				</v8:item>
+			</Synonym>
+			<Comment/>
+			<DefaultRunMode>ManagedApplication</DefaultRunMode>
+			<ScriptVariant>Russian</ScriptVariant>
+			<Vendor>ООО Ромашка</Vendor>
+			<Version>1.2.3</Version>
+			<DefaultLanguage>Language.Русский</DefaultLanguage>
+		</Properties>
+		<ChildObjects>
+			<Language>Русский</Language>
+			<CommonModule>ДемоМодуль</CommonModule>
+			<Catalog>Товары</Catalog>
+			<Catalog>Контрагенты</Catalog>
+			<Document>РеализацияТоваровУслуг</Document>
+			<InformationRegister>КурсыВалют</InformationRegister>
+			<AccumulationRegister>ТоварыНаСкладах</AccumulationRegister>
+			<Role>ЧтениеТоваров</Role>
+		</ChildObjects>
+	</Configuration>
+</MetaDataObject>

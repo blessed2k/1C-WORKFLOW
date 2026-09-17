@@ -1,0 +1,5518 @@
+{
+ "file": "${ONEC_DUMP}/CommonModules/ОбменДаннымиСервер/Ext/Module.bsl",
+ "symbols": [
+  {
+   "name": "ПрограммныйИнтерфейс",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 8,
+    "startCharacter": 1,
+    "endLine": 1719,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ЗначениеНастройкиПланаОбмена",
+     "kind": "Method",
+     "detail": "(ИмяПланаОбмена, ИмяПараметра, ИдентификаторНастройки?, ВерсияКорреспондента?)",
+     "range": {
+      "startLine": 26,
+      "startCharacter": 0,
+      "endLine": 59,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ФормаУзлаПриСозданииНаСервере",
+     "kind": "Method",
+     "detail": "(Форма, Отказ)",
+     "range": {
+      "startLine": 69,
+      "startCharacter": 0,
+      "endLine": 90,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ФормаУзлаПриЗаписиНаСервере",
+     "kind": "Method",
+     "detail": "(ТекущийОбъект, Отказ)",
+     "range": {
+      "startLine": 100,
+      "startCharacter": 0,
+      "endLine": 110,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ФормаНастройкиУзлаПриСозданииНаСервере",
+     "kind": "Method",
+     "detail": "(Форма, ИмяПланаОбмена)",
+     "range": {
+      "startLine": 118,
+      "startCharacter": 0,
+      "endLine": 133,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадоВыполнитьОбработчикПослеВыгрузкиДанных",
+     "kind": "Method",
+     "detail": "(Объект, Ссылка)",
+     "range": {
+      "startLine": 144,
+      "startCharacter": 0,
+      "endLine": 148,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "НадоВыполнитьОбработчикПослеЗагрузкиДанных",
+     "kind": "Method",
+     "detail": "(Объект, Ссылка)",
+     "range": {
+      "startLine": 159,
+      "startCharacter": 0,
+      "endLine": 163,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПрефиксИнформационнойБазы",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 170,
+      "startCharacter": 0,
+      "endLine": 174,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ВерсияКорреспондента",
+     "kind": "Method",
+     "detail": "(Корреспондент)",
+     "range": {
+      "startLine": 189,
+      "startCharacter": 0,
+      "endLine": 194,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьПрефиксИнформационнойБазы",
+     "kind": "Method",
+     "detail": "(Префикс)",
+     "range": {
+      "startLine": 201,
+      "startCharacter": 0,
+      "endLine": 221,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПараметрыРезервнойКопии",
+     "kind": "Method",
+     "detail": "(Отправитель, НомерПринятого)",
+     "range": {
+      "startLine": 240,
+      "startCharacter": 0,
+      "endLine": 252,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПриВосстановленииРезервнойКопии",
+     "kind": "Method",
+     "detail": "(ПараметрыРезервнойКопии)",
+     "range": {
+      "startLine": 265,
+      "startCharacter": 0,
+      "endLine": 291,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СохраненныйВариантНастройкиУзлаПланаОбмена",
+     "kind": "Method",
+     "detail": "(УзелПланаОбмена)",
+     "range": {
+      "startLine": 301,
+      "startCharacter": 0,
+      "endLine": 314,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ДанныеТаблицКорреспондента",
+     "kind": "Method",
+     "detail": "(Таблицы, ИмяПланаОбмена)",
+     "range": {
+      "startLine": 325,
+      "startCharacter": 0,
+      "endLine": 372,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьКоличествоЭлементовВТранзакцииЗагрузкиДанных",
+     "kind": "Method",
+     "detail": "(Количество)",
+     "range": {
+      "startLine": 379,
+      "startCharacter": 0,
+      "endLine": 384,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПредставлениеДатыСинхронизации",
+     "kind": "Method",
+     "detail": "(ДатаСинхронизации)",
+     "range": {
+      "startLine": 394,
+      "startCharacter": 0,
+      "endLine": 401,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ОтносительнаяДатаСинхронизации",
+     "kind": "Method",
+     "detail": "(ДатаСинхронизации)",
+     "range": {
+      "startLine": 422,
+      "startCharacter": 0,
+      "endLine": 487,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПрофильДоступаСинхронизацияДанныхСДругимиПрограммами",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 494,
+      "startCharacter": 0,
+      "endLine": 498,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ЕстьПраваНаАдминистрированиеОбменов",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 505,
+      "startCharacter": 0,
+      "endLine": 509,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?)",
+     "range": {
+      "startLine": 527,
+      "startCharacter": 0,
+      "endLine": 536,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси_2_0_1_6",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?)",
+     "range": {
+      "startLine": 554,
+      "startCharacter": 0,
+      "endLine": 563,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси_2_1_1_7",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?, Таймаут?)",
+     "range": {
+      "startLine": 582,
+      "startCharacter": 0,
+      "endLine": 591,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси_3_0_1_1",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?, Таймаут?)",
+     "range": {
+      "startLine": 610,
+      "startCharacter": 0,
+      "endLine": 620,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси_3_0_2_1",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?, Таймаут?)",
+     "range": {
+      "startLine": 639,
+      "startCharacter": 0,
+      "endLine": 649,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьWSПрокси_3_0_2_2",
+     "kind": "Method",
+     "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?, Таймаут?)",
+     "range": {
+      "startLine": 668,
+      "startCharacter": 0,
+      "endLine": 678,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "КоличествоЭлементовВТранзакцииЗагрузкиДанных",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 685,
+      "startCharacter": 0,
+      "endLine": 690,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "КоличествоЭлементовВТранзакцииВыгрузкиДанных",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 697,
+      "startCharacter": 0,
+      "endLine": 701,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "УзлыОбменаБСП",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 711,
+      "startCharacter": 0,
+      "endLine": 720,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ИспользуютсяТиповыеПравила",
+     "kind": "Method",
+     "detail": "(ИмяПланаОбмена)",
+     "range": {
+      "startLine": 730,
+      "startCharacter": 0,
+      "endLine": 734,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ВнешнееСоединениеСБазой",
+     "kind": "Method",
+     "detail": "(Параметры)",
+     "range": {
+      "startLine": 762,
+      "startCharacter": 0,
+      "endLine": 766,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ВыполнитьОбменДаннымиСВнешнейСистемой",
+     "kind": "Method",
+     "detail": "(Корреспондент, ПараметрыОбмена, ФлагОшибка)",
+     "range": {
+      "startLine": 778,
+      "startCharacter": 0,
+      "endLine": 793,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НастройкиПланаОбменаПоУмолчанию",
+     "kind": "Method",
+     "detail": "(ИмяПланаОбмена)",
+     "range": {
+      "startLine": 849,
+      "startCharacter": 0,
+      "endLine": 904,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ОписаниеВариантаНастройкиОбменаПоУмолчанию",
+     "kind": "Method",
+     "detail": "(ИмяПланаОбмена)",
+     "range": {
+      "startLine": 970,
+      "startCharacter": 0,
+      "endLine": 1005,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПараметрыКонтекстаПолученияОписанияВариантаНастройки",
+     "kind": "Method",
+     "detail": "(ИмяКорреспондента, ВерсияКорреспондента)",
+     "range": {
+      "startLine": 1018,
+      "startCharacter": 0,
+      "endLine": 1026,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "НастройкиПодключенияКВнешнейСистеме",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1028,
+      "startCharacter": 1,
+      "endLine": 1097,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПриСохраненииНастроекПодключенияВнешнейСистемы",
+       "kind": "Method",
+       "detail": "(Контекст, ПараметрыПодключения, Результат)",
+       "range": {
+        "startLine": 1062,
+        "startCharacter": 0,
+        "endLine": 1064,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриПолученииНастроекПодключенияВнешнейСистемы",
+       "kind": "Method",
+       "detail": "(Контекст, ПараметрыПодключения)",
+       "range": {
+        "startLine": 1082,
+        "startCharacter": 0,
+        "endLine": 1084,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВсеНастройкиТранспортаОбменаСВнешнимиСистемами",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 1093,
+        "startCharacter": 0,
+        "endLine": 1095,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "СохранениеНастроекСинхронизацииДанных",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1099,
+      "startCharacter": 1,
+      "endLine": 1172,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПриНачалеСохраненияНастроекСинхронизации",
+       "kind": "Method",
+       "detail": "(НастройкиСинхронизации, ПараметрыОбработчика, ПродолжитьОжидание?)",
+       "range": {
+        "startLine": 1119,
+        "startCharacter": 0,
+        "endLine": 1125,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОжиданииСохраненияНастроекСинхронизации",
+       "kind": "Method",
+       "detail": "(ПараметрыОбработчика, ПродолжитьОжидание)",
+       "range": {
+        "startLine": 1141,
+        "startCharacter": 0,
+        "endLine": 1146,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗавершенииСохраненияНастроекСинхронизации",
+       "kind": "Method",
+       "detail": "(ПараметрыОбработчика, СтатусЗавершения)",
+       "range": {
+        "startLine": 1165,
+        "startCharacter": 0,
+        "endLine": 1170,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОбщиеНастройкиУзловИнформационныхБаз",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1174,
+      "startCharacter": 1,
+      "endLine": 1264,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗавершитьНастройкуСинхронизацииДанных",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 1181,
+        "startCharacter": 0,
+        "endLine": 1221,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкаСинхронизацииЗавершена",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 1231,
+        "startCharacter": 0,
+        "endLine": 1251,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗавершитьСозданиеНачальногоОбраза",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 1258,
+        "startCharacter": 0,
+        "endLine": 1262,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ДляВызоваИзДругихПодсистем",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1266,
+      "startCharacter": 1,
+      "endLine": 1432,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "УзелПланаОбменаПоКоду",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла)",
+       "range": {
+        "startLine": 1281,
+        "startCharacter": 0,
+        "endLine": 1291,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоАвтономноеРабочееМесто",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 1297,
+        "startCharacter": 0,
+        "endLine": 1301,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоУзелАвтономногоРабочегоМеста",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 1311,
+        "startCharacter": 0,
+        "endLine": 1315,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьЗаписиСостоянияОбменовДанными",
+       "kind": "Method",
+       "detail": "(СтруктураЗаписи)",
+       "range": {
+        "startLine": 1322,
+        "startCharacter": 0,
+        "endLine": 1326,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьЗаписиСостоянияУспешныхОбменовДанными",
+       "kind": "Method",
+       "detail": "(СтруктураЗаписи)",
+       "range": {
+        "startLine": 1333,
+        "startCharacter": 0,
+        "endLine": 1337,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьПоставляемыеПравила",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 1344,
+        "startCharacter": 0,
+        "endLine": 1348,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьПоставляемыеПравила",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИмяФайлаПравил)",
+       "range": {
+        "startLine": 1356,
+        "startCharacter": 0,
+        "endLine": 1360,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВариантыНастроекОбменаДляКорреспондента",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ВерсияКорреспондента, ИмяКорреспондента)",
+       "range": {
+        "startLine": 1373,
+        "startCharacter": 0,
+        "endLine": 1382,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВариантНастройкиОбменаДляКорреспондента",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИмяКорреспондента)",
+       "range": {
+        "startLine": 1394,
+        "startCharacter": 0,
+        "endLine": 1403,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьПоставляемыеПравилаРегистрацииОбъектов",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 1410,
+        "startCharacter": 0,
+        "endLine": 1414,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьПоставляемыеПравилаРегистрацииОбъектов",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИмяФайлаПравил)",
+       "range": {
+        "startLine": 1422,
+        "startCharacter": 0,
+        "endLine": 1428,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "УстаревшиеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1434,
+      "startCharacter": 1,
+      "endLine": 1649,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ДополнитьНастройкиТранспортаКоличествомЭлементовВТранзакции",
+       "kind": "Method",
+       "detail": "(Результат)",
+       "range": {
+        "startLine": 1442,
+        "startCharacter": 0,
+        "endLine": 1446,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НомерОбластиИзКодаУзлаПланаОбмена",
+       "kind": "Method",
+       "detail": "(КодУзла)",
+       "range": {
+        "startLine": 1456,
+        "startCharacter": 0,
+        "endLine": 1460,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РезультатЗапросаВСтруктуру",
+       "kind": "Method",
+       "detail": "(РезультатЗапроса)",
+       "range": {
+        "startLine": 1470,
+        "startCharacter": 0,
+        "endLine": 1474,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПереопределяемоеИмяУзлаПланаОбмена",
+       "kind": "Method",
+       "detail": "(УзелПланаОбмена, ИмяПараметраСИменемУзла, ВариантНастройки?)",
+       "range": {
+        "startLine": 1494,
+        "startCharacter": 0,
+        "endLine": 1507,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоНерассмотренныхПроблем",
+       "kind": "Method",
+       "detail": "(Узлы?)",
+       "range": {
+        "startLine": 1519,
+        "startCharacter": 0,
+        "endLine": 1523,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СтруктураЗаголовкаГиперссылкиМонитораПроблем",
+       "kind": "Method",
+       "detail": "(Узлы?)",
+       "range": {
+        "startLine": 1535,
+        "startCharacter": 0,
+        "endLine": 1558,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьДействиеОбменаДляУзлаИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(Отказ, УзелИнформационнойБазы, ДействиеПриОбмене, ВидТранспортаСообщенийОбмена?, ТолькоПараметры?, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 1576,
+        "startCharacter": 0,
+        "endLine": 1613,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "FTPКаталогСуществует",
+       "kind": "Method",
+       "detail": "(Путь, ИмяКаталога, FTPСоединение)",
+       "range": {
+        "startLine": 1625,
+        "startCharacter": 0,
+        "endLine": 1629,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВсеТранспортыСообщенийОбменаКонфигурации",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 1636,
+        "startCharacter": 0,
+        "endLine": 1647,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ВыполнитьДействиеОбмена",
+     "kind": "Method",
+     "detail": "(Отказ, УзелИнформационнойБазы, ДействиеПриОбмене, ИдентификаторТранспорта?, ДополнительныеПараметры?)",
+     "range": {
+      "startLine": 1664,
+      "startCharacter": 0,
+      "endLine": 1717,
+      "endCharacter": 14
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "СлужебныйПрограммныйИнтерфейс",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 1721,
+    "startCharacter": 1,
+    "endLine": 5891,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "РазличногоНазначения",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 1723,
+      "startCharacter": 1,
+      "endLine": 2993,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗагрузитьПриоритетныеДанныеВПодчиненныйУзелРИБ",
+       "kind": "Method",
+       "detail": "(Отказ?)",
+       "range": {
+        "startLine": 1726,
+        "startCharacter": 0,
+        "endLine": 1841,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВключитьПовторениеЗагрузкиСообщенияОбменаДаннымиПередЗапуском",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 1846,
+        "startCharacter": 0,
+        "endLine": 1852,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализироватьФайлСДаннымиОбновления",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 1857,
+        "startCharacter": 0,
+        "endLine": 1876,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаписатьДанныеДляОбновленияВФайл",
+       "kind": "Method",
+       "detail": "(Параметры, Данные, ВидДанных, ПолноеИмяОбъекта?)",
+       "range": {
+        "startLine": 1880,
+        "startCharacter": 0,
+        "endLine": 1941,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработатьДанныеДляОбновленияВПодчиненномУзле",
+       "kind": "Method",
+       "detail": "(ЗначениеКонстанты)",
+       "range": {
+        "startLine": 1946,
+        "startCharacter": 0,
+        "endLine": 2103,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗавершитьЗаписьФайлаСДаннымиОбновления",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 2108,
+        "startCharacter": 0,
+        "endLine": 2116,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗавершитьЗаписьФайлаИПолучитьДанныеОбновления",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 2127,
+        "startCharacter": 0,
+        "endLine": 2146,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СохранитьДанныеОбновления",
+       "kind": "Method",
+       "detail": "(ДанныеОбновления, ИмяФайлаСИзменениями)",
+       "range": {
+        "startLine": 2155,
+        "startCharacter": 0,
+        "endLine": 2187,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СброситьЗначениеКонстантыСИзменениямиДляПодчиненногоУзлаРИБСФильтрами",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2191,
+        "startCharacter": 0,
+        "endLine": 2195,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкаПодчиненногоУзлаРИБ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2203,
+        "startCharacter": 0,
+        "endLine": 2210,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбновлениеПравилДляОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2217,
+        "startCharacter": 0,
+        "endLine": 2233,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КаталогВременногоХранилищаФайлов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2236,
+        "startCharacter": 0,
+        "endLine": 2241,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьВозможностьАдминистрированияОбменов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2243,
+        "startCharacter": 0,
+        "endLine": 2251,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ГлавныйУзел",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2263,
+        "startCharacter": 0,
+        "endLine": 2278,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриПродолженииНастройкиПодчиненногоУзлаРИБ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2280,
+        "startCharacter": 0,
+        "endLine": 2285,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СинхронизацияДанныхРазрешена",
+       "kind": "Method",
+       "detail": "(Пользователь?)",
+       "range": {
+        "startLine": 2300,
+        "startCharacter": 0,
+        "endLine": 2320,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьТаблицуЗначений",
+       "kind": "Method",
+       "detail": "(Приемник, Источник)",
+       "range": {
+        "startLine": 2328,
+        "startCharacter": 0,
+        "endLine": 2349,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолученоСообщениеСДаннымиДляСопоставления",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 2351,
+        "startCharacter": 0,
+        "endLine": 2379,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КодУзлаПланаОбменаСтрокой",
+       "kind": "Method",
+       "detail": "(Значение)",
+       "range": {
+        "startLine": 2381,
+        "startCharacter": 0,
+        "endLine": 2394,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗащищенноеСоединение",
+       "kind": "Method",
+       "detail": "(Путь)",
+       "range": {
+        "startLine": 2405,
+        "startCharacter": 0,
+        "endLine": 2409,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьДанныеДляНачальнойВыгрузки",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, Данные?, УдалитьРегистрациюСоответствий?)",
+       "range": {
+        "startLine": 2411,
+        "startCharacter": 0,
+        "endLine": 2451,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьТолькоСправочникиДляНачальнойВыгрузки",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 2453,
+        "startCharacter": 0,
+        "endLine": 2457,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьТолькоСправочникиДляНачальнойВыгрузкиВФоне",
+       "kind": "Method",
+       "detail": "(ПараметрыПроцедуры, АдресХранилища)",
+       "range": {
+        "startLine": 2459,
+        "startCharacter": 0,
+        "endLine": 2463,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьВсеДанныеКромеСправочниковДляНачальнойВыгрузки",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 2465,
+        "startCharacter": 0,
+        "endLine": 2469,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьВсеДанныеКромеСправочниковДляНачальнойВыгрузкиВФоне",
+       "kind": "Method",
+       "detail": "(ПараметрыПроцедуры, АдресХранилища)",
+       "range": {
+        "startLine": 2471,
+        "startCharacter": 0,
+        "endLine": 2475,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДанныеДляТабличныхЧастейУзловЭтойИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ВерсияКорреспондента?, ИдентификаторНастройки?)",
+       "range": {
+        "startLine": 2477,
+        "startCharacter": 0,
+        "endLine": 2529,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьЗначенияНастройкиОтборов",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекВнешнегоСоединения)",
+       "range": {
+        "startLine": 2531,
+        "startCharacter": 0,
+        "endLine": 2661,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, СообщениеОбОшибке, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 2663,
+        "startCharacter": 0,
+        "endLine": 2768,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ТребуетсяУстановкаОбновления",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2776,
+        "startCharacter": 0,
+        "endLine": 2781,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыКонтекстаПолученияВариантовНастроек",
+       "kind": "Method",
+       "detail": "(ИмяКорреспондента, ВерсияКорреспондента, КорреспондентВМоделиСервиса)",
+       "range": {
+        "startLine": 2797,
+        "startCharacter": 0,
+        "endLine": 2806,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоллекцияВариантовНастроекОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2818,
+        "startCharacter": 0,
+        "endLine": 2827,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеСтандартныхВариантовДополненияВыгрузки",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2838,
+        "startCharacter": 0,
+        "endLine": 2849,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьВозможностьЗапускаОбмена",
+       "kind": "Method",
+       "detail": "(УзелОбмена, Отказ)",
+       "range": {
+        "startLine": 2851,
+        "startCharacter": 0,
+        "endLine": 2873,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоТехническийОбъект",
+       "kind": "Method",
+       "detail": "(ПолноеИмяОбъекта)",
+       "range": {
+        "startLine": 2875,
+        "startCharacter": 0,
+        "endLine": 2891,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыИнформационнойБазы_20",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, СообщениеОбОшибке, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 2893,
+        "startCharacter": 0,
+        "endLine": 2932,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КодПредопределенногоУзлаПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 2942,
+        "startCharacter": 0,
+        "endLine": 2950,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "АктуализироватьРегламентныеЗадания",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 2952,
+        "startCharacter": 0,
+        "endLine": 2991,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОберткиДляРаботыСПрограммнымИнтерфейсомМенеджераПланаОбмена",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 2995,
+      "startCharacter": 1,
+      "endLine": 3066,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "НастройкаОтборовНаУзле",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ВерсияКорреспондента, ИдентификаторНастройки?)",
+       "range": {
+        "startLine": 2997,
+        "startCharacter": 0,
+        "endLine": 3014,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеОграниченийПередачиДанных",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, Настройка, ВерсияКорреспондента, ИдентификаторНастройки?)",
+       "range": {
+        "startLine": 3016,
+        "startCharacter": 0,
+        "endLine": 3026,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьАлгоритмМенеджераПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяАлгоритма, ИмяПланаОбмена)",
+       "range": {
+        "startLine": 3036,
+        "startCharacter": 0,
+        "endLine": 3045,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьАктивныеФоновыеЗадания",
+       "kind": "Method",
+       "detail": "(КлючФоновогоЗадания, АктивныеФоновыеЗадания?)",
+       "range": {
+        "startLine": 3047,
+        "startCharacter": 0,
+        "endLine": 3057,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КлючФоновогоЗадания",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, Действие)",
+       "range": {
+        "startLine": 3059,
+        "startCharacter": 0,
+        "endLine": 3064,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПрогрессБар",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 3068,
+      "startCharacter": 1,
+      "endLine": 3363,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "РассчитатьПроцентВыгрузки",
+       "kind": "Method",
+       "detail": "(КоличествоВыгруженных, КоличествоОбъектовКВыгрузке)",
+       "range": {
+        "startLine": 3076,
+        "startCharacter": 0,
+        "endLine": 3102,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьПроцентЗагрузки",
+       "kind": "Method",
+       "detail": "(КоличествоЗагруженных, КоличествоОбъектовКЗагрузке, РазмерФайлаСообщенияОбмена)",
+       "range": {
+        "startLine": 3111,
+        "startCharacter": 0,
+        "endLine": 3146,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьПроцентВыгрузкиРИБ",
+       "kind": "Method",
+       "detail": "(Получатель, СозданиеНачальногоОбраза)",
+       "range": {
+        "startLine": 3154,
+        "startCharacter": 0,
+        "endLine": 3197,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьПроцентЗагрузкиРИБ",
+       "kind": "Method",
+       "detail": "(Отправитель)",
+       "range": {
+        "startLine": 3204,
+        "startCharacter": 0,
+        "endLine": 3243,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РезультатАнализаДанныхКЗагрузке",
+       "kind": "Method",
+       "detail": "(ИмяФайлаОбмена, ЭтоОбменXDTO, ЭтоОбменРИБ?)",
+       "range": {
+        "startLine": 3259,
+        "startCharacter": 0,
+        "endLine": 3361,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПрофилиБезопасности",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 3365,
+      "startCharacter": 1,
+      "endLine": 3413,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗапросНаИспользованиеВнешнихРесурсовПриВключенииОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3367,
+        "startCharacter": 0,
+        "endLine": 3373,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗапросНаОчисткуРазрешенийИспользованияВнешнихРесурсов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3375,
+        "startCharacter": 0,
+        "endLine": 3411,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "Прочее",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 3415,
+      "startCharacter": 1,
+      "endLine": 4032,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ИдентификаторЭтогоУзлаДляОбмена",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 3417,
+        "startCharacter": 0,
+        "endLine": 3439,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИдентификаторУзлаКорреспондентаДляОбмена",
+       "kind": "Method",
+       "detail": "(УзелОбмена)",
+       "range": {
+        "startLine": 3441,
+        "startCharacter": 0,
+        "endLine": 3458,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоРазделенныйПланОбменаБСП",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 3468,
+        "startCharacter": 0,
+        "endLine": 3472,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыбратьИзменения",
+       "kind": "Method",
+       "detail": "(Узел, НомерСообщения, ФильтрВыборки?)",
+       "range": {
+        "startLine": 3485,
+        "startCharacter": 0,
+        "endLine": 3492,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СтруктураПараметровWS",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3494,
+        "startCharacter": 0,
+        "endLine": 3503,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ТаблицаМонитораОбменаДанными",
+       "kind": "Method",
+       "detail": "(ПланыОбмена, ДополнительныеСвойстваПланаОбмена?)",
+       "range": {
+        "startLine": 3505,
+        "startCharacter": 0,
+        "endLine": 3630,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьВозможностьВыполненияОбменов",
+       "kind": "Method",
+       "detail": "(ПриложениеВИнтернете?)",
+       "range": {
+        "startLine": 3632,
+        "startCharacter": 0,
+        "endLine": 3692,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьИспользованиеОбменаДанными",
+       "kind": "Method",
+       "detail": "(УстановитьИспользование?)",
+       "range": {
+        "startLine": 3694,
+        "startCharacter": 0,
+        "endLine": 3718,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3720,
+        "startCharacter": 0,
+        "endLine": 3739,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьWSПроксиПоПараметрамПодключения",
+       "kind": "Method",
+       "detail": "(СтруктураНастроек, СтрокаСообщенияОбОшибке?, СообщениеПользователю?, ДелатьКонтрольныйВызов?)",
+       "range": {
+        "startLine": 3759,
+        "startCharacter": 0,
+        "endLine": 3773,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоПланОбменаXDTO",
+       "kind": "Method",
+       "detail": "(ПланОбмена)",
+       "range": {
+        "startLine": 3783,
+        "startCharacter": 0,
+        "endLine": 3787,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьНастройкуСинхронизации",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 3794,
+        "startCharacter": 0,
+        "endLine": 3829,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьНастройкиСинхронизацииСГлавнымУзломРИБ",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 3836,
+        "startCharacter": 0,
+        "endLine": 3847,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьОбменДаннымиЗагрузка",
+       "kind": "Method",
+       "detail": "(Объект, Значение?, ОтправкаНазад?, УзелОбмена?)",
+       "range": {
+        "startLine": 3857,
+        "startCharacter": 0,
+        "endLine": 3874,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НазначениеПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 3876,
+        "startCharacter": 0,
+        "endLine": 3880,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьДвиженияУДокумента",
+       "kind": "Method",
+       "detail": "(ДокументОбъект)",
+       "range": {
+        "startLine": 3887,
+        "startCharacter": 0,
+        "endLine": 3969,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьСообщениеОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3976,
+        "startCharacter": 0,
+        "endLine": 3982,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализацияТаблицыОтборПоСвойствамПланаОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 3989,
+        "startCharacter": 0,
+        "endLine": 3993,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализацияТаблицыОтборПоСвойствамОбъекта",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4000,
+        "startCharacter": 0,
+        "endLine": 4004,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СоздатьВременныйКаталогСообщенийОбмена",
+       "kind": "Method",
+       "detail": "(ИдентификаторКаталога?)",
+       "range": {
+        "startLine": 4006,
+        "startCharacter": 0,
+        "endLine": 4021,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОткрытьПомощникСозданияОбменаДаннымиДляНастройкиПодчиненногоУзла",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4023,
+        "startCharacter": 0,
+        "endLine": 4030,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОбработчикиСобытийПодсистемКонфигурации",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 4034,
+      "startCharacter": 1,
+      "endLine": 4339,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПриДобавленииОбработчиковОбновления",
+       "kind": "Method",
+       "detail": "(Обработчики)",
+       "range": {
+        "startLine": 4037,
+        "startCharacter": 0,
+        "endLine": 4122,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПередОбновлениемИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(ПриЗапускеКлиентскогоПриложения, Перезапустить)",
+       "range": {
+        "startLine": 4125,
+        "startCharacter": 0,
+        "endLine": 4137,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПослеОбновленияИнформационнойБазы",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4140,
+        "startCharacter": 0,
+        "endLine": 4150,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОпределенииОбъектовСРедактируемымиРеквизитами",
+       "kind": "Method",
+       "detail": "(Объекты)",
+       "range": {
+        "startLine": 4153,
+        "startCharacter": 0,
+        "endLine": 4155,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриВключенииРазделенияПоОбластямДанных",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4158,
+        "startCharacter": 0,
+        "endLine": 4166,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриДобавленииОбработчиковУстановкиПараметровСеанса",
+       "kind": "Method",
+       "detail": "(Обработчики)",
+       "range": {
+        "startLine": 4169,
+        "startCharacter": 0,
+        "endLine": 4179,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОпределенииПоддерживаемыхВерсийПрограммныхИнтерфейсов",
+       "kind": "Method",
+       "detail": "(СтруктураПоддерживаемыхВерсий)",
+       "range": {
+        "startLine": 4182,
+        "startCharacter": 0,
+        "endLine": 4192,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриДобавленииПараметровРаботыКлиентаПриЗапуске",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 4195,
+        "startCharacter": 0,
+        "endLine": 4228,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриДобавленииПараметровРаботыКлиента",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 4231,
+        "startCharacter": 0,
+        "endLine": 4237,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииПоставляемыхПрофилейГруппДоступа",
+       "kind": "Method",
+       "detail": "(ОписанияПрофилей, ПараметрыОбновления)",
+       "range": {
+        "startLine": 4240,
+        "startCharacter": 0,
+        "endLine": 4259,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииСпискаТекущихДел",
+       "kind": "Method",
+       "detail": "(ТекущиеДела)",
+       "range": {
+        "startLine": 4264,
+        "startCharacter": 0,
+        "endLine": 4275,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОпределенииНастроекРегламентныхЗаданий",
+       "kind": "Method",
+       "detail": "(Настройки)",
+       "range": {
+        "startLine": 4278,
+        "startCharacter": 0,
+        "endLine": 4288,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриДобавленииПереименованийОбъектовМетаданных",
+       "kind": "Method",
+       "detail": "(Итог)",
+       "range": {
+        "startLine": 4291,
+        "startCharacter": 0,
+        "endLine": 4298,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриДобавленииИсключенийПоискаСсылок",
+       "kind": "Method",
+       "detail": "(ИсключенияПоискаСсылок)",
+       "range": {
+        "startLine": 4301,
+        "startCharacter": 0,
+        "endLine": 4306,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииРазрешенийНаДоступКВнешнимРесурсам",
+       "kind": "Method",
+       "detail": "(ЗапросыРазрешений)",
+       "range": {
+        "startLine": 4309,
+        "startCharacter": 0,
+        "endLine": 4317,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриРегистрацииМенеджеровВнешнихМодулей",
+       "kind": "Method",
+       "detail": "(Менеджеры)",
+       "range": {
+        "startLine": 4320,
+        "startCharacter": 0,
+        "endLine": 4324,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОпределенииПсевдонимовОбработчиков",
+       "kind": "Method",
+       "detail": "(СоответствиеИменПсевдонимам)",
+       "range": {
+        "startLine": 4327,
+        "startCharacter": 0,
+        "endLine": 4332,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОпределенииОбъектовИсключаемыхИзПроверки",
+       "kind": "Method",
+       "detail": "(Объекты)",
+       "range": {
+        "startLine": 4335,
+        "startCharacter": 0,
+        "endLine": 4337,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ФункцииСвойства",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 4341,
+      "startCharacter": 1,
+      "endLine": 4424,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "СобытиеЖурналаРегистрацииЗагрузкаПравилДляОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4346,
+        "startCharacter": 0,
+        "endLine": 4350,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииСозданиеОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4355,
+        "startCharacter": 0,
+        "endLine": 4359,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииУдалениеОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4364,
+        "startCharacter": 0,
+        "endLine": 4368,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииРегистрацияДанныхДляНачальнойВыгрузки",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4373,
+        "startCharacter": 0,
+        "endLine": 4377,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииВыгрузкаДанныхДляСопоставления",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4382,
+        "startCharacter": 0,
+        "endLine": 4386,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииУдалениеВременногоФайла",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4391,
+        "startCharacter": 0,
+        "endLine": 4395,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииОбменДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4400,
+        "startCharacter": 0,
+        "endLine": 4404,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииВыгрузкаДанныхВСервисПередачиФайлов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4409,
+        "startCharacter": 0,
+        "endLine": 4413,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СобытиеЖурналаРегистрацииЗагрузкаДанныхИзСервисаПередачиФайлов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4418,
+        "startCharacter": 0,
+        "endLine": 4422,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ИнициализацияСтруктурыНастроекОбмена",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 4426,
+      "startCharacter": 1,
+      "endLine": 4728,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПсевдонимПредопределенногоУзла",
+       "kind": "Method",
+       "detail": "(УзелКорреспондента)",
+       "range": {
+        "startLine": 4428,
+        "startCharacter": 0,
+        "endLine": 4452,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкиОбменаДляУзлаИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ДействиеПриОбмене, ИдентификаторТранспорта?, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 4468,
+        "startCharacter": 0,
+        "endLine": 4523,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СтруктураНастроекОбменаБазовая",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4586,
+        "startCharacter": 0,
+        "endLine": 4653,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПараметрыИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, СообщениеОбОшибке)",
+       "range": {
+        "startLine": 4655,
+        "startCharacter": 0,
+        "endLine": 4659,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СвойстваОбъектаМетаданных",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 4661,
+        "startCharacter": 0,
+        "endLine": 4671,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьОбъектыТаблицы",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 4673,
+        "startCharacter": 0,
+        "endLine": 4702,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДанныеКорреспондента",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 4704,
+        "startCharacter": 0,
+        "endLine": 4712,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьНезначащиеСимволыВНастройкахПодключения",
+       "kind": "Method",
+       "detail": "(Настройки)",
+       "range": {
+        "startLine": 4714,
+        "startCharacter": 0,
+        "endLine": 4726,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ДляРаботыЧерезВнешнееСоединение",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 4730,
+      "startCharacter": 1,
+      "endLine": 5451,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ВыполнитьВыгрузкуДляУзлаИнформационнойБазыЧерезФайл",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзлаИнформационнойБазы, ПолноеИмяФайлаСообщенияОбмена)",
+       "range": {
+        "startLine": 4732,
+        "startCharacter": 0,
+        "endLine": 4743,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьВыгрузкуДляУзлаИнформационнойБазыВоВременноеХранилище",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзлаИнформационнойБазы, Адрес)",
+       "range": {
+        "startLine": 4745,
+        "startCharacter": 0,
+        "endLine": 4762,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыОбменаДаннымиЧерезФайлИлиСтроку",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4764,
+        "startCharacter": 0,
+        "endLine": 4778,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбменДаннымиДляУзлаИнформационнойБазыЧерезФайлИлиСтроку",
+       "kind": "Method",
+       "detail": "(ПараметрыОбмена)",
+       "range": {
+        "startLine": 4780,
+        "startCharacter": 0,
+        "endLine": 4903,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаписатьСообщениеСИзменениямиДляУзла",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена, ИмяФайлаСообщенияОбмена?, СообщениеОбмена?)",
+       "range": {
+        "startLine": 4910,
+        "startCharacter": 0,
+        "endLine": 5053,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПрочитатьСообщениеСИзменениямиДляУзла",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена, ИмяФайлаСообщенияОбмена?, СообщениеОбмена?)",
+       "range": {
+        "startLine": 5060,
+        "startCharacter": 0,
+        "endLine": 5182,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьВыгрузкуДляУзлаИнформационнойБазыЧерезСтроку",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзлаИнформационнойБазы, СообщениеОбмена)",
+       "range": {
+        "startLine": 5184,
+        "startCharacter": 0,
+        "endLine": 5197,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьЗагрузкуДляУзлаИнформационнойБазыЧерезСтроку",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзлаИнформационнойБазы, СообщениеОбмена)",
+       "range": {
+        "startLine": 5199,
+        "startCharacter": 0,
+        "endLine": 5212,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВнешнееСоединениеОбновитьНастройкиОбменаДанными",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, ЗначенияПоУмолчаниюНаУзле)",
+       "range": {
+        "startLine": 5214,
+        "startCharacter": 0,
+        "endLine": 5230,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИмяКаталогаДляСопоставленияФайловаяИБ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5232,
+        "startCharacter": 0,
+        "endLine": 5237,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолноеИмяФайлаДляСопоставленияФайловаяИБ",
+       "kind": "Method",
+       "detail": "(ИмяФайла)",
+       "range": {
+        "startLine": 5239,
+        "startCharacter": 0,
+        "endLine": 5243,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьНастройкиРежимаОтладкиДляСтруктуры",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена, ЭтоВнешнееСоединение?)",
+       "range": {
+        "startLine": 5247,
+        "startCharacter": 0,
+        "endLine": 5320,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьОбщиеПараметрыДляОбработкиОбменаДанными",
+       "kind": "Method",
+       "detail": "(ОбработкаОбменаДанными, СтруктураНастроекОбмена, ОбменСБСП20?)",
+       "range": {
+        "startLine": 5322,
+        "startCharacter": 0,
+        "endLine": 5338,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроверкуСтруктурыОбменаНаВалидность",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена, ИспользоватьНастройкиТранспорта?)",
+       "range": {
+        "startLine": 5340,
+        "startCharacter": 0,
+        "endLine": 5420,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьИнициализациюОбработкиОбменаПоПравиламКонвертации",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 5422,
+        "startCharacter": 0,
+        "endLine": 5449,
+        "endCharacter": 14
+       },
+       "children": [
+        {
+         "name": "ОбработкаОбменаДанными",
+         "kind": "Variable",
+         "detail": null,
+         "range": {
+          "startLine": 5424,
+          "startCharacter": 7,
+          "endLine": 5424,
+          "endCharacter": 29
+         },
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ИнтерактивноеИзменениеВыгрузки",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 5453,
+      "startCharacter": 1,
+      "endLine": 5540,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиСохранитьНастройки",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки, ПредставлениеНастройки)",
+       "range": {
+        "startLine": 5462,
+        "startCharacter": 0,
+        "endLine": 5491,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнениеВыгрузкиИмяАвтоСохраненияНастроек",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5498,
+        "startCharacter": 0,
+        "endLine": 5500,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиЗарегистрироватьДополнительныеДанные",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 5508,
+        "startCharacter": 0,
+        "endLine": 5538,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОбщегоНазначения",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 5542,
+      "startCharacter": 1,
+      "endLine": 5889,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ИмяВременногоФайлаПроверкиПодключения",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5549,
+        "startCharacter": 0,
+        "endLine": 5553,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РазмерСообщенияОбменаПревышаетДопустимый",
+       "kind": "Method",
+       "detail": "(ИмяФайла, МаксимальныйДопустимыйРазмерСообщения)",
+       "range": {
+        "startLine": 5564,
+        "startCharacter": 0,
+        "endLine": 5591,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьЗавершениеОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 5598,
+        "startCharacter": 0,
+        "endLine": 5637,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьНачалоОбменаВРегистреСведений",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 5639,
+        "startCharacter": 0,
+        "endLine": 5649,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаписьЖурналаРегистрацииОбменаДанными",
+       "kind": "Method",
+       "detail": "(Комментарий, СтруктураНастроекОбмена, ЭтоОшибка?)",
+       "range": {
+        "startLine": 5653,
+        "startCharacter": 0,
+        "endLine": 5669,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РезультатВыполненияОбменаВыполнено",
+       "kind": "Method",
+       "detail": "(РезультатВыполненияОбмена)",
+       "range": {
+        "startLine": 5679,
+        "startCharacter": 0,
+        "endLine": 5685,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УникальноеИмяФайлаСообщенияОбмена",
+       "kind": "Method",
+       "detail": "(Расширение?)",
+       "range": {
+        "startLine": 5687,
+        "startCharacter": 0,
+        "endLine": 5694,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НайтиИмяПланаОбменаЧерезУниверсальныйФормат",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИдентификаторНастройки)",
+       "range": {
+        "startLine": 5696,
+        "startCharacter": 0,
+        "endLine": 5724,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "Пауза",
+       "kind": "Method",
+       "detail": "(Секунд)",
+       "range": {
+        "startLine": 5732,
+        "startCharacter": 0,
+        "endLine": 5747,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "МодульПомощникНастройкиСинхронизацииДанныхМеждуПриложениямиВИнтернете",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5749,
+        "startCharacter": 0,
+        "endLine": 5757,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "МодульПомощникИнтерактивногоОбменаДаннымиВМоделиСервиса",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5759,
+        "startCharacter": 0,
+        "endLine": 5767,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "МодульПомощникСозданияОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5769,
+        "startCharacter": 0,
+        "endLine": 5773,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "МодульПомощникИнтерактивногоОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5775,
+        "startCharacter": 0,
+        "endLine": 5779,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьФайлИзХранилища",
+       "kind": "Method",
+       "detail": "(ИдентификаторФайла, ПассивныйРежимФайловаяИБ?, УдалитьФайлИзХранилища?)",
+       "range": {
+        "startLine": 5792,
+        "startCharacter": 0,
+        "endLine": 5816,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПоместитьФайлВХранилище",
+       "kind": "Method",
+       "detail": "(ИмяФайла, ИдентификаторФайла?)",
+       "range": {
+        "startLine": 5828,
+        "startCharacter": 0,
+        "endLine": 5852,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КлючСообщенияЖурналаРегистрации",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ДействиеПриОбмене)",
+       "range": {
+        "startLine": 5863,
+        "startCharacter": 0,
+        "endLine": 5875,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоЭлементовВТранзакцииВыполняемогоДействия",
+       "kind": "Method",
+       "detail": "(Действие)",
+       "range": {
+        "startLine": 5877,
+        "startCharacter": 0,
+        "endLine": 5887,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "СлужебныеПроцедурыИФункции",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 5893,
+    "startCharacter": 1,
+    "endLine": 13382,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ОбщиеМетодыМеханизмовКонвертацииДанных",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 5895,
+      "startCharacter": 1,
+      "endLine": 6252,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПредопределенныеУзлыПлановОбменаБСП",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5897,
+        "startCharacter": 0,
+        "endLine": 5907,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверкаДатЗапретаОтключена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5909,
+        "startCharacter": 0,
+        "endLine": 5918,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОтключитьПроверкуДатЗапрета",
+       "kind": "Method",
+       "detail": "(Отключить?)",
+       "range": {
+        "startLine": 5920,
+        "startCharacter": 0,
+        "endLine": 5927,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОтложенноеПроведениеДокументов",
+       "kind": "Method",
+       "detail": "(ДокументыДляОтложенногоПроведения, УзелКорреспондента, ДополнительныеСвойстваДляОтложенногоПроведения?, КомпонентыОбмена?)",
+       "range": {
+        "startLine": 5929,
+        "startCharacter": 0,
+        "endLine": 5986,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроведениеДокументаПриЗагрузке",
+       "kind": "Method",
+       "detail": "(УзелКорреспондента, ДокументСсылка, РегистрироватьПроблемыВРезультатахОбмена, ДополнительныеСвойстваОбъекта?)",
+       "range": {
+        "startLine": 5988,
+        "startCharacter": 0,
+        "endLine": 6051,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОтложеннуюЗаписьОбъектов",
+       "kind": "Method",
+       "detail": "(ОбъектыДляОтложеннойЗаписи, УзелКорреспондента, КомпонентыОбмена?)",
+       "range": {
+        "startLine": 6053,
+        "startCharacter": 0,
+        "endLine": 6159,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаблокироватьУзелОбмена",
+       "kind": "Method",
+       "detail": "(УзелОбмена, Отказ)",
+       "range": {
+        "startLine": 6161,
+        "startCharacter": 0,
+        "endLine": 6183,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПередВыполнениемОбменов",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, Отказ)",
+       "range": {
+        "startLine": 6185,
+        "startCharacter": 0,
+        "endLine": 6191,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПослеВыполненияОбменов",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, Отказ)",
+       "range": {
+        "startLine": 6193,
+        "startCharacter": 0,
+        "endLine": 6197,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РазблокироватьУзелОбмена",
+       "kind": "Method",
+       "detail": "(УзелОбмена, Отказ)",
+       "range": {
+        "startLine": 6199,
+        "startCharacter": 0,
+        "endLine": 6221,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьСообщениеДляСопоставления",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ВыполняемоеДействие)",
+       "range": {
+        "startLine": 6223,
+        "startCharacter": 0,
+        "endLine": 6250,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОбновлениеИнформационнойБазы",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6254,
+      "startCharacter": 1,
+      "endLine": 6420,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "УстановитьКоличествоЭлементовВТранзакцииЗагрузкиДанныхПоУмолчанию",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6256,
+        "startCharacter": 0,
+        "endLine": 6263,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьОбработчикиРазделенныхДанных",
+       "kind": "Method",
+       "detail": "(Параметры?)",
+       "range": {
+        "startLine": 6271,
+        "startCharacter": 0,
+        "endLine": 6281,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьКодыПредопределенныхУзлов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6283,
+        "startCharacter": 0,
+        "endLine": 6374,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьРольНастройкаСинхронизацииДанных",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6377,
+        "startCharacter": 0,
+        "endLine": 6391,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НастроитьАрхивированиеСообщенийАРМ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6393,
+        "startCharacter": 0,
+        "endLine": 6418,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "СообщенияОбменов",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6422,
+      "startCharacter": 1,
+      "endLine": 6582,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "УдалитьНеактуальныеСообщенияОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6432,
+        "startCharacter": 0,
+        "endLine": 6526,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыгрузитьСообщениеПослеОбновленияИнформационнойБазы",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6531,
+        "startCharacter": 0,
+        "endLine": 6580,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ВыполнениеОбменаМетодамиСериализации",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6584,
+      "startCharacter": 1,
+      "endLine": 7078,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ВыполнитьСтандартнуюВыгрузкуИзмененийДляУзла",
+       "kind": "Method",
+       "detail": "(Отказ, УзелИнформационнойБазы, ИмяФайла, СообщениеОбмена, КоличествоЭлементовВТранзакции?, КлючСообщенияЖурналаРегистрации?, КоличествоОбъектовОбработано?)",
+       "range": {
+        "startLine": 6589,
+        "startCharacter": 0,
+        "endLine": 6677,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьСтандартнуюВыгрузкуПорцииДанных",
+       "kind": "Method",
+       "detail": "(ВыборкаИзменений, ПараметрыВыгрузки, ПродолжитьВыгрузку)",
+       "range": {
+        "startLine": 6679,
+        "startCharacter": 0,
+        "endLine": 6727,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыгрузитьТаблицуПредопределенных",
+       "kind": "Method",
+       "detail": "(ПараметрыВыгрузки)",
+       "range": {
+        "startLine": 6729,
+        "startCharacter": 0,
+        "endLine": 6761,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьСтандартнуюЗагрузкуИзмененийДляУзла",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ИмяФайла, СообщениеОбмена, КоличествоЭлементовВТранзакции, КлючСообщенияЖурналаРегистрации, КоличествоОбъектовОбработано, РезультатВыполненияОбмена)",
+       "range": {
+        "startLine": 6766,
+        "startCharacter": 0,
+        "endLine": 6897,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьИсходныеСсылкиВТаблицеПредопределенныхДанных",
+       "kind": "Method",
+       "detail": "(ПараметрыЗагрузки, СообщениеОбОшибке)",
+       "range": {
+        "startLine": 6899,
+        "startCharacter": 0,
+        "endLine": 6951,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализироватьЧтениеСообщенияДляСтандартнойЗагрузки",
+       "kind": "Method",
+       "detail": "(ПараметрыЗагрузки, РезультатВыполненияОбмена, СообщениеОбОшибке)",
+       "range": {
+        "startLine": 6953,
+        "startCharacter": 0,
+        "endLine": 6994,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьСтандартнуюЗагрузкуПорцииДанных",
+       "kind": "Method",
+       "detail": "(ПараметрыЗагрузки, ПродолжитьЗагрузку)",
+       "range": {
+        "startLine": 6996,
+        "startCharacter": 0,
+        "endLine": 7053,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработатьСекциюПредопределенныхДанныхВСообщенииОбмена",
+       "kind": "Method",
+       "detail": "(ЧтениеXML, ТаблицаПредопределенных)",
+       "range": {
+        "startLine": 7055,
+        "startCharacter": 0,
+        "endLine": 7076,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ФункцииСвойства",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7080,
+      "startCharacter": 1,
+      "endLine": 7155,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПолноеИмяФайлаДанныхОтложенногоОбновления",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7082,
+        "startCharacter": 0,
+        "endLine": 7086,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИмяВременногоКаталогаСообщенийОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7099,
+        "startCharacter": 0,
+        "endLine": 7103,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "МаксимальноеКоличествоПолейСопоставленияОбъектов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7110,
+        "startCharacter": 0,
+        "endLine": 7114,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СтрокаНеограниченнойДлины",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7121,
+        "startCharacter": 0,
+        "endLine": 7125,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭлементОтбораСвойствоЗначениеКонстанты",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7132,
+        "startCharacter": 0,
+        "endLine": 7136,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭлементОтбораСвойствоАлгоритмЗначения",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7143,
+        "startCharacter": 0,
+        "endLine": 7147,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоОшибкаНомерСообщенияМеньшеИлиРавенНомеруРанееПринятогоСообщения",
+       "kind": "Method",
+       "detail": "(ОписаниеОшибки)",
+       "range": {
+        "startLine": 7149,
+        "startCharacter": 0,
+        "endLine": 7153,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "СервисПередачиФайлов",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7157,
+      "startCharacter": 1,
+      "endLine": 7209,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПриПолученииФайлаИзХранилища",
+       "kind": "Method",
+       "detail": "(ИдентификаторФайла, ИмяФайла, УдалитьФайлИзХранилища?)",
+       "range": {
+        "startLine": 7167,
+        "startCharacter": 0,
+        "endLine": 7199,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриПомещенииФайлаВХранилище",
+       "kind": "Method",
+       "detail": "(СтруктураЗаписи)",
+       "range": {
+        "startLine": 7203,
+        "startCharacter": 0,
+        "endLine": 7207,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РегистрацияИзмененийНачальнойВыгрузкиДанных",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7211,
+      "startCharacter": 1,
+      "endLine": 7612,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗарегистрироватьДанныеПоДатеНачалаВыгрузкиИОрганизациям",
+       "kind": "Method",
+       "detail": "(Получатель, ДатаНачалаВыгрузки, Организации?, Данные?)",
+       "range": {
+        "startLine": 7242,
+        "startCharacter": 0,
+        "endLine": 7441,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаДокументовПоДатеНачалаВыгрузкиИОрганизациям",
+       "kind": "Method",
+       "detail": "(ПолноеИмяОбъекта, ДатаНачалаВыгрузки, Организации)",
+       "range": {
+        "startLine": 7443,
+        "startCharacter": 0,
+        "endLine": 7462,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаОбъектовПоДатеНачалаВыгрузки",
+       "kind": "Method",
+       "detail": "(ПолноеИмяОбъекта, ДатаНачалаВыгрузки)",
+       "range": {
+        "startLine": 7464,
+        "startCharacter": 0,
+        "endLine": 7481,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаРегистраторовНаборовЗаписейПоДатеНачалаВыгрузкиИОрганизациям",
+       "kind": "Method",
+       "detail": "(ПолноеИмяОбъекта, ДатаНачалаВыгрузки, Организации)",
+       "range": {
+        "startLine": 7483,
+        "startCharacter": 0,
+        "endLine": 7502,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаРегистраторовНаборовЗаписейПоДатеНачалаВыгрузки",
+       "kind": "Method",
+       "detail": "(ПолноеИмяОбъекта, ДатаНачалаВыгрузки)",
+       "range": {
+        "startLine": 7504,
+        "startCharacter": 0,
+        "endLine": 7521,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаЗначенийОсновногоОтбораРегистраСведенийПоДатеНачалаВыгрузкиИОрганизациям",
+       "kind": "Method",
+       "detail": "(ОсновнойОтбор, ПолноеИмяОбъекта, ДатаНачалаВыгрузки, Организации)",
+       "range": {
+        "startLine": 7523,
+        "startCharacter": 0,
+        "endLine": 7546,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаЗначенийОсновногоОтбораРегистраСведенийПоДатеНачалаВыгрузки",
+       "kind": "Method",
+       "detail": "(ОсновнойОтбор, ПолноеИмяОбъекта, ДатаНачалаВыгрузки)",
+       "range": {
+        "startLine": 7548,
+        "startCharacter": 0,
+        "endLine": 7566,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыборкаЗначенийОсновногоОтбораРегистраСведенийПоОрганизациям",
+       "kind": "Method",
+       "detail": "(ОсновнойОтбор, ПолноеИмяОбъекта, Организации)",
+       "range": {
+        "startLine": 7568,
+        "startCharacter": 0,
+        "endLine": 7586,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОсновнойОтборРегистраСведений",
+       "kind": "Method",
+       "detail": "(ОбъектМетаданных)",
+       "range": {
+        "startLine": 7588,
+        "startCharacter": 0,
+        "endLine": 7610,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОберткиДляРаботыСПрограммнымИнтерфейсомМенеджераПланаОбмена",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7614,
+      "startCharacter": 1,
+      "endLine": 7684,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ОбщиеДанныеУзлов",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ВерсияКорреспондента, ИдентификаторНастройки)",
+       "range": {
+        "startLine": 7616,
+        "startCharacter": 0,
+        "endLine": 7628,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкиПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ВерсияКорреспондента, ИмяКорреспондента, КорреспондентВМоделиСервиса)",
+       "range": {
+        "startLine": 7639,
+        "startCharacter": 0,
+        "endLine": 7659,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеВариантаНастройки",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИдентификаторНастройки, ВерсияКорреспондента, ИмяКорреспондента)",
+       "range": {
+        "startLine": 7672,
+        "startCharacter": 0,
+        "endLine": 7682,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "КонтрольНеразделенныхДанных",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7686,
+      "startCharacter": 1,
+      "endLine": 7723,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ВыполнитьКонтрольЗаписиНеразделенныхДанных",
+       "kind": "Method",
+       "detail": "(Данные)",
+       "range": {
+        "startLine": 7690,
+        "startCharacter": 0,
+        "endLine": 7706,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоРазделенныйОбъект",
+       "kind": "Method",
+       "detail": "(Объект)",
+       "range": {
+        "startLine": 7708,
+        "startCharacter": 0,
+        "endLine": 7721,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РаботаСМониторомОбменаДанными",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7725,
+      "startCharacter": 1,
+      "endLine": 7881,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "СостоянияОбменовДаннымиДляУзлаИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 7735,
+        "startCharacter": 0,
+        "endLine": 7829,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СостоянияОбменовДанными",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ДействиеПриОбмене)",
+       "range": {
+        "startLine": 7839,
+        "startCharacter": 0,
+        "endLine": 7879,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ИнициализацияСеанса",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7883,
+      "startCharacter": 1,
+      "endLine": 8132,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПолучитьИспользуемыеПланыОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7891,
+        "startCharacter": 0,
+        "endLine": 7908,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПравилаРегистрацииОбъектов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7915,
+        "startCharacter": 0,
+        "endLine": 7973,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализацияТаблицыПравилРегистрацииОбъектов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7975,
+        "startCharacter": 0,
+        "endLine": 8021,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПланОбменаНеСодержитУзлов",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 8023,
+        "startCharacter": 0,
+        "endLine": 8037,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьЗначенияСвойствДляТаблицыЗначенийПРО",
+       "kind": "Method",
+       "detail": "(ТаблицаПриемник, ТаблицаИсточник)",
+       "range": {
+        "startLine": 8039,
+        "startCharacter": 0,
+        "endLine": 8047,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеПравилСинхронизацииДанных",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 8049,
+        "startCharacter": 0,
+        "endLine": 8066,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗначенияНастроекОтборовНаУзле",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ВерсияКорреспондента)",
+       "range": {
+        "startLine": 8068,
+        "startCharacter": 0,
+        "endLine": 8103,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьРежимЗагрузкиСообщенияОбменаДаннымиПередЗапуском",
+       "kind": "Method",
+       "detail": "(Свойство, ВключитьРежим)",
+       "range": {
+        "startLine": 8105,
+        "startCharacter": 0,
+        "endLine": 8130,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РаботаСМониторомПроблемОбменаДанными",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 8134,
+      "startCharacter": 1,
+      "endLine": 8357,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "КоличествоПроблемОбменаДанными",
+       "kind": "Method",
+       "detail": "(УзлыОбмена?)",
+       "range": {
+        "startLine": 8136,
+        "startCharacter": 0,
+        "endLine": 8150,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоПроблемВерсионирования",
+       "kind": "Method",
+       "detail": "(УзлыОбмена?, ПараметрыЗапроса?)",
+       "range": {
+        "startLine": 8152,
+        "startCharacter": 0,
+        "endLine": 8172,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыЗапросаКоличествоПроблемВерсионирования",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8174,
+        "startCharacter": 0,
+        "endLine": 8185,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьОшибкуПроведенияДокумента",
+       "kind": "Method",
+       "detail": "(Объект, УзелОбмена, ТекстИсключения, РегистрироватьПроблемыВРезультатахОбмена?)",
+       "range": {
+        "startLine": 8219,
+        "startCharacter": 0,
+        "endLine": 8274,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗарегистрироватьОшибкуЗаписиОбъекта",
+       "kind": "Method",
+       "detail": "(Объект, УзелОбмена, ТекстИсключения)",
+       "range": {
+        "startLine": 8307,
+        "startCharacter": 0,
+        "endLine": 8355,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПрогрессБар",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 8359,
+      "startCharacter": 1,
+      "endLine": 8522,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "РассчитатьКоличествоОбъектовВБазе",
+       "kind": "Method",
+       "detail": "(Получатель)",
+       "range": {
+        "startLine": 8369,
+        "startCharacter": 0,
+        "endLine": 8501,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьКоличествоЗарегистрированныхОбъектов",
+       "kind": "Method",
+       "detail": "(Получатель)",
+       "range": {
+        "startLine": 8511,
+        "startCharacter": 0,
+        "endLine": 8520,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РаботаСКонстантойСообщениеОбменаИзГлавногоУзла",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 8524,
+      "startCharacter": 1,
+      "endLine": 8581,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "СообщениеОбменаДаннымиИзГлавногоУзла",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8532,
+        "startCharacter": 0,
+        "endLine": 8536,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьСообщениеОбменаДаннымиИзГлавногоУзла",
+       "kind": "Method",
+       "detail": "(СообщениеОбмена, ГлавныйУзел)",
+       "range": {
+        "startLine": 8545,
+        "startCharacter": 0,
+        "endLine": 8561,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОчиститьСообщениеОбменаДаннымиИзГлавногоУзла",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8565,
+        "startCharacter": 0,
+        "endLine": 8579,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПрофилиБезопасности",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 8583,
+      "startCharacter": 1,
+      "endLine": 8675,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "СформироватьЗапросыНаИспользованиеВнешнихРесурсов",
+       "kind": "Method",
+       "detail": "(ЗапросыРазрешений)",
+       "range": {
+        "startLine": 8585,
+        "startCharacter": 0,
+        "endLine": 8601,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗапросВнешнихРесурсовДляКаталогаСообщенийОбменаДанными",
+       "kind": "Method",
+       "detail": "(ЗапросыРазрешений, Объект)",
+       "range": {
+        "startLine": 8607,
+        "startCharacter": 0,
+        "endLine": 8623,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ШаблонИмениПрофиляБезопасности",
+       "kind": "Method",
+       "detail": "(ВнешнийМодуль)",
+       "range": {
+        "startLine": 8635,
+        "startCharacter": 0,
+        "endLine": 8640,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПиктограммаВнешнегоМодуля",
+       "kind": "Method",
+       "detail": "(ВнешнийМодуль)",
+       "range": {
+        "startLine": 8650,
+        "startCharacter": 0,
+        "endLine": 8654,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СловарьКонтейнераВнешнегоМодуля",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8656,
+        "startCharacter": 0,
+        "endLine": 8665,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КонтейнерыВнешнихМодулей",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8667,
+        "startCharacter": 0,
+        "endLine": 8673,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ВыполнениеДействий",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 8677,
+      "startCharacter": 1,
+      "endLine": 9023,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ВыполнитьОбменДаннымиЧерезФайловыйРесурс",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 8684,
+        "startCharacter": 0,
+        "endLine": 8788,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбменДаннымиПоСценариюОбменаДанными",
+       "kind": "Method",
+       "detail": "(Отказ, НастройкаВыполненияОбмена, НомерСтроки?)",
+       "range": {
+        "startLine": 8810,
+        "startCharacter": 0,
+        "endLine": 8909,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбменДаннымиПоРегламентномуЗаданию",
+       "kind": "Method",
+       "detail": "(КодСценарияОбмена)",
+       "range": {
+        "startLine": 8917,
+        "startCharacter": 0,
+        "endLine": 8958,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбменДаннымиДляУзлаИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ПараметрыОбмена, Отказ, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 8988,
+        "startCharacter": 0,
+        "endLine": 9021,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ДляРаботыЧерезВнешнееСоединение_СлужебныеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9025,
+      "startCharacter": 1,
+      "endLine": 9289,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗафиксироватьЗавершениеОбменаЧерезВнешнееСоединение",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9027,
+        "startCharacter": 0,
+        "endLine": 9033,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СтруктураНастроекОбменаЧерезВнешнееСоединение",
+       "kind": "Method",
+       "detail": "(Структура)",
+       "range": {
+        "startLine": 9075,
+        "startCharacter": 0,
+        "endLine": 9133,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПравилаКонвертацииОбъектовЧерезВнешнееСоединение",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ПолучатьПравилаКорреспондента?)",
+       "range": {
+        "startLine": 9135,
+        "startCharacter": 0,
+        "endLine": 9141,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПередЧтениемСообщенияОбмена",
+       "kind": "Method",
+       "detail": "(Получатель, СообщениеОбмена, СтандартнаяОбработка)",
+       "range": {
+        "startLine": 9143,
+        "startCharacter": 0,
+        "endLine": 9195,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПослеЧтенияСообщенияОбмена",
+       "kind": "Method",
+       "detail": "(Получатель, СообщениеОбмена, СообщениеПрочитано, СтандартнаяОбработка, УдалитьСообщение?)",
+       "range": {
+        "startLine": 9197,
+        "startCharacter": 0,
+        "endLine": 9287,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ИнициализацияСтруктурыНастроекОбмена_СлужебныеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9291,
+      "startCharacter": 1,
+      "endLine": 9753,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "НастройкиОбменаДанными",
+       "kind": "Method",
+       "detail": "(НастройкаВыполненияОбмена, НомерСтроки)",
+       "range": {
+        "startLine": 9298,
+        "startCharacter": 0,
+        "endLine": 9334,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкиТранспортаОбмена",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ВидТранспортаСообщенийОбмена)",
+       "range": {
+        "startLine": 9345,
+        "startCharacter": 0,
+        "endLine": 9368,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СтруктураНастроекОбменаДляСеансаИнтерактивнойЗагрузки",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ИмяФайлаСообщенияОбмена)",
+       "range": {
+        "startLine": 9379,
+        "startCharacter": 0,
+        "endLine": 9383,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьИнициализациюСтруктурыНастроекОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена, НастройкаВыполненияОбмена, НомерСтроки)",
+       "range": {
+        "startLine": 9385,
+        "startCharacter": 0,
+        "endLine": 9452,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьИнициализациюСтруктурыНастроекОбменаДляУзлаИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9454,
+        "startCharacter": 0,
+        "endLine": 9489,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроверкуОсновныхПолейСтруктурыНастроекОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9491,
+        "startCharacter": 0,
+        "endLine": 9520,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьИнициализациюОбработкиОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9522,
+        "startCharacter": 0,
+        "endLine": 9539,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьИнициализациюОбработкиТранспортаСообщенийОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9541,
+        "startCharacter": 0,
+        "endLine": 9561,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаОбменаДаннымиДляВыгрузки",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9563,
+        "startCharacter": 0,
+        "endLine": 9591,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаОбменаДаннымиДляЗагрузки",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9593,
+        "startCharacter": 0,
+        "endLine": 9612,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьПравилаОбменаВыгрузкиДанных",
+       "kind": "Method",
+       "detail": "(ОбработкаОбменаДаннымиXML, СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9614,
+        "startCharacter": 0,
+        "endLine": 9640,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьПравилаОбменаЗагрузкиДанных",
+       "kind": "Method",
+       "detail": "(ОбработкаОбменаДаннымиXML, СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9642,
+        "startCharacter": 0,
+        "endLine": 9674,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьНастройкиРежимаОтладкиДляОбработки",
+       "kind": "Method",
+       "detail": "(ОбработкаОбменаДанными, СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9678,
+        "startCharacter": 0,
+        "endLine": 9707,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьНастройкиОтладкиВыгрузкиДляПравилОбмена",
+       "kind": "Method",
+       "detail": "(ОбработкаОбменаДанными, ИмяПланаОбмена, РежимОтладки)",
+       "range": {
+        "startLine": 9711,
+        "startCharacter": 0,
+        "endLine": 9744,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьЗавершениеИнициализацииОбмена",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 9746,
+        "startCharacter": 0,
+        "endLine": 9751,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОбщегоНазначения_СлужебныеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9755,
+      "startCharacter": 1,
+      "endLine": 12536,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПолучитьОбщиеНастройкиУзловИнформационныхБаз",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 9757,
+        "startCharacter": 0,
+        "endLine": 9798,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СправочникиПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 9800,
+        "startCharacter": 0,
+        "endLine": 9824,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииСпискаТекущихДелПредупрежденияСинхронизации",
+       "kind": "Method",
+       "detail": "(ТекущиеДела)",
+       "range": {
+        "startLine": 9829,
+        "startCharacter": 0,
+        "endLine": 9866,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииСпискаТекущихДелПроверитьЗацикливание",
+       "kind": "Method",
+       "detail": "(ТекущиеДела)",
+       "range": {
+        "startLine": 9871,
+        "startCharacter": 0,
+        "endLine": 9899,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииСпискаТекущихДелПроверитьСовместимостьСТекущейВерсией",
+       "kind": "Method",
+       "detail": "(ТекущиеДела)",
+       "range": {
+        "startLine": 9904,
+        "startCharacter": 0,
+        "endLine": 9964,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнительныеСвойстваПланаОбменаСтрокой",
+       "kind": "Method",
+       "detail": "(СвойстваСтрокой)",
+       "range": {
+        "startLine": 9966,
+        "startCharacter": 0,
+        "endLine": 9983,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ФильтрПлановОбменаПоПризнакуРазделенияДанных",
+       "kind": "Method",
+       "detail": "(ПланыОбменаМассив)",
+       "range": {
+        "startLine": 9985,
+        "startCharacter": 0,
+        "endLine": 10042,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ФильтрПлановОбменаПоПризнакуАвтономнойРаботы",
+       "kind": "Method",
+       "detail": "(ПланыОбменаМассив)",
+       "range": {
+        "startLine": 10044,
+        "startCharacter": 0,
+        "endLine": 10059,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьНеактуальныеЗаписиВРегистреПравилДляОбменаДанными",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 10068,
+        "startCharacter": 0,
+        "endLine": 10088,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьСценарииОбменаДаннымиДляМонитора",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 10090,
+        "startCharacter": 0,
+        "endLine": 10121,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПланыОбменаДляМонитора",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц, ПланыОбменаМассив, ДополнительныеСвойстваПланаОбмена)",
+       "range": {
+        "startLine": 10123,
+        "startCharacter": 0,
+        "endLine": 10136,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыЗапросаПланыОбменаДляМонитора",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 10146,
+        "startCharacter": 0,
+        "endLine": 10155,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ТекстЗапросаПланыОбменаДляМонитора",
+       "kind": "Method",
+       "detail": "(ПараметрыЗапроса?, ИсключитьПланыОбменаАвтономнойРаботы?)",
+       "range": {
+        "startLine": 10167,
+        "startCharacter": 0,
+        "endLine": 10301,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьСостоянияОбменовДанными",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 10303,
+        "startCharacter": 0,
+        "endLine": 10396,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьРезультатыОбменаДляМонитора",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 10398,
+        "startCharacter": 0,
+        "endLine": 10446,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьСообщенияДляСопоставленияДанных",
+       "kind": "Method",
+       "detail": "(МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 10448,
+        "startCharacter": 0,
+        "endLine": 10489,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПланыОбменаСПравиламиИзФайла",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 10491,
+        "startCharacter": 0,
+        "endLine": 10507,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьЗавершениеОбменаВРегистреСведений",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 10514,
+        "startCharacter": 0,
+        "endLine": 10527,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьУспешныйОбменДаннымиВРегистреСведений",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 10529,
+        "startCharacter": 0,
+        "endLine": 10539,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаписьЖурналаРегистрацииНачалаОбменаДанными",
+       "kind": "Method",
+       "detail": "(СтруктураНастроекОбмена)",
+       "range": {
+        "startLine": 10541,
+        "startCharacter": 0,
+        "endLine": 10547,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаписатьСобытиеПолученияДанных",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, Комментарий, ЭтоОшибка?)",
+       "range": {
+        "startLine": 10549,
+        "startCharacter": 0,
+        "endLine": 10557,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ФормаНастройкиУзлаОбработчикПриСозданииНаСервере",
+       "kind": "Method",
+       "detail": "(Форма, ИмяРеквизитаФормы)",
+       "range": {
+        "startLine": 10559,
+        "startCharacter": 0,
+        "endLine": 10601,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИменаРеквизитовФормы",
+       "kind": "Method",
+       "detail": "(Форма)",
+       "range": {
+        "startLine": 10603,
+        "startCharacter": 0,
+        "endLine": 10615,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РаспаковатьZipФайл",
+       "kind": "Method",
+       "detail": "(ПолноеИмяФайлаАрхива, ПутьРаспаковкиФайлов, ПарольАрхива?)",
+       "range": {
+        "startLine": 10627,
+        "startCharacter": 0,
+        "endLine": 10655,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗапаковатьВZipФайл",
+       "kind": "Method",
+       "detail": "(ПолноеИмяФайлаАрхива, МаскаУпаковкиФайлов, ПарольАрхива?)",
+       "range": {
+        "startLine": 10670,
+        "startCharacter": 0,
+        "endLine": 10708,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоЗаписейВТаблицеБазыДанных",
+       "kind": "Method",
+       "detail": "(ИмяТаблицы)",
+       "range": {
+        "startLine": 10718,
+        "startCharacter": 0,
+        "endLine": 10737,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоЗаписейВоВременнойТаблицеБазыДанных",
+       "kind": "Method",
+       "detail": "(ИмяТаблицы, МенеджерВременныхТаблиц)",
+       "range": {
+        "startLine": 10748,
+        "startCharacter": 0,
+        "endLine": 10768,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоСтандартныйРеквизит",
+       "kind": "Method",
+       "detail": "(СтандартныеРеквизиты, ИмяРеквизита)",
+       "range": {
+        "startLine": 10779,
+        "startCharacter": 0,
+        "endLine": 10793,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "КлючТаблицыДанных",
+       "kind": "Method",
+       "detail": "(ТипИсточника, ТипПриемника, ЭтоУдалениеОбъекта)",
+       "range": {
+        "startLine": 10805,
+        "startCharacter": 0,
+        "endLine": 10809,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НадоВыполнитьОбработчик",
+       "kind": "Method",
+       "detail": "(Объект, Ссылка, ИмяСвойства)",
+       "range": {
+        "startLine": 10811,
+        "startCharacter": 0,
+        "endLine": 10821,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДобавитьЛитералКИмениФайла",
+       "kind": "Method",
+       "detail": "(ПолноеИмяФайла, Литерал)",
+       "range": {
+        "startLine": 10823,
+        "startCharacter": 0,
+        "endLine": 10840,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НаименованиеПредопределенногоУзлаПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 10850,
+        "startCharacter": 0,
+        "endLine": 10855,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработчикПриВыгрузкеДанныхБСП",
+       "kind": "Method",
+       "detail": "(Обработчики, ПараметрыВыполнения, СтандартнаяОбработка, ДанныеСообщения, КоличествоОтправленныхОбъектов)",
+       "range": {
+        "startLine": 10857,
+        "startCharacter": 0,
+        "endLine": 10882,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработчикПриЗагрузкеДанныхБСП",
+       "kind": "Method",
+       "detail": "(Обработчики, ПараметрыВыполнения, СтандартнаяОбработка, ДанныеСообщения, КоличествоПолученныхОбъектов)",
+       "range": {
+        "startLine": 10884,
+        "startCharacter": 0,
+        "endLine": 10909,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗафиксироватьЗавершениеОбменаСОшибкой",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, ДействиеПриОбмене, ДатаНачала, СтрокаСообщенияОбОшибке)",
+       "range": {
+        "startLine": 10911,
+        "startCharacter": 0,
+        "endLine": 10936,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьОбязательныеРеквизитыФормы",
+       "kind": "Method",
+       "detail": "(Форма, Реквизиты)",
+       "range": {
+        "startLine": 10941,
+        "startCharacter": 0,
+        "endLine": 10965,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИмяТаблицыИзПервогоРеквизитаТабличнойЧастиПланаОбмена",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, ИмяТабличнойЧасти)",
+       "range": {
+        "startLine": 10967,
+        "startCharacter": 0,
+        "endLine": 10984,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВсеДанныеПланаОбменаКромеСправочников",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 10986,
+        "startCharacter": 0,
+        "endLine": 11010,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НастройкиПараметровУчетаВСистемеУстановлены",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, Корреспондент, СообщениеОбОшибке)",
+       "range": {
+        "startLine": 11012,
+        "startCharacter": 0,
+        "endLine": 11039,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПараметрыИнформационнойБазы_2_0_1_6",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, СообщениеОбОшибке)",
+       "range": {
+        "startLine": 11041,
+        "startCharacter": 0,
+        "endLine": 11045,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьПараметрыИнформационнойБазы_3_0_2_2",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КодУзла, СообщениеОбОшибке, ДополнительныеПараметры?)",
+       "range": {
+        "startLine": 11047,
+        "startCharacter": 0,
+        "endLine": 11054,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭлементыИерархическогоСправочникаИерархияГруппИЭлементов",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 11056,
+        "startCharacter": 0,
+        "endLine": 11087,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭлементыИерархическогоСправочникаИерархияЭлементов",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 11089,
+        "startCharacter": 0,
+        "endLine": 11110,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЭлементыНеиерархическогоСправочника",
+       "kind": "Method",
+       "detail": "(ПолноеИмяТаблицы)",
+       "range": {
+        "startLine": 11112,
+        "startCharacter": 0,
+        "endLine": 11134,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДеревоЭлементов",
+       "kind": "Method",
+       "detail": "(Запрос)",
+       "range": {
+        "startLine": 11145,
+        "startCharacter": 0,
+        "endLine": 11149,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РезультатЗапросаВXMLДерево",
+       "kind": "Method",
+       "detail": "(Запрос)",
+       "range": {
+        "startLine": 11151,
+        "startCharacter": 0,
+        "endLine": 11165,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьИдентификаторыСсылокВДереве",
+       "kind": "Method",
+       "detail": "(СтрокиДерева)",
+       "range": {
+        "startLine": 11170,
+        "startCharacter": 0,
+        "endLine": 11177,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнформацияСтатистики",
+       "kind": "Method",
+       "detail": "(ИнформацияСтатистики, ВключатьУдалениеОбъектов?)",
+       "range": {
+        "startLine": 11179,
+        "startCharacter": 0,
+        "endLine": 11285,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьДеревоИнформацииСтатистикиОдинКоМногим",
+       "kind": "Method",
+       "detail": "(ДеревоИнформацииСтатистики, ИнформацияСтатистики, Отбор, УжеОбработанныеСтроки)",
+       "range": {
+        "startLine": 11293,
+        "startCharacter": 0,
+        "endLine": 11339,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьИмяКлассаИзИмениОбъекта",
+       "kind": "Method",
+       "detail": "(Результат)",
+       "range": {
+        "startLine": 11341,
+        "startCharacter": 0,
+        "endLine": 11352,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроверкуНаличияПравилОбменаЗагруженныхИзФайла",
+       "kind": "Method",
+       "detail": "(ПравилаОбменаЗагруженныеИзФайла, ПравилаРегистрацииЗагруженныеИзФайла)",
+       "range": {
+        "startLine": 11354,
+        "startCharacter": 0,
+        "endLine": 11408,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СообщитьОбОшибке",
+       "kind": "Method",
+       "detail": "(ТекстСообщения, Отказ?)",
+       "range": {
+        "startLine": 11416,
+        "startCharacter": 0,
+        "endLine": 11422,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьПравилаДляОбменаДанными",
+       "kind": "Method",
+       "detail": "(Отказ, ИмяПланаОбмена, ВидПравил, ИмяМакетаПравил, ИмяМакетаПравилКорреспондента?)",
+       "range": {
+        "startLine": 11426,
+        "startCharacter": 0,
+        "endLine": 11470,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьМенеджерРегистрацииОбменаДанными",
+       "kind": "Method",
+       "detail": "(Отказ, ИмяПланаОбмена)",
+       "range": {
+        "startLine": 11472,
+        "startCharacter": 0,
+        "endLine": 11503,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьОбновлениеВерсииТиповыхПравилДляОбменаДанными",
+       "kind": "Method",
+       "detail": "(ПравилаОбменаЗагруженныеИзФайла, ПравилаРегистрацииЗагруженныеИзФайла)",
+       "range": {
+        "startLine": 11505,
+        "startCharacter": 0,
+        "endLine": 11622,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИндексКартинкиТаблицыИнформацииСтатистики",
+       "kind": "Method",
+       "detail": "(КоличествоОбъектовНесопоставленных, ДанныеУспешноЗагружены)",
+       "range": {
+        "startLine": 11633,
+        "startCharacter": 0,
+        "endLine": 11637,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановленПризнакНачальнойВыгрузкиДанных",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 11639,
+        "startCharacter": 0,
+        "endLine": 11645,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьСообщениеПередОбновлениемИнформационнойБазы",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 11650,
+        "startCharacter": 0,
+        "endLine": 11711,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОтключитьПовторениеЗагрузкиСообщенияОбменаДаннымиПередЗапуском",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 11714,
+        "startCharacter": 0,
+        "endLine": 11722,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьСинхронизациюПриОтсутствииОбновленияИнформационнойБазы",
+       "kind": "Method",
+       "detail": "(ПриЗапускеКлиентскогоПриложения, Перезапустить)",
+       "range": {
+        "startLine": 11728,
+        "startCharacter": 0,
+        "endLine": 11790,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоПодчиненныйУзелРИБ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 11792,
+        "startCharacter": 0,
+        "endLine": 11796,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВариантОбменаДанными",
+       "kind": "Method",
+       "detail": "(Корреспондент)",
+       "range": {
+        "startLine": 11798,
+        "startCharacter": 0,
+        "endLine": 11833,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗагрузитьКонтекстОбъекта",
+       "kind": "Method",
+       "detail": "(Контекст, Объект)",
+       "range": {
+        "startLine": 11839,
+        "startCharacter": 0,
+        "endLine": 11861,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьКонтекстОбъекта",
+       "kind": "Method",
+       "detail": "(Объект)",
+       "range": {
+        "startLine": 11872,
+        "startCharacter": 0,
+        "endLine": 11891,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РазвернутьДеревоЗначений",
+       "kind": "Method",
+       "detail": "(Таблица, Дерево)",
+       "range": {
+        "startLine": 11897,
+        "startCharacter": 0,
+        "endLine": 11911,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КоличествоДнейРазницы",
+       "kind": "Method",
+       "detail": "(Дата1, Дата2)",
+       "range": {
+        "startLine": 11913,
+        "startCharacter": 0,
+        "endLine": 11917,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ТаблицаВМассивСтруктур",
+       "kind": "Method",
+       "detail": "(ТаблицаЗначений)",
+       "range": {
+        "startLine": 11922,
+        "startCharacter": 0,
+        "endLine": 11938,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РазличаютсяВерсииКорреспондента",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена, КлючСообщенияЖурналаРегистрации, ВерсияВЭтойПрограмме, ВерсияВДругойПрограмме, ТекстСообщения, ПараметрыВнешнегоСоединения?)",
+       "range": {
+        "startLine": 11953,
+        "startCharacter": 0,
+        "endLine": 12003,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализироватьПараметрыПроверкиРасхожденияВерсий",
+       "kind": "Method",
+       "detail": "(ПроверятьРасхождениеВерсий)",
+       "range": {
+        "startLine": 12005,
+        "startCharacter": 0,
+        "endLine": 12016,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОшибкаРасхожденияВерсийПриПолученииДанных",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12018,
+        "startCharacter": 0,
+        "endLine": 12024,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВерсияКорреспондентаВПравилах",
+       "kind": "Method",
+       "detail": "(ИмяПланаОбмена)",
+       "range": {
+        "startLine": 12026,
+        "startCharacter": 0,
+        "endLine": 12058,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПредставлениеОбъекта",
+       "kind": "Method",
+       "detail": "(ПараметрОбъект)",
+       "range": {
+        "startLine": 12069,
+        "startCharacter": 0,
+        "endLine": 12086,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПредставлениеСпискаОбъектов",
+       "kind": "Method",
+       "detail": "(ПараметрОбъект)",
+       "range": {
+        "startLine": 12097,
+        "startCharacter": 0,
+        "endLine": 12114,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыгрузкаСсылкиРазрешена",
+       "kind": "Method",
+       "detail": "(УзелОбмена, Ссылка, ДополнительныеСвойства?)",
+       "range": {
+        "startLine": 12126,
+        "startCharacter": 0,
+        "endLine": 12154,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВыгрузкаСсылкиИзИнтерактивногоДополненияРазрешена",
+       "kind": "Method",
+       "detail": "(УзелОбмена, Ссылка)",
+       "range": {
+        "startLine": 12165,
+        "startCharacter": 0,
+        "endLine": 12174,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузки_СформироватьТабличныйДокументПользователя",
+       "kind": "Method",
+       "detail": "(Параметры, АдресРезультата)",
+       "range": {
+        "startLine": 12178,
+        "startCharacter": 0,
+        "endLine": 12184,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузки_СформироватьДеревоЗначений",
+       "kind": "Method",
+       "detail": "(Параметры, АдресРезультата)",
+       "range": {
+        "startLine": 12186,
+        "startCharacter": 0,
+        "endLine": 12192,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузки_ОбъектПоНастройкам",
+       "kind": "Method",
+       "detail": "(Настройки)",
+       "range": {
+        "startLine": 12198,
+        "startCharacter": 0,
+        "endLine": 12218,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РолиПрофиляДоступаСинхронизацияДанныхСДругимиПрограммами",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12222,
+        "startCharacter": 0,
+        "endLine": 12243,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЗаполненииСпискаТекущихДелНеобходимоОбновление",
+       "kind": "Method",
+       "detail": "(ТекущиеДела)",
+       "range": {
+        "startLine": 12250,
+        "startCharacter": 0,
+        "endLine": 12286,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СинонимДанныхСтрокиДереваСтатистики",
+       "kind": "Method",
+       "detail": "(СтрокаДерева, ТипИсточникаСтрокой)",
+       "range": {
+        "startLine": 12288,
+        "startCharacter": 0,
+        "endLine": 12306,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОпределитьНаличиеДвиженийПоДокументу",
+       "kind": "Method",
+       "detail": "(ДокументСсылка)",
+       "range": {
+        "startLine": 12316,
+        "startCharacter": 0,
+        "endLine": 12417,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДеревоМетаданныхКонфигурации",
+       "kind": "Method",
+       "detail": "(Отбор?)",
+       "range": {
+        "startLine": 12439,
+        "startCharacter": 0,
+        "endLine": 12524,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НоваяСтрокаКоллекцииОбъектовМетаданных",
+       "kind": "Method",
+       "detail": "(Имя, Синоним, Картинка, КартинкаОбъекта, Таб)",
+       "range": {
+        "startLine": 12526,
+        "startCharacter": 0,
+        "endLine": 12534,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ИнтерактивноеИзменениеВыгрузки_СлужебныеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 12538,
+      "startCharacter": 1,
+      "endLine": 13114,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузки",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы, АдресХранилищаФормы, ЕстьСценарийУзла?)",
+       "range": {
+        "startLine": 12558,
+        "startCharacter": 0,
+        "endLine": 12598,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеДополнительнойРегистрацииВариантаВыгрузки",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12617,
+        "startCharacter": 0,
+        "endLine": 12631,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеСтандартногоВариантаБезДополнения",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12640,
+        "startCharacter": 0,
+        "endLine": 12650,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеСтандартногоВариантаВсеДокументы",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12659,
+        "startCharacter": 0,
+        "endLine": 12669,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеСтандартногоВариантаПроизвольныйОтбор",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12678,
+        "startCharacter": 0,
+        "endLine": 12688,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОписаниеСтандартногоВариантаДополнительно",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 12704,
+        "startCharacter": 0,
+        "endLine": 12720,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиОчисткаОбщегоОтбора",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12731,
+        "startCharacter": 0,
+        "endLine": 12746,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиОчисткаДетально",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12754,
+        "startCharacter": 0,
+        "endLine": 12756,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиОписаниеДополненияОбщегоОтбора",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12767,
+        "startCharacter": 0,
+        "endLine": 12777,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиОписаниеДетальногоОтбора",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12788,
+        "startCharacter": 0,
+        "endLine": 12790,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиИсторияНастроек",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12801,
+        "startCharacter": 0,
+        "endLine": 12807,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиВосстановитьНастройки",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки, ПредставлениеНастройки)",
+       "range": {
+        "startLine": 12819,
+        "startCharacter": 0,
+        "endLine": 12852,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиРеквизитПоНастройкам",
+       "kind": "Method",
+       "detail": "(Форма, НастройкиДополненияВыгрузки, ИмяРеквизитаДополнения?)",
+       "range": {
+        "startLine": 12861,
+        "startCharacter": 0,
+        "endLine": 12940,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПредставлениеДополненияВыгрузкиПоСценариюУзла",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 12952,
+        "startCharacter": 0,
+        "endLine": 12966,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПредставлениеОтбораДополненияВыгрузки",
+       "kind": "Method",
+       "detail": "(Период, Отбор, ОписаниеПустогоОтбора?)",
+       "range": {
+        "startLine": 12980,
+        "startCharacter": 0,
+        "endLine": 13000,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПредставлениеДетальногоДополненияВыгрузки",
+       "kind": "Method",
+       "detail": "(ДополнительнаяРегистрация, ОписаниеПустогоОтбора?)",
+       "range": {
+        "startLine": 13011,
+        "startCharacter": 0,
+        "endLine": 13027,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнениеВыгрузкиИдентификаторВсехДокументов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 13034,
+        "startCharacter": 0,
+        "endLine": 13037,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнениеВыгрузкиИдентификаторВсехСправочников",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 13044,
+        "startCharacter": 0,
+        "endLine": 13047,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиУстановитьПериодаСценарияУзла",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 13055,
+        "startCharacter": 0,
+        "endLine": 13062,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИнтерактивноеИзменениеВыгрузкиФильтрВарианта",
+       "kind": "Method",
+       "detail": "(ДополнениеВыгрузки)",
+       "range": {
+        "startLine": 13074,
+        "startCharacter": 0,
+        "endLine": 13112,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "Прочее_СлужебныеПроцедурыИФункции",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 13116,
+      "startCharacter": 1,
+      "endLine": 13380,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "НастроитьЭлементыФормыЗацикливания",
+       "kind": "Method",
+       "detail": "(Форма)",
+       "range": {
+        "startLine": 13118,
+        "startCharacter": 0,
+        "endLine": 13204,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОчиститьСписокОшибокПриВыгрузкеДанных",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 13206,
+        "startCharacter": 0,
+        "endLine": 13214,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОчиститьСписокОшибокПриЗагрузкеДанных",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 13216,
+        "startCharacter": 0,
+        "endLine": 13224,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ТипыИсключаемыеИзПроверкиУстраненияПроблемы",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 13226,
+        "startCharacter": 0,
+        "endLine": 13236,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИнициализироватьСтруктураСообщениеОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 13243,
+        "startCharacter": 0,
+        "endLine": 13251,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ХешСуммаСообщениеОбмена",
+       "kind": "Method",
+       "detail": "(СообщениеОбмена)",
+       "range": {
+        "startLine": 13261,
+        "startCharacter": 0,
+        "endLine": 13267,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьХешСуммуПоследнегоСообщения",
+       "kind": "Method",
+       "detail": "(Получатель)",
+       "range": {
+        "startLine": 13269,
+        "startCharacter": 0,
+        "endLine": 13295,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СохранитьСообщениеИзАрхиваВКэш",
+       "kind": "Method",
+       "detail": "(УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 13297,
+        "startCharacter": 0,
+        "endLine": 13341,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьСообщениеОбменаИзАрхива",
+       "kind": "Method",
+       "detail": "(ИмяВременногоФайлаАрхива, УзелИнформационнойБазы)",
+       "range": {
+        "startLine": 13343,
+        "startCharacter": 0,
+        "endLine": 13378,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

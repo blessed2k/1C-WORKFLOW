@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<FilterCriterion uuid="9e888888-0000-0000-0000-000000000001">
+		<Properties>
+			<Name>ПоКонтрагенту</Name>
+			<Content>
+				<xr:Item xsi:type="xr:MDObjectRef">Document.ЗаказКлиента.Attribute.Контрагент</xr:Item>
+			</Content>
+		</Properties>
+	</FilterCriterion>
+</MetaDataObject>

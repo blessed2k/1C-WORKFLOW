@@ -1,0 +1,15 @@
+{
+  "id": "12-posting-order-processing",
+  "genre": "posting",
+  "intent": "posting",
+  "task": "Перед тем как проводить изменения — покажи обработку проведения ОбработкаПроведения документа ЗаказКлиента: какие движения регистров она делает и есть ли подписки на это событие",
+  "target": {
+    "kind": "symbol",
+    "component": "Documents",
+    "module": "ЗаказКлиента.ObjectModule",
+    "name": "ОбработкаПроведения"
+  },
+  "requiredCategories": ["posting_handler", "movements", "register_access", "subscriptions"],
+  "expectedTools": ["get_context_for_task", "find_register_writes"],
+  "notes": "Реальная процедура (dumps/ut_demo/Documents/ЗаказКлиента/Ext/ObjectModule.bsl, строка 819). Прямых записей РегистрыНакопления.*.Движения не найдено grep'ом внутри самой процедуры — правдоподобная гипотеза (не подтверждённая заранее): она делегирует движения общим модулям, что и должен показать get_context_for_task; если это не так, отчёт честно фиксирует расхождение."
+}

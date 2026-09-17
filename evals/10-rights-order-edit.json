@@ -1,0 +1,15 @@
+{
+  "id": "10-rights-order-edit",
+  "genre": "rights",
+  "intent": "rights",
+  "task": "Почему роль ЧтениеЗаказовКлиентовЗаявокНаВозвратТоваровОтКлиента не даёт редактировать документ ЗаказКлиента — пользователь жалуется, что не видит команду изменить заказ",
+  "target": {
+    "kind": "role_object",
+    "role": "ЧтениеЗаказовКлиентовЗаявокНаВозвратТоваровОтКлиента",
+    "objectType": "Document",
+    "objectName": "ЗаказКлиента"
+  },
+  "requiredCategories": ["roles", "rights", "rls", "profiles"],
+  "expectedTools": ["get_context_for_task"],
+  "notes": "Подтверждено на реальном Rights.xml: роль даёт Read/View/InputByString на Document.ЗаказКлиента с RLS-условием (#ПоЗначениям на Организации/Склады/ГруппыПартнеров/Подразделения), но без Edit/Insert — рабочий ground truth для проверки полноты выдачи прав."
+}

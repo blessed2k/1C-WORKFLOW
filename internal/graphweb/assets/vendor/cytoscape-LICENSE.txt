@@ -1,0 +1,16 @@
+cytoscape.js 3.34.1
+Источник: https://cdn.jsdelivr.net/npm/cytoscape@3.34.1/dist/cytoscape.min.js
+Скачано 20.08.2026.
+SHA-256: 5141892eb19898946e5af8300e14cec15a63a22186a4ca56d76819a91e2a3fe6
+
+Лицензия MIT (шапка файла):
+Copyright (c) 2016-2026, The Cytoscape Consortium.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions: ...
+
+Полный текст лицензии — в шапке самого cytoscape.min.js.

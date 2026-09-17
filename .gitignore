@@ -1,0 +1,71 @@
+# Binaries and release artifacts (goreleaser writes to dist/)
+/bin/
+/dist/
+/mcp1c
+*.exe
+*.exe~
+# Windows держит запущенный бинарник: пересборка оставляет его под другим именем
+*.exe~*
+*.exe.old
+*~
+*.dll
+*.so
+*.dylib
+
+# Go build / test output
+*.test
+*.out
+/vendor/
+
+# Secrets and local config (live-mode credentials must never be committed)
+.env
+.env.*
+*.local
+credentials.json
+connection.json
+# Bases config (live base URLs + credentials)
+bases.json
+*bases*.json
+*.bases.json
+
+# Артефакты 1С: собранные из исходников файлы в git не нужны.
+*.cf
+*.epf
+*.erf
+*.dt
+*.1CD
+*.cfe
+
+# Локальное состояние индекса: реестр проектов, файлы эпох, блобы.
+# Сгенерировано целиком, source of truth — XML/BSL рабочей папки.
+.mcp1c/
+
+# Logs (включая ротационные вида mcp-server.log.2026-08-08.0.gz)
+*.log
+*.log.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Индекс MCP: сгенерированное состояние
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# graphify: сгенерированный граф знаний, вне git
+/graphify-out/
+
+# Индекс синтаксиса платформы: генерируется cmd/syntaxgen из .hbk своей
+# платформы, текст справки распространять нельзя.
+/internal/syntax/data/
+syntax-index*.json
+syntax-index*.json.gz
+index.json.gz
+
+# Local agent state and work notes
+.claude/
+.unlazy/
+GATES.md

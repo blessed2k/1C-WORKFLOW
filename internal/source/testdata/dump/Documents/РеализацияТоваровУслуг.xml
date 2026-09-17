@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<Document uuid="d0c11111-2222-3333-4444-555555555555">
+		<Properties>
+			<Name>РеализацияТоваровУслуг</Name>
+			<Posting>Allow</Posting>
+			<RegisterRecords>
+				<xr:Item xmlns:xr="http://v8.1c.ru/8.3/xcf/readable">AccumulationRegister.ТоварыНаСкладах</xr:Item>
+				<xr:Item xmlns:xr="http://v8.1c.ru/8.3/xcf/readable">AccumulationRegister.Продажи</xr:Item>
+			</RegisterRecords>
+		</Properties>
+		<ChildObjects>
+			<Attribute uuid="d0c11111-0000-0000-0000-000000000001">
+				<Properties>
+					<Name>Контрагент</Name>
+					<Type>
+						<v8:Type>cfg:CatalogRef.Контрагенты</v8:Type>
+					</Type>
+				</Properties>
+			</Attribute>
+			<TabularSection uuid="d0c11111-0000-0000-0000-000000000002">
+				<Properties>
+					<Name>Товары</Name>
+				</Properties>
+				<ChildObjects>
+					<Attribute uuid="d0c11111-0000-0000-0000-000000000003">
+						<Properties>
+							<Name>Номенклатура</Name>
+							<Type>
+								<v8:Type>cfg:CatalogRef.Товары</v8:Type>
+							</Type>
+						</Properties>
+					</Attribute>
+				</ChildObjects>
+			</TabularSection>
+		</ChildObjects>
+	</Document>
+</MetaDataObject>

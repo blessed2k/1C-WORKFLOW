@@ -1,0 +1,67 @@
+# GoReleaser configuration: https://goreleaser.com
+version: 2
+
+project_name: 1c-workflow
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: mcp1c
+    main: ./cmd/mcp1c
+    binary: mcp1c
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # syntaxgen builds the platform syntax index on the user's machine
+  # (the platform reference itself is never distributed).
+  - id: syntaxgen
+    main: ./cmd/syntaxgen
+    binary: syntaxgen
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [mcp1c, syntaxgen]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - THIRD_PARTY_NOTICES.md
+      - README*.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore:"
+
+release:
+  # The first releases are reviewed by hand before publishing.
+  draft: true
+  prerelease: auto

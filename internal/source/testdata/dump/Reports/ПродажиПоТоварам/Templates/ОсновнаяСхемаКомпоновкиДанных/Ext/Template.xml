@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema">
+	<dataSource><name>ИсточникДанных</name><dataSourceType>Local</dataSourceType></dataSource>
+	<dataSet xsi:type="DataSetQuery" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+		<name>НаборДанных</name>
+		<query>ВЫБРАТЬ
+	ТоварыНаСкладахОстатки.Товар
+ИЗ
+	РегистрНакопления.ТоварыНаСкладах.Остатки КАК ТоварыНаСкладахОстатки
+ГДЕ
+	ТоварыНаСкладахОстатки.Товар В (ВЫБРАТЬ Ссылка ИЗ Справочник.Товары)</query>
+	</dataSet>
+</DataCompositionSchema>

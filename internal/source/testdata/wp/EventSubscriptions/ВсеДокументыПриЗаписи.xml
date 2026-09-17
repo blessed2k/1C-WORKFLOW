@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<EventSubscription uuid="9b555555-0000-0000-0000-000000000003">
+		<Properties>
+			<Name>ВсеДокументыПриЗаписи</Name>
+			<Source>
+				<v8:TypeSet>cfg:DocumentObject</v8:TypeSet>
+			</Source>
+			<Event>OnWrite</Event>
+			<Handler>CommonModule.ОбработчикиЗаказа.ЗарегистрироватьДокумент</Handler>
+		</Properties>
+	</EventSubscription>
+</MetaDataObject>

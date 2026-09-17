@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+	<Catalog uuid="aaaa1111-2222-3333-4444-555555555555">
+		<Properties>
+			<Name>Товары</Name>
+			<Synonym>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Товары</v8:content>
+				</v8:item>
+			</Synonym>
+			<CodeLength>9</CodeLength>
+		</Properties>
+		<ChildObjects>
+			<Attribute uuid="bbbb1111-0000-0000-0000-000000000001">
+				<Properties>
+					<Name>Артикул</Name>
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+					</Type>
+					<Indexing>Index</Indexing>
+				</Properties>
+			</Attribute>
+			<Attribute uuid="bbbb1111-0000-0000-0000-000000000002">
+				<Properties>
+					<Name>ЕдиницаИзмерения</Name>
+					<Type>
+						<v8:Type>cfg:CatalogRef.ЕдиницыИзмерения</v8:Type>
+					</Type>
+				</Properties>
+			</Attribute>
+			<TabularSection uuid="cccc1111-0000-0000-0000-000000000001">
+				<Properties>
+					<Name>Цены</Name>
+				</Properties>
+				<ChildObjects>
+					<Attribute uuid="dddd1111-0000-0000-0000-000000000001">
+						<Properties>
+							<Name>Цена</Name>
+							<Type>
+								<v8:Type>xs:decimal</v8:Type>
+							</Type>
+						</Properties>
+					</Attribute>
+				</ChildObjects>
+			</TabularSection>
+			<Form>ФормаЭлемента</Form>
+			<Form>ФормаСписка</Form>
+		</ChildObjects>
+	</Catalog>
+</MetaDataObject>

@@ -1,0 +1,17 @@
+{
+  "id": "06-form-warehouse-onchange",
+  "genre": "form",
+  "intent": "form",
+  "task": "Поменяй обработчик СкладПриИзменении на форме ФормаДокумента документа ЗаказКлиента — при смене склада нужно дополнительно пересчитывать доступность товаров",
+  "target": {
+    "kind": "form_element",
+    "component": "Documents",
+    "owner": "ЗаказКлиента",
+    "form": "ФормаДокумента",
+    "element": "Склад",
+    "handler": "СкладПриИзменении"
+  },
+  "requiredCategories": ["binding", "handler", "server_calls", "attributes"],
+  "expectedTools": ["get_context_for_task", "get_form_handlers"],
+  "notes": "Совпадает по объекту с §25 примером 4 (Склад/ПриИзменении на форме ЗаказКлиента), реальный обработчик подтверждён в Documents/ЗаказКлиента/Forms/ФормаДокумента/Ext/Form/Module.bsl (строки 1285/1349: СкладПриИзменении -> СкладПриИзмененииСервер)."
+}

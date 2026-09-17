@@ -1,0 +1,15 @@
+{
+  "id": "03-signature-change-mismatch-params",
+  "genre": "signature-change",
+  "intent": "signature-change",
+  "task": "Измени сигнатуру экспортной ЗаказыКлиентСервер.ПараметрыЗаполненияПризнакРасхождениеЗаказ — добавь новый обязательный параметр ПричинаРасхождения и поправь всех вызывающих",
+  "target": {
+    "kind": "symbol",
+    "component": "CommonModules",
+    "module": "ЗаказыКлиентСервер",
+    "name": "ПараметрыЗаполненияПризнакРасхождениеЗаказ"
+  },
+  "requiredCategories": ["definition", "references", "callers", "interceptors"],
+  "expectedTools": ["get_context_for_task", "find_references", "trace_call_graph"],
+  "notes": "Реальные вызывающие подтверждены grep -rl по dumps/ut_demo: CommonModules/ЗаказыКлиент, CommonModules/ЗаказыСервер, Documents/ПоступлениеТоваровОтХранителя/Forms/ФормаДокумента — три разных модуля, задача проверяет, что references найдены без ложных совпадений по подстроке."
+}

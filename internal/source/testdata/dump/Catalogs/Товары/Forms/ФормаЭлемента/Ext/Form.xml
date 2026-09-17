@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Form xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<AutoCommandBar name="ФормаКоманднаяПанель" id="-1"/>
+	<Events>
+		<Event name="OnCreateAtServer">ПриСозданииНаСервере</Event>
+	</Events>
+	<ChildItems>
+		<UsualGroup name="ГруппаШапка" id="2">
+			<ChildItems>
+				<InputField name="Артикул" id="4">
+					<DataPath>Объект.Артикул</DataPath>
+					<ContextMenu name="АртикулКонтекстноеМеню" id="5"/>
+				</InputField>
+				<Button name="КнопкаЗаполнить" id="20">
+					<Type>UsualButton</Type>
+					<CommandName>Form.Command.Заполнить</CommandName>
+				</Button>
+			</ChildItems>
+		</UsualGroup>
+		<Table name="ТаблицаЦены" id="22">
+			<DataPath>Объект.Цены</DataPath>
+			<Events>
+				<Event name="Selection">ТаблицаЦеныВыбор</Event>
+			</Events>
+			<ChildItems>
+				<InputField name="ТаблицаЦеныЦена" id="26">
+					<DataPath>Объект.Цены.Цена</DataPath>
+				</InputField>
+			</ChildItems>
+		</Table>
+	</ChildItems>
+	<Attributes>
+		<Attribute name="Объект" id="1">
+			<Type>
+				<v8:Type>cfg:CatalogObject.Товары</v8:Type>
+			</Type>
+			<MainAttribute>true</MainAttribute>
+		</Attribute>
+		<Attribute name="ФлагОбработки" id="12">
+			<Type>
+				<v8:Type>xs:boolean</v8:Type>
+			</Type>
+		</Attribute>
+	</Attributes>
+	<Commands>
+		<Command name="Заполнить" id="19">
+			<Action>Заполнить</Action>
+		</Command>
+	</Commands>
+</Form>

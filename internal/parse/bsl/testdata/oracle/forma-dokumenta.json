@@ -1,0 +1,5562 @@
+{
+ "file": "${ONEC_DUMP}/Documents/РеализацияТоваровУслуг/Forms/ФормаДокумента/Ext/Form/Module.bsl",
+ "symbols": [
+  {
+   "name": "ОписаниеПеременных",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 0,
+    "startCharacter": 1,
+    "endLine": 22,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "КэшированныеЗначения",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 3,
+      "startCharacter": 6,
+      "endLine": 3,
+      "endCharacter": 26
+     },
+     "children": []
+    },
+    {
+     "name": "ПредыдущиеРеквизитыСтроки",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 6,
+      "startCharacter": 6,
+      "endLine": 6,
+      "endCharacter": 31
+     },
+     "children": []
+    },
+    {
+     "name": "ТекущиеДанныеИдентификатор",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 9,
+      "startCharacter": 6,
+      "endLine": 9,
+      "endCharacter": 32
+     },
+     "children": []
+    },
+    {
+     "name": "ПроверкаКонтрагентовПараметрыОбработчикаОжидания",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 13,
+      "startCharacter": 6,
+      "endLine": 13,
+      "endCharacter": 62
+     },
+     "children": []
+    },
+    {
+     "name": "ФормаДлительнойОперации",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 16,
+      "startCharacter": 6,
+      "endLine": 16,
+      "endCharacter": 37
+     },
+     "children": []
+    },
+    {
+     "name": "ПараметрыДляЗаписи",
+     "kind": "Variable",
+     "detail": null,
+     "range": {
+      "startLine": 20,
+      "startCharacter": 6,
+      "endLine": 20,
+      "endCharacter": 32
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "ОбработчикиСобытийФормы",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 24,
+    "startCharacter": 1,
+    "endLine": 704,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ПриСозданииНаСервере",
+     "kind": "Method",
+     "detail": "(Отказ, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 27,
+      "startCharacter": 0,
+      "endLine": 177,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриОткрытии",
+     "kind": "Method",
+     "detail": "(Отказ)",
+     "range": {
+      "startLine": 180,
+      "startCharacter": 0,
+      "endLine": 254,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриЧтенииНаСервере",
+     "kind": "Method",
+     "detail": "(ТекущийОбъект)",
+     "range": {
+      "startLine": 257,
+      "startCharacter": 0,
+      "endLine": 295,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработкаНавигационнойСсылки",
+     "kind": "Method",
+     "detail": "(НавигационнаяСсылкаФорматированнойСтроки, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 298,
+      "startCharacter": 0,
+      "endLine": 302,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработкаПроверкиЗаполненияНаСервере",
+     "kind": "Method",
+     "detail": "(Отказ, ПроверяемыеРеквизиты)",
+     "range": {
+      "startLine": 305,
+      "startCharacter": 0,
+      "endLine": 311,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПослеЗаписиНаСервере",
+     "kind": "Method",
+     "detail": "(ТекущийОбъект, ПараметрыЗаписи)",
+     "range": {
+      "startLine": 314,
+      "startCharacter": 0,
+      "endLine": 356,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПередЗакрытием",
+     "kind": "Method",
+     "detail": "(Отказ, ЗавершениеРаботы, ТекстПредупреждения, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 359,
+      "startCharacter": 0,
+      "endLine": 369,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриЗакрытии",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 372,
+      "startCharacter": 0,
+      "endLine": 376,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПередЗаписью",
+     "kind": "Method",
+     "detail": "(Отказ, ПараметрыЗаписи)",
+     "range": {
+      "startLine": 379,
+      "startCharacter": 0,
+      "endLine": 397,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработкаОповещения",
+     "kind": "Method",
+     "detail": "(ИмяСобытия, Параметр, Источник)",
+     "range": {
+      "startLine": 400,
+      "startCharacter": 0,
+      "endLine": 575,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработкаВыбора",
+     "kind": "Method",
+     "detail": "(ВыбранноеЗначение, ИсточникВыбора)",
+     "range": {
+      "startLine": 578,
+      "startCharacter": 0,
+      "endLine": 640,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПослеЗаписи",
+     "kind": "Method",
+     "detail": "(ПараметрыЗаписи)",
+     "range": {
+      "startLine": 643,
+      "startCharacter": 0,
+      "endLine": 669,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПередЗаписьюНаСервере",
+     "kind": "Method",
+     "detail": "(Отказ, ТекущийОбъект, ПараметрыЗаписи)",
+     "range": {
+      "startLine": 672,
+      "startCharacter": 0,
+      "endLine": 693,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриЗаписиНаСервере",
+     "kind": "Method",
+     "detail": "(Отказ, ТекущийОбъект, ПараметрыЗаписи)",
+     "range": {
+      "startLine": 696,
+      "startCharacter": 0,
+      "endLine": 702,
+      "endCharacter": 14
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "ОбработчикиСобытийЭлементовШапкиФормы",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 706,
+    "startCharacter": 1,
+    "endLine": 1622,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ГруппаСтраницыПриСменеСтраницы",
+     "kind": "Method",
+     "detail": "(Элемент, ТекущаяСтраница)",
+     "range": {
+      "startLine": 709,
+      "startCharacter": 0,
+      "endLine": 725,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьЗаголовокЗаказыКлиентовНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 728,
+      "startCharacter": 0,
+      "endLine": 739,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СоглашениеНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 742,
+      "startCharacter": 0,
+      "endLine": 754,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СтатусПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 757,
+      "startCharacter": 0,
+      "endLine": 761,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПартнерПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 764,
+      "startCharacter": 0,
+      "endLine": 794,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КонтактноеЛицоПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 797,
+      "startCharacter": 0,
+      "endLine": 826,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КонтрагентПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 829,
+      "startCharacter": 0,
+      "endLine": 843,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДоговорСоздание",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 846,
+      "startCharacter": 0,
+      "endLine": 850,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДоговорПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 853,
+      "startCharacter": 0,
+      "endLine": 870,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДоговорПриИзмененииЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 873,
+      "startCharacter": 0,
+      "endLine": 895,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СоглашениеПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 898,
+      "startCharacter": 0,
+      "endLine": 925,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ХозяйственнаяОперацияПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 928,
+      "startCharacter": 0,
+      "endLine": 945,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НалогообложениеНДСПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 948,
+      "startCharacter": 0,
+      "endLine": 953,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЦенаВключаетНДСПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 956,
+      "startCharacter": 0,
+      "endLine": 961,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПараметрыРегистрацииСчетовФактурВыданныхСервер",
+     "kind": "Method",
+     "detail": "(Объект)",
+     "range": {
+      "startLine": 964,
+      "startCharacter": 0,
+      "endLine": 968,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПараметрыРегистрацииУведомленийОПеремещенииПрослеживаемыхТоваровСервер",
+     "kind": "Method",
+     "detail": "(Объект)",
+     "range": {
+      "startLine": 972,
+      "startCharacter": 0,
+      "endLine": 976,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ТекстДокументыНаОснованииОбработкаНавигационнойСсылки",
+     "kind": "Method",
+     "detail": "(Элемент, НавигационнаяСсылкаФорматированнойСтроки, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 980,
+      "startCharacter": 0,
+      "endLine": 991,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДатаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 994,
+      "startCharacter": 0,
+      "endLine": 1043,
+      "endCharacter": 14
+     },
+     "children": [
+      {
+       "name": "ЦеныРассчитаны",
+       "kind": "Variable",
+       "detail": null,
+       "range": {
+        "startLine": 996,
+        "startCharacter": 7,
+        "endLine": 996,
+        "endCharacter": 21
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ДатаПриИзмененииЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1046,
+      "startCharacter": 0,
+      "endLine": 1060,
+      "endCharacter": 14
+     },
+     "children": [
+      {
+       "name": "ЦеныРассчитаны",
+       "kind": "Variable",
+       "detail": null,
+       "range": {
+        "startLine": 1048,
+        "startCharacter": 7,
+        "endLine": 1048,
+        "endCharacter": 21
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ОрганизацияПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1063,
+      "startCharacter": 0,
+      "endLine": 1084,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СкладПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1087,
+      "startCharacter": 0,
+      "endLine": 1138,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СкладПриИзмененииЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1141,
+      "startCharacter": 0,
+      "endLine": 1158,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СкладПриИзмененииФрагмент",
+     "kind": "Method",
+     "detail": "(ОтвязатьВсеСтрокиОтЗаказа, ОчищатьСтроки)",
+     "range": {
+      "startLine": 1161,
+      "startCharacter": 0,
+      "endLine": 1166,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "МенеджерПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1169,
+      "startCharacter": 0,
+      "endLine": 1175,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РеализацияПоЗаказамПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1178,
+      "startCharacter": 0,
+      "endLine": 1247,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РеализацияПоЗаказамПриИзмененииФрагмент",
+     "kind": "Method",
+     "detail": "(ЗаказКлиента, ТекстВопроса)",
+     "range": {
+      "startLine": 1250,
+      "startCharacter": 0,
+      "endLine": 1258,
+      "endCharacter": 14
+     },
+     "children": [
+      {
+       "name": "ОтветНаВопрос",
+       "kind": "Variable",
+       "detail": null,
+       "range": {
+        "startLine": 1252,
+        "startCharacter": 7,
+        "endLine": 1252,
+        "endCharacter": 20
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РеализацияПоЗаказамПриИзмененииЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1261,
+      "startCharacter": 0,
+      "endLine": 1284,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КартаЛояльностиНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1287,
+      "startCharacter": 0,
+      "endLine": 1291,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КартаЛояльностиОбработкаВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ВыбранноеЗначение, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1294,
+      "startCharacter": 0,
+      "endLine": 1299,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КартаЛояльностиОчистка",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1302,
+      "startCharacter": 0,
+      "endLine": 1304,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТекстОстатокДопустимогоКредитаНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1307,
+      "startCharacter": 0,
+      "endLine": 1311,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ВернутьМногооборотнуюТаруПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1314,
+      "startCharacter": 0,
+      "endLine": 1319,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТекстОтгрузкаПартнеруЗапрещенаНажатие",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1322,
+      "startCharacter": 0,
+      "endLine": 1324,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТребуетсяЗалогЗаТаруПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1327,
+      "startCharacter": 0,
+      "endLine": 1330,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДатаПереходаПраваСобственностиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1333,
+      "startCharacter": 0,
+      "endLine": 1339,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьЭтапыОплатыНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1342,
+      "startCharacter": 0,
+      "endLine": 1348,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПоместитьЭтапыОплатыВоВременноеХранилище",
+     "kind": "Method",
+     "detail": "(ИмяЭлемента)",
+     "range": {
+      "startLine": 1351,
+      "startCharacter": 0,
+      "endLine": 1354,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьЭтапыОплатыНажатиеЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1357,
+      "startCharacter": 0,
+      "endLine": 1381,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ВариантОформленияПродажиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1384,
+      "startCharacter": 0,
+      "endLine": 1386,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НаправлениеДеятельностиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1389,
+      "startCharacter": 0,
+      "endLine": 1393,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьВалютыНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1396,
+      "startCharacter": 0,
+      "endLine": 1401,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьВалютыНажатиеЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатЗакрытия, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1404,
+      "startCharacter": 0,
+      "endLine": 1430,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДекорацияЭДОНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1433,
+      "startCharacter": 0,
+      "endLine": 1439,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДекорацияЭПДНажатие",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1442,
+      "startCharacter": 0,
+      "endLine": 1457,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДекорацияОформитьЭПДНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1460,
+      "startCharacter": 0,
+      "endLine": 1481,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОтразитьИзмененияПравилОплаты",
+     "kind": "Method",
+     "detail": "(ИзмененныеРеквизиты)",
+     "range": {
+      "startLine": 1484,
+      "startCharacter": 0,
+      "endLine": 1490,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НадписьВалютыНажатиеЗавершениеСервер",
+     "kind": "Method",
+     "detail": "(РезультатЗакрытия)",
+     "range": {
+      "startLine": 1493,
+      "startCharacter": 0,
+      "endLine": 1512,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СтрокаИсправлениеОбработкаНавигационнойСсылки",
+     "kind": "Method",
+     "detail": "(Элемент, НавигационнаяСсылкаФорматированнойСтроки, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1515,
+      "startCharacter": 0,
+      "endLine": 1520,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ДекорацияСостояниеОригиналаНажатие",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 1523,
+      "startCharacter": 0,
+      "endLine": 1529,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КурьерПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1532,
+      "startCharacter": 0,
+      "endLine": 1536,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КлиентПартнерПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1539,
+      "startCharacter": 0,
+      "endLine": 1544,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КлиентКонтрагентПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1547,
+      "startCharacter": 0,
+      "endLine": 1552,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ВыборЭтапаГосКонтактаЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1556,
+      "startCharacter": 0,
+      "endLine": 1564,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЭтапГосконтрактаЕИСНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1569,
+      "startCharacter": 0,
+      "endLine": 1582,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЭтапГосконтрактаЕИСОчистка",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1585,
+      "startCharacter": 0,
+      "endLine": 1589,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДекорацияФайлыЕИСНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1592,
+      "startCharacter": 0,
+      "endLine": 1598,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПодразделениеПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1601,
+      "startCharacter": 0,
+      "endLine": 1605,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КлиентДоговорСоздание",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1608,
+      "startCharacter": 0,
+      "endLine": 1613,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "КлиентДоговорПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1616,
+      "startCharacter": 0,
+      "endLine": 1620,
+      "endCharacter": 14
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "ОбработчикиСобытийЭлементовТаблицыФормыТовары",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 1624,
+    "startCharacter": 1,
+    "endLine": 3471,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ТоварыПриНачалеРедактирования",
+     "kind": "Method",
+     "detail": "(Элемент, НоваяСтрока, Копирование)",
+     "range": {
+      "startLine": 1627,
+      "startCharacter": 0,
+      "endLine": 1648,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПередУдалением",
+     "kind": "Method",
+     "detail": "(Элемент, Отказ)",
+     "range": {
+      "startLine": 1651,
+      "startCharacter": 0,
+      "endLine": 1658,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПослеУдаления",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1661,
+      "startCharacter": 0,
+      "endLine": 1677,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПередНачаломИзменения",
+     "kind": "Method",
+     "detail": "(Элемент, Отказ)",
+     "range": {
+      "startLine": 1680,
+      "startCharacter": 0,
+      "endLine": 1682,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1685,
+      "startCharacter": 0,
+      "endLine": 1699,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПриОкончанииРедактирования",
+     "kind": "Method",
+     "detail": "(Элемент, НоваяСтрока, ОтменаРедактирования)",
+     "range": {
+      "startLine": 1702,
+      "startCharacter": 0,
+      "endLine": 1736,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПриОкончанииРедактированияДляСерверногоВызова",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 1739,
+      "startCharacter": 0,
+      "endLine": 1743,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПриОкончанииРедактированияНаСервере",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 1746,
+      "startCharacter": 0,
+      "endLine": 1750,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПередНачаломДобавления",
+     "kind": "Method",
+     "detail": "(Элемент, Отказ, Копирование, Родитель, Группа)",
+     "range": {
+      "startLine": 1753,
+      "startCharacter": 0,
+      "endLine": 1764,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыВыбор",
+     "kind": "Method",
+     "detail": "(Элемент, ВыбраннаяСтрока, Поле, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 1767,
+      "startCharacter": 0,
+      "endLine": 1830,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыВыборЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1833,
+      "startCharacter": 0,
+      "endLine": 1861,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыВыборФрагмент",
+     "kind": "Method",
+     "detail": "(ТекущиеДанные)",
+     "range": {
+      "startLine": 1864,
+      "startCharacter": 0,
+      "endLine": 1873,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДополнительныеПараметрыОбработкиЗавершения",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 1884,
+      "startCharacter": 0,
+      "endLine": 1892,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСкладПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1895,
+      "startCharacter": 0,
+      "endLine": 1905,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСкладПриИзмененииВопросПользователюЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1911,
+      "startCharacter": 0,
+      "endLine": 1926,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыНоменклатураПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1929,
+      "startCharacter": 0,
+      "endLine": 1939,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыНоменклатураПартнераПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 1942,
+      "startCharacter": 0,
+      "endLine": 1952,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыНоменклатураПартнераПриИзмененииВопросПользователюЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 1958,
+      "startCharacter": 0,
+      "endLine": 2006,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыНоменклатураПартнераНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2009,
+      "startCharacter": 0,
+      "endLine": 2023,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработатьРезультатВыбораНоменклатурыПартнера",
+     "kind": "Method",
+     "detail": "(ВыбранноеЗначение, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2030,
+      "startCharacter": 0,
+      "endLine": 2040,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыНоменклатураПриИзмененииВопросПользователюЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2046,
+      "startCharacter": 0,
+      "endLine": 2103,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыХарактеристикаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2106,
+      "startCharacter": 0,
+      "endLine": 2116,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыХарактеристикаПриИзмененииВопросПользователюЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2122,
+      "startCharacter": 0,
+      "endLine": 2164,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыОбособленноПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2167,
+      "startCharacter": 0,
+      "endLine": 2171,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыУпаковкаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2174,
+      "startCharacter": 0,
+      "endLine": 2209,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыКоличествоУпаковокПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2212,
+      "startCharacter": 0,
+      "endLine": 2226,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыВидЦеныПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2229,
+      "startCharacter": 0,
+      "endLine": 2254,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыЦенаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2257,
+      "startCharacter": 0,
+      "endLine": 2280,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСтавкаНДСПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2283,
+      "startCharacter": 0,
+      "endLine": 2306,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыПроцентРучнойСкидкиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2309,
+      "startCharacter": 0,
+      "endLine": 2332,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСуммаРучнойСкидкиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2335,
+      "startCharacter": 0,
+      "endLine": 2355,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСуммаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2358,
+      "startCharacter": 0,
+      "endLine": 2378,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСуммаНДСПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2381,
+      "startCharacter": 0,
+      "endLine": 2394,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыЗаказКлиентаНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2397,
+      "startCharacter": 0,
+      "endLine": 2430,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыЗаказКлиентаНачалоВыбораЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2433,
+      "startCharacter": 0,
+      "endLine": 2464,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыЗаказКлиентаНачалоВыбораФрагмент",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 2467,
+      "startCharacter": 0,
+      "endLine": 2471,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСерияНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2474,
+      "startCharacter": 0,
+      "endLine": 2479,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСерияПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2482,
+      "startCharacter": 0,
+      "endLine": 2494,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСерияПересчитатьЦены",
+     "kind": "Method",
+     "detail": "(ТекущаяСтрока?)",
+     "range": {
+      "startLine": 2497,
+      "startCharacter": 0,
+      "endLine": 2511,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТоварыСерияПересчитатьЦеныЗавершение",
+     "kind": "Method",
+     "detail": "(ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2516,
+      "startCharacter": 0,
+      "endLine": 2546,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2549,
+      "startCharacter": 0,
+      "endLine": 2553,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиОчистка",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2556,
+      "startCharacter": 0,
+      "endLine": 2567,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2570,
+      "startCharacter": 0,
+      "endLine": 2580,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиОбработкаВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ВыбранноеЗначение, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2583,
+      "startCharacter": 0,
+      "endLine": 2591,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПеревозчикаПриИзменении",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 2594,
+      "startCharacter": 0,
+      "endLine": 2598,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПеревозчикаОчистка",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2601,
+      "startCharacter": 0,
+      "endLine": 2612,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПеревозчикаНачалоВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2615,
+      "startCharacter": 0,
+      "endLine": 2625,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПеревозчикаОбработкаВыбора",
+     "kind": "Method",
+     "detail": "(Элемент, ВыбранноеЗначение, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 2628,
+      "startCharacter": 0,
+      "endLine": 2636,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПроверитьКоличествоВДокументе",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2639,
+      "startCharacter": 0,
+      "endLine": 2643,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПроверитьКоличествоВДокументеЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2646,
+      "startCharacter": 0,
+      "endLine": 2665,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьЦеныПоСоглашению",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2668,
+      "startCharacter": 0,
+      "endLine": 2689,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьЦеныПоДоговору",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2692,
+      "startCharacter": 0,
+      "endLine": 2707,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьЦеныВыделенныхСтрокПоВидуЦен",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2710,
+      "startCharacter": 0,
+      "endLine": 2725,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьЦеныВыделенныхСтрокПоВидуЦенЗавершение",
+     "kind": "Method",
+     "detail": "(ВидЦен, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2728,
+      "startCharacter": 0,
+      "endLine": 2760,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПоискПоШтрихкодуВыполнить",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2763,
+      "startCharacter": 0,
+      "endLine": 2769,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПоискПоШтрихкодуЗавершение",
+     "kind": "Method",
+     "detail": "(ДанныхШтрихкода, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2772,
+      "startCharacter": 0,
+      "endLine": 2778,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗагрузитьДанныеИзТСД",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2781,
+      "startCharacter": 0,
+      "endLine": 2789,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗагрузитьИзТСДЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВыполнения, Параметры)",
+     "range": {
+      "startLine": 2792,
+      "startCharacter": 0,
+      "endLine": 2800,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОткрытьВидыЗапасов",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2803,
+      "startCharacter": 0,
+      "endLine": 2809,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_СвойстваВыполнитьКоманду",
+     "kind": "Method",
+     "detail": "(ЭлементИлиКоманда, НавигационнаяСсылка?, СтандартнаяОбработка?)",
+     "range": {
+      "startLine": 2812,
+      "startCharacter": 0,
+      "endLine": 2814,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СообщитьОбОшибкахОткрытияПодбора",
+     "kind": "Method",
+     "detail": "(Отказ)",
+     "range": {
+      "startLine": 2817,
+      "startCharacter": 0,
+      "endLine": 2827,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОткрытьПодбор",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2830,
+      "startCharacter": 0,
+      "endLine": 2879,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РассчитатьСкидкиНаценки",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2882,
+      "startCharacter": 0,
+      "endLine": 2886,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОткрытьИнформациюОСкидках",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2889,
+      "startCharacter": 0,
+      "endLine": 2909,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОткрытьИнформациюОСкидкахЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2912,
+      "startCharacter": 0,
+      "endLine": 2937,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОткрытьИнформациюОСкидкахФрагмент",
+     "kind": "Method",
+     "detail": "(ТекущиеДанные)",
+     "range": {
+      "startLine": 2940,
+      "startCharacter": 0,
+      "endLine": 2948,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьАвтоматическиеСкидки",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2951,
+      "startCharacter": 0,
+      "endLine": 2957,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьАвтоматическиеСкидкиЗавершение",
+     "kind": "Method",
+     "detail": "(ВозвращенноеЗначение, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 2960,
+      "startCharacter": 0,
+      "endLine": 2989,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьРучнуюСкидку",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 2992,
+      "startCharacter": 0,
+      "endLine": 3010,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьРучнуюСкидкуЗавершение",
+     "kind": "Method",
+     "detail": "(СуммаРучнойСкидкиНаценки, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3013,
+      "startCharacter": 0,
+      "endLine": 3026,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьРучнуюСкидкуДляВыделенныхСтрок",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3029,
+      "startCharacter": 0,
+      "endLine": 3064,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "НазначитьРучнуюСкидкуДляВыделенныхСтрокЗавершение",
+     "kind": "Method",
+     "detail": "(СуммаРучнойСкидкиНаценки, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3067,
+      "startCharacter": 0,
+      "endLine": 3080,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОтменитьРучныеСкидки",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3083,
+      "startCharacter": 0,
+      "endLine": 3094,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РассчитатьСкидкиНаценкиКлиент",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3097,
+      "startCharacter": 0,
+      "endLine": 3132,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РассчитатьПоРеализацииТоваровУслугПоЗаказу",
+     "kind": "Method",
+     "detail": "(ЗаполнитьРеализациюПоЗаказу?)",
+     "range": {
+      "startLine": 3137,
+      "startCharacter": 0,
+      "endLine": 3144,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПрименитьИзмененияСкидокНаценокНаКлиенте",
+     "kind": "Method",
+     "detail": "(Отказ)",
+     "range": {
+      "startLine": 3147,
+      "startCharacter": 0,
+      "endLine": 3175,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПодобратьТоварыПоЗаказамОрдерам",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3178,
+      "startCharacter": 0,
+      "endLine": 3182,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПоместитьРасшифровкуПлатежаВоВременноеХранилище",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3185,
+      "startCharacter": 0,
+      "endLine": 3187,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьВес",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3190,
+      "startCharacter": 0,
+      "endLine": 3201,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьВесЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВыполнения, ТекущаяСтрока)",
+     "range": {
+      "startLine": 3204,
+      "startCharacter": 0,
+      "endLine": 3223,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьСкладВВыделенныхСтроках",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3226,
+      "startCharacter": 0,
+      "endLine": 3240,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьСкладВВыделенныхСтрокахЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3243,
+      "startCharacter": 0,
+      "endLine": 3256,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РазбитьСтроку",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3259,
+      "startCharacter": 0,
+      "endLine": 3279,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РазбитьСтрокуЗавершение",
+     "kind": "Method",
+     "detail": "(НоваяСтрока, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3282,
+      "startCharacter": 0,
+      "endLine": 3302,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УказатьСерии",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3305,
+      "startCharacter": 0,
+      "endLine": 3309,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьСерииПоFEFO",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3312,
+      "startCharacter": 0,
+      "endLine": 3329,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьСерииПоFEFOЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3332,
+      "startCharacter": 0,
+      "endLine": 3342,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СтруктураСообщений",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3345,
+      "startCharacter": 0,
+      "endLine": 3349,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПоказатьСообщения",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3352,
+      "startCharacter": 0,
+      "endLine": 3356,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СчитатьКартуЛояльности",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3359,
+      "startCharacter": 0,
+      "endLine": 3375,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РеквизитыПечати",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 3378,
+      "startCharacter": 0,
+      "endLine": 3382,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ВставитьСтроки",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3385,
+      "startCharacter": 0,
+      "endLine": 3399,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СкопироватьСтроки",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3402,
+      "startCharacter": 0,
+      "endLine": 3409,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДополнитьМногооборотнойТарой",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3413,
+      "startCharacter": 0,
+      "endLine": 3420,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОтвязатьОтЗаказа",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3423,
+      "startCharacter": 0,
+      "endLine": 3435,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗагрузитьИзВнешнегоФайла",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3438,
+      "startCharacter": 0,
+      "endLine": 3459,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗагрузитьИзВнешнегоФайлаЗавершение",
+     "kind": "Method",
+     "detail": "(АдресЗагруженныхДанных, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3462,
+      "startCharacter": 0,
+      "endLine": 3469,
+      "endCharacter": 14
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "ОбработчикиКомандФормы",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 3473,
+    "startCharacter": 1,
+    "endLine": 3790,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ВыполнитьКомандуНаСервере",
+     "kind": "Method",
+     "detail": "(ПараметрыВыполнения)",
+     "range": {
+      "startLine": 3476,
+      "startCharacter": 0,
+      "endLine": 3478,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПродолжитьВыполнениеКомандыНаСервере",
+     "kind": "Method",
+     "detail": "(ПараметрыВыполнения, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3482,
+      "startCharacter": 0,
+      "endLine": 3484,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_КомандаПанелиПрисоединенныхФайлов",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3489,
+      "startCharacter": 0,
+      "endLine": 3491,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПолеПредпросмотраПроверкаПеретаскивания",
+     "kind": "Method",
+     "detail": "(Элемент, ПараметрыПеретаскивания, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 3496,
+      "startCharacter": 0,
+      "endLine": 3498,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПолеПредпросмотраПеретаскивание",
+     "kind": "Method",
+     "detail": "(Элемент, ПараметрыПеретаскивания, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 3503,
+      "startCharacter": 0,
+      "endLine": 3505,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПолеПредпросмотраНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 3510,
+      "startCharacter": 0,
+      "endLine": 3512,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ВыполнитьКомандуИнтеграции",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3517,
+      "startCharacter": 0,
+      "endLine": 3521,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ВыполнитьПереопределяемуюКоманду",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3525,
+      "startCharacter": 0,
+      "endLine": 3529,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ВыполнитьКомандуЭДО",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3534,
+      "startCharacter": 0,
+      "endLine": 3538,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ОбработчикОжиданияЭДО",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3541,
+      "startCharacter": 0,
+      "endLine": 3545,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПроверитьВыполнениеЗаданияИС",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3551,
+      "startCharacter": 0,
+      "endLine": 3555,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РасчетыНажатие",
+     "kind": "Method",
+     "detail": "(Элемент, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 3559,
+      "startCharacter": 0,
+      "endLine": 3563,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СоставНабора",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3566,
+      "startCharacter": 0,
+      "endLine": 3609,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПровестиДокумент",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3612,
+      "startCharacter": 0,
+      "endLine": 3616,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПровестиИЗакрыть",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3619,
+      "startCharacter": 0,
+      "endLine": 3623,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаписатьДокумент",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3626,
+      "startCharacter": 0,
+      "endLine": 3630,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьПометкуУдаленияДокумента",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3633,
+      "startCharacter": 0,
+      "endLine": 3637,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗакрытьЗаказ",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3640,
+      "startCharacter": 0,
+      "endLine": 3651,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗакрытьЗаказЗавершение",
+     "kind": "Method",
+     "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3654,
+      "startCharacter": 0,
+      "endLine": 3665,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗакрытьЗаказФрагмент",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3668,
+      "startCharacter": 0,
+      "endLine": 3686,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗачетОплаты",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3689,
+      "startCharacter": 0,
+      "endLine": 3694,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьОтметкуОбособленно",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3697,
+      "startCharacter": 0,
+      "endLine": 3701,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "СнятьОтметкуОбособленно",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3704,
+      "startCharacter": 0,
+      "endLine": 3708,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОтменитьОплатуБонуснымиБаллами",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3711,
+      "startCharacter": 0,
+      "endLine": 3717,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДобавитьОплатуБонуснымиБаллами",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3720,
+      "startCharacter": 0,
+      "endLine": 3729,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДобавитьОплатуБонуснымиБалламиПродолжение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3732,
+      "startCharacter": 0,
+      "endLine": 3758,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДобавитьОплатуБонуснымиБалламиЗавершение",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 3761,
+      "startCharacter": 0,
+      "endLine": 3772,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьСтавкуНДС",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 3775,
+      "startCharacter": 0,
+      "endLine": 3788,
+      "endCharacter": 14
+     },
+     "children": []
+    }
+   ]
+  },
+  {
+   "name": "СлужебныеПроцедурыИФункции",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 3792,
+    "startCharacter": 1,
+    "endLine": 9999,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "СвойстваВыполнитьОтложеннуюИнициализацию",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3797,
+      "startCharacter": 0,
+      "endLine": 3799,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбновитьЗависимостиДополнительныхРеквизитов",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3802,
+      "startCharacter": 0,
+      "endLine": 3804,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ПриИзмененииДополнительногоРеквизита",
+     "kind": "Method",
+     "detail": "(Элемент)",
+     "range": {
+      "startLine": 3807,
+      "startCharacter": 0,
+      "endLine": 3809,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ДоговорПриИзмененииЗавершениеСервер",
+     "kind": "Method",
+     "detail": "(ФлагЗаполнитьЦеныПоСоглашению, ЦеныРассчитаны, ТекстОшибки)",
+     "range": {
+      "startLine": 3814,
+      "startCharacter": 0,
+      "endLine": 3824,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриИзмененииКлючевыхРеквизитовСостояниеЭДО",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3827,
+      "startCharacter": 0,
+      "endLine": 3843,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьПодчиненныеСвойстваПоСтатистике",
+     "kind": "Method",
+     "detail": "(ИмяРеквизитаРодителя)",
+     "range": {
+      "startLine": 3846,
+      "startCharacter": 0,
+      "endLine": 3848,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьУсловноеОформление",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 3851,
+      "startCharacter": 0,
+      "endLine": 4374,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗаполнитьНалогообложениеНДСНаСервере",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 4377,
+      "startCharacter": 0,
+      "endLine": 4382,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПриИзмененииРеквизитов",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 4384,
+      "startCharacter": 1,
+      "endLine": 5416,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ДатаПереходаПраваСобственностиПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4387,
+        "startCharacter": 0,
+        "endLine": 4413,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриИзмененииРеализацииПоНесколькимЗаказам",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4416,
+        "startCharacter": 0,
+        "endLine": 4462,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДатаПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(ПересчитатьЦены, ЦеныРассчитаны, ПрименитьОплатуБонуснымиБаллами?)",
+       "range": {
+        "startLine": 4465,
+        "startCharacter": 0,
+        "endLine": 4491,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриИзмененииПартнераСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4494,
+        "startCharacter": 0,
+        "endLine": 4563,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтактноеЛицоПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(ПартнерИзменился)",
+       "range": {
+        "startLine": 4566,
+        "startCharacter": 0,
+        "endLine": 4575,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриЧтенииСозданииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4578,
+        "startCharacter": 0,
+        "endLine": 4723,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СтатусПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4726,
+        "startCharacter": 0,
+        "endLine": 4742,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СоглашениеПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4745,
+        "startCharacter": 0,
+        "endLine": 4814,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СоглашениеОчисткаСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4817,
+        "startCharacter": 0,
+        "endLine": 4823,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВалютаПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(НоваяВалюта)",
+       "range": {
+        "startLine": 4826,
+        "startCharacter": 0,
+        "endLine": 4863,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ХозяйственнаяОперацияПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4866,
+        "startCharacter": 0,
+        "endLine": 4996,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НалогообложениеНДСПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 4999,
+        "startCharacter": 0,
+        "endLine": 5031,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЦенаВключаетНДСПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(КэшированныеЗначения)",
+       "range": {
+        "startLine": 5034,
+        "startCharacter": 0,
+        "endLine": 5057,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СкладПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(ОчищатьСтроки?, ОтвязатьВсеСтрокиОтЗаказа?)",
+       "range": {
+        "startLine": 5060,
+        "startCharacter": 0,
+        "endLine": 5102,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОрганизацияПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5105,
+        "startCharacter": 0,
+        "endLine": 5147,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрагентПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5150,
+        "startCharacter": 0,
+        "endLine": 5183,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДоговорПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5186,
+        "startCharacter": 0,
+        "endLine": 5219,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПредложениеЗаполнитьПоГосконтрактуЕИС",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5223,
+        "startCharacter": 0,
+        "endLine": 5232,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьПоГосконтрактуЗавершение",
+       "kind": "Method",
+       "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 5235,
+        "startCharacter": 0,
+        "endLine": 5241,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьПоГосконтрактуСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5244,
+        "startCharacter": 0,
+        "endLine": 5279,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ТоварыПослеУдаленияСервер",
+       "kind": "Method",
+       "detail": "(НеобходимоОбновитьСтатусыСерий, КэшированныеЗначения)",
+       "range": {
+        "startLine": 5283,
+        "startCharacter": 0,
+        "endLine": 5298,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСлужебныеРеквизитыПоНоменклатуре",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5301,
+        "startCharacter": 0,
+        "endLine": 5317,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьРасходныйОрдерДляЗаказовНаОтгрузку",
+       "kind": "Method",
+       "detail": "(Ссылка, НачатаОтгрузка)",
+       "range": {
+        "startLine": 5320,
+        "startCharacter": 0,
+        "endLine": 5324,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "НаправлениеДеятельностиПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5327,
+        "startCharacter": 0,
+        "endLine": 5341,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РеализацияПоЗаказамПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5344,
+        "startCharacter": 0,
+        "endLine": 5349,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьТекстДокументыНаОсновании",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5352,
+        "startCharacter": 0,
+        "endLine": 5360,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КурьерПриИзмененииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5363,
+        "startCharacter": 0,
+        "endLine": 5367,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПартнерКлиентПриИзмененииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5370,
+        "startCharacter": 0,
+        "endLine": 5374,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КлиентКонтрагентПриИзмененииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5377,
+        "startCharacter": 0,
+        "endLine": 5381,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КлиентДоговорПриИзмененииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5384,
+        "startCharacter": 0,
+        "endLine": 5391,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьКоличествоВДокументеЗавершениеСервер",
+       "kind": "Method",
+       "detail": "(ВозвращаемыеПараметры, ПеремКэшированныеЗначения)",
+       "range": {
+        "startLine": 5394,
+        "startCharacter": 0,
+        "endLine": 5400,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьЦеныПоСоглашениюНаСервере",
+       "kind": "Method",
+       "detail": "(ПоВсемСтрокам?, УчитыватьСтрокиСверхЗаказа?, ТекстОшибки?)",
+       "range": {
+        "startLine": 5403,
+        "startCharacter": 0,
+        "endLine": 5408,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьЦеныПоДоговоруНаСервере",
+       "kind": "Method",
+       "detail": "(ТекстОшибки?)",
+       "range": {
+        "startLine": 5411,
+        "startCharacter": 0,
+        "endLine": 5414,
+        "endCharacter": 12
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ЗаполнениеПоЗаказуПоОрдеру",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 5418,
+      "startCharacter": 1,
+      "endLine": 5437,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПерезаполнитьПоОрдерам",
+       "kind": "Method",
+       "detail": "(МассивЗаказов)",
+       "range": {
+        "startLine": 5421,
+        "startCharacter": 0,
+        "endLine": 5435,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ЦенообразованиеИСкидки",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 5439,
+      "startCharacter": 1,
+      "endLine": 6118,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗаполнитьЦеныПоСоглашениюСервер",
+       "kind": "Method",
+       "detail": "(ПоВсемСтрокам?, УчитыватьСтрокиСверхЗаказа?, ТекстОшибки?)",
+       "range": {
+        "startLine": 5442,
+        "startCharacter": 0,
+        "endLine": 5505,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьЦеныВыделенныхСтрокПоВидуЦенСервер",
+       "kind": "Method",
+       "detail": "(ВидЦен)",
+       "range": {
+        "startLine": 5508,
+        "startCharacter": 0,
+        "endLine": 5552,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолученыСообщения",
+       "kind": "Method",
+       "detail": "(Сообщения)",
+       "range": {
+        "startLine": 5555,
+        "startCharacter": 0,
+        "endLine": 5560,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьСкидкиБезПримененияКОбъекту",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5563,
+        "startCharacter": 0,
+        "endLine": 5576,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "РассчитатьСкидкиНаценкиНаСервере",
+       "kind": "Method",
+       "detail": "(СтруктураПараметры, ВзятьИзВременногоХранилища?)",
+       "range": {
+        "startLine": 5579,
+        "startCharacter": 0,
+        "endLine": 5606,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "НазначитьРучнуюСкидкуНаСервере",
+       "kind": "Method",
+       "detail": "(СуммаСкидкиНаценки, ВыделенныеСтроки, АдресВоВременномХранилище)",
+       "range": {
+        "startLine": 5609,
+        "startCharacter": 0,
+        "endLine": 5630,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПредварительноРассчитанныеСкидкиНаценкиПоЗаказу",
+       "kind": "Method",
+       "detail": "(ИзменилисьСкидки)",
+       "range": {
+        "startLine": 5633,
+        "startCharacter": 0,
+        "endLine": 5703,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОтменитьРучныеСкидкиНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5706,
+        "startCharacter": 0,
+        "endLine": 5718,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПредварительныйРасчетСкидокНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5721,
+        "startCharacter": 0,
+        "endLine": 5733,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СчитанаКартаЛояльностиНаСервере",
+       "kind": "Method",
+       "detail": "(ДанныеКартыЛояльности)",
+       "range": {
+        "startLine": 5736,
+        "startCharacter": 0,
+        "endLine": 5762,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИспользоватьБонусныеПрограммыЛояльности",
+       "kind": "Method",
+       "detail": "(КартаЛояльности)",
+       "range": {
+        "startLine": 5765,
+        "startCharacter": 0,
+        "endLine": 5773,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "СчитанаКартаЛояльности",
+       "kind": "Method",
+       "detail": "(КартаЛояльности)",
+       "range": {
+        "startLine": 5776,
+        "startCharacter": 0,
+        "endLine": 5861,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СчитанаКартаЛояльностиВопросЗавершение",
+       "kind": "Method",
+       "detail": "(Ответ, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 5864,
+        "startCharacter": 0,
+        "endLine": 5880,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СкидкиИзменились",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 5883,
+        "startCharacter": 0,
+        "endLine": 5919,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИзменилисьСкидки",
+       "kind": "Method",
+       "detail": "(ТаблицаСкидкиНаценки, СкидкиИзменились)",
+       "range": {
+        "startLine": 5922,
+        "startCharacter": 0,
+        "endLine": 5945,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПрименитьОплатуБонуснымиБалламиКлиент",
+       "kind": "Method",
+       "detail": "(АдресВоВременномХранилище?, ВыводитьСообщение?)",
+       "range": {
+        "startLine": 5948,
+        "startCharacter": 0,
+        "endLine": 5956,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПрименитьОплатуБонуснымиБаллами",
+       "kind": "Method",
+       "detail": "(АдресВоВременномХранилище?, ВыводитьСообщение?)",
+       "range": {
+        "startLine": 5959,
+        "startCharacter": 0,
+        "endLine": 6032,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверкаОплатыБонуснымиБаллами",
+       "kind": "Method",
+       "detail": "(ТекущаяСтрока, СтруктураЗаполненияБонусныхБаллов)",
+       "range": {
+        "startLine": 6035,
+        "startCharacter": 0,
+        "endLine": 6053,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверкаОплатыБонуснымиБалламиСервер",
+       "kind": "Method",
+       "detail": "(ОтборСтрок)",
+       "range": {
+        "startLine": 6056,
+        "startCharacter": 0,
+        "endLine": 6083,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьДанныеДляРасчетаОплатыБонуснымиБаллами",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6086,
+        "startCharacter": 0,
+        "endLine": 6116,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПодборыИОбработкаПроверкиКоличества",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6120,
+      "startCharacter": 1,
+      "endLine": 6716,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ПроверитьКоличествоВДокументеКлиент",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6123,
+        "startCharacter": 0,
+        "endLine": 6137,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаВыбораПодборНаСервере",
+       "kind": "Method",
+       "detail": "(ВыбранноеЗначение)",
+       "range": {
+        "startLine": 6140,
+        "startCharacter": 0,
+        "endLine": 6229,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаВыбораПодборНаКлиенте",
+       "kind": "Method",
+       "detail": "(ВыбранноеЗначение)",
+       "range": {
+        "startLine": 6232,
+        "startCharacter": 0,
+        "endLine": 6238,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПодобратьИзЗаказа",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6241,
+        "startCharacter": 0,
+        "endLine": 6261,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПодобратьИзЗаказЗавершение",
+       "kind": "Method",
+       "detail": "(РезультатВопроса, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 6264,
+        "startCharacter": 0,
+        "endLine": 6286,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПодборТоваровИзЗаказа",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6289,
+        "startCharacter": 0,
+        "endLine": 6340,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаПодбораТоваровИзЗаказа",
+       "kind": "Method",
+       "detail": "(АдресТоваровВХранилище)",
+       "range": {
+        "startLine": 6343,
+        "startCharacter": 0,
+        "endLine": 6471,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПодобратьПереданныеТовары",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 6474,
+        "startCharacter": 0,
+        "endLine": 6510,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработкаВыбораПодборПереданныхТоваров",
+       "kind": "Method",
+       "detail": "(ВыбранноеЗначение, ЦеныРассчитаны)",
+       "range": {
+        "startLine": 6513,
+        "startCharacter": 0,
+        "endLine": 6572,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПоместитьТабличнуюЧастьТоварыВоВременноеХранилищеДляПроверкиКоличества",
+       "kind": "Method",
+       "detail": "(ВыгруженаТолькоНеМаркируемаяПродукция?)",
+       "range": {
+        "startLine": 6575,
+        "startCharacter": 0,
+        "endLine": 6592,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ИзменитьТабличнуюЧастьПоРезультатамПроверки",
+       "kind": "Method",
+       "detail": "(ВозвращаемыеПараметры, КэшированныеЗначения)",
+       "range": {
+        "startLine": 6595,
+        "startCharacter": 0,
+        "endLine": 6714,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ШтрихкодыИТорговоеОборудование",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6718,
+      "startCharacter": 1,
+      "endLine": 6796,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ОбработатьШтрихкоды",
+       "kind": "Method",
+       "detail": "(ДанныеШтрихкодов)",
+       "range": {
+        "startLine": 6721,
+        "startCharacter": 0,
+        "endLine": 6781,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработатьШтрихкодыСервер",
+       "kind": "Method",
+       "detail": "(СтруктураПараметровДействия, КэшированныеЗначения)",
+       "range": {
+        "startLine": 6784,
+        "startCharacter": 0,
+        "endLine": 6794,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "Серии",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6798,
+      "startCharacter": 1,
+      "endLine": 6902,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ЗаполнитьСерииПоFEFOСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6801,
+        "startCharacter": 0,
+        "endLine": 6811,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьВидимостьЭлементовСерий",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6814,
+        "startCharacter": 0,
+        "endLine": 6821,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбработатьУказаниеСерийСервер",
+       "kind": "Method",
+       "detail": "(ПараметрыФормыУказанияСерий)",
+       "range": {
+        "startLine": 6824,
+        "startCharacter": 0,
+        "endLine": 6828,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСтатусыУказанияСерийПриОкончанииРедактированияСтрокиТЧ",
+       "kind": "Method",
+       "detail": "(ТекущаяСтрокаИдентификатор, КэшированныеЗначения)",
+       "range": {
+        "startLine": 6831,
+        "startCharacter": 0,
+        "endLine": 6836,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСтатусыУказанияСерийСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6839,
+        "startCharacter": 0,
+        "endLine": 6843,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьЗаполненныеСерииПоFEFO",
+       "kind": "Method",
+       "detail": "(Товары)",
+       "range": {
+        "startLine": 6846,
+        "startCharacter": 0,
+        "endLine": 6850,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОткрытьПодборСерийПриСканированииШтрихкодаНоменклатуры",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6853,
+        "startCharacter": 0,
+        "endLine": 6862,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПараметрыФормыУказанияСерий",
+       "kind": "Method",
+       "detail": "(ТекущиеДанныеИдентификатор)",
+       "range": {
+        "startLine": 6865,
+        "startCharacter": 0,
+        "endLine": 6869,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОткрытьПодборСерий",
+       "kind": "Method",
+       "detail": "(Текст?, ТекущиеДанные?)",
+       "range": {
+        "startLine": 6872,
+        "startCharacter": 0,
+        "endLine": 6886,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОткрытьПодборСерийЗавершение",
+       "kind": "Method",
+       "detail": "(Результат, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 6889,
+        "startCharacter": 0,
+        "endLine": 6900,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РаботаСБуферомОбмена",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 6904,
+      "startCharacter": 1,
+      "endLine": 7018,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "СкопироватьСтрокиНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6907,
+        "startCharacter": 0,
+        "endLine": 6911,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьСтрокиИзБуфераОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6914,
+        "startCharacter": 0,
+        "endLine": 6992,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьДоступностьКомандБуфераОбмена",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 6995,
+        "startCharacter": 0,
+        "endLine": 7004,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьДоступностьКомандБуфераОбменаНаКлиенте",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7007,
+        "startCharacter": 0,
+        "endLine": 7016,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "Наборы",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7020,
+      "startCharacter": 1,
+      "endLine": 7120,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "КолонкиНабора",
+       "kind": "Method",
+       "detail": "(Форма)",
+       "range": {
+        "startLine": 7023,
+        "startCharacter": 0,
+        "endLine": 7054,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриУдаленииКомплектующих",
+       "kind": "Method",
+       "detail": "(Действие, ДополнительныйПараметр)",
+       "range": {
+        "startLine": 7058,
+        "startCharacter": 0,
+        "endLine": 7068,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриУдаленииКомплектующихНаСервере",
+       "kind": "Method",
+       "detail": "(ИмяТЧ, ДополнительныйПараметр)",
+       "range": {
+        "startLine": 7071,
+        "startCharacter": 0,
+        "endLine": 7073,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "АдресНабораВоВременномХранилище",
+       "kind": "Method",
+       "detail": "(Параметры)",
+       "range": {
+        "startLine": 7076,
+        "startCharacter": 0,
+        "endLine": 7080,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриОкончанииРедактированияНабора",
+       "kind": "Method",
+       "detail": "(АдресВоВременномХранилище)",
+       "range": {
+        "startLine": 7083,
+        "startCharacter": 0,
+        "endLine": 7118,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "Прочее",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 7122,
+      "startCharacter": 1,
+      "endLine": 9096,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "Подключаемый_ЗакрытьФорму",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7125,
+        "startCharacter": 0,
+        "endLine": 7131,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьСнятьОтметкуОбособленно",
+       "kind": "Method",
+       "detail": "(Установить)",
+       "range": {
+        "startLine": 7134,
+        "startCharacter": 0,
+        "endLine": 7136,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьБанковскийСчетКонтрагентаПоУмолчаниюСервер",
+       "kind": "Method",
+       "detail": "(Контрагент, КорреспондирующийСчет)",
+       "range": {
+        "startLine": 7139,
+        "startCharacter": 0,
+        "endLine": 7143,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьХозяйственнуюОперациюДоговора",
+       "kind": "Method",
+       "detail": "(ХозяйственнаяОперация)",
+       "range": {
+        "startLine": 7146,
+        "startCharacter": 0,
+        "endLine": 7160,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ДобавитьВСтруктуруДействияПриИзмененииКоличестваУпаковок",
+       "kind": "Method",
+       "detail": "(СтруктураДействий, Объект, СтруктураЗаполненияБонусныхБаллов?)",
+       "range": {
+        "startLine": 7163,
+        "startCharacter": 0,
+        "endLine": 7177,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьИнформациюПоЗаказам",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7180,
+        "startCharacter": 0,
+        "endLine": 7195,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьДоговорПоУмолчанию",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7198,
+        "startCharacter": 0,
+        "endLine": 7230,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьДоговорКонечногоКлиентаПоУмолчанию",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7233,
+        "startCharacter": 0,
+        "endLine": 7241,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьПоЗаказуСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7244,
+        "startCharacter": 0,
+        "endLine": 7284,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПривязатьСтрокиРеализацииКЗаказамКлиентов",
+       "kind": "Method",
+       "detail": "(ОтобратьПоЗаказу)",
+       "range": {
+        "startLine": 7287,
+        "startCharacter": 0,
+        "endLine": 7740,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСкладВВыделенныхСтрокахНаСервере",
+       "kind": "Method",
+       "detail": "(МассивВыделенныхСтрок, Склад)",
+       "range": {
+        "startLine": 7743,
+        "startCharacter": 0,
+        "endLine": 7754,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7757,
+        "startCharacter": 0,
+        "endLine": 7927,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьВидимостьЭлементовПоОперацииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 7930,
+        "startCharacter": 0,
+        "endLine": 8007,
+        "endCharacter": 14
+       },
+       "children": [
+        {
+         "name": "МассивВсехРеквизитов",
+         "kind": "Variable",
+         "detail": null,
+         "range": {
+          "startLine": 7932,
+          "startCharacter": 7,
+          "endLine": 7932,
+          "endCharacter": 27
+         },
+         "children": []
+        },
+        {
+         "name": "МассивРеквизитовОперации",
+         "kind": "Variable",
+         "detail": null,
+         "range": {
+          "startLine": 7933,
+          "startCharacter": 7,
+          "endLine": 7933,
+          "endCharacter": 31
+         },
+         "children": []
+        }
+       ]
+      },
+      {
+       "name": "ЗаполнитьСписокВыбораОпераций",
+       "kind": "Method",
+       "detail": "(УстановитьОперацию?)",
+       "range": {
+        "startLine": 8010,
+        "startCharacter": 0,
+        "endLine": 8122,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьЭлементыДополнительныхРеквизитов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8125,
+        "startCharacter": 0,
+        "endLine": 8129,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПоместитьТоварыИВидыЗапасовВХранилище",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8132,
+        "startCharacter": 0,
+        "endLine": 8143,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьВидыЗапасовИзХранилища",
+       "kind": "Method",
+       "detail": "(ВыбранноеЗначение)",
+       "range": {
+        "startLine": 8146,
+        "startCharacter": 0,
+        "endLine": 8150,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УдалитьСтрокиТЧСкидкиНаценки",
+       "kind": "Method",
+       "detail": "(СтрокаТЧТовары)",
+       "range": {
+        "startLine": 8153,
+        "startCharacter": 0,
+        "endLine": 8165,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "АвтоТест_ЗаполнитьЦеныПоСоглашению",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 8168,
+        "startCharacter": 0,
+        "endLine": 8172,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьОрдернуюСхемуПриОтгрузке",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8175,
+        "startCharacter": 0,
+        "endLine": 8188,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПриИзмененииСкладаВТабличнойЧастиСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8191,
+        "startCharacter": 0,
+        "endLine": 8200,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "АдресДанныхДляРасчетаРучныхСкидокВоВременномХранилище",
+       "kind": "Method",
+       "detail": "(ТолькоВыделенныеСтроки)",
+       "range": {
+        "startLine": 8203,
+        "startCharacter": 0,
+        "endLine": 8212,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьНаличиеКорректировок",
+       "kind": "Method",
+       "detail": "(Ссылка, ЕстьКорректировки)",
+       "range": {
+        "startLine": 8215,
+        "startCharacter": 0,
+        "endLine": 8219,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЕстьПравоДобавленияКорректировок",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8222,
+        "startCharacter": 0,
+        "endLine": 8226,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОткрытьРеквизитыПечатиРеализации",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8229,
+        "startCharacter": 0,
+        "endLine": 8287,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЭтоГруппаСкладовИСкладыИспользуютсяВТЧДокументовПродажи",
+       "kind": "Method",
+       "detail": "(Склад)",
+       "range": {
+        "startLine": 8290,
+        "startCharacter": 0,
+        "endLine": 8294,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьУсловияПродаж",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8297,
+        "startCharacter": 0,
+        "endLine": 8323,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьДоступностьЭлементовВозвратнойТары",
+       "kind": "Method",
+       "detail": "(Форма)",
+       "range": {
+        "startLine": 8326,
+        "startCharacter": 0,
+        "endLine": 8350,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьМногооборотнуюТаруИзХранилищаСервер",
+       "kind": "Method",
+       "detail": "(АдресТарыВХранилище)",
+       "range": {
+        "startLine": 8353,
+        "startCharacter": 0,
+        "endLine": 8401,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗависимыеРеквизиты",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8404,
+        "startCharacter": 0,
+        "endLine": 8410,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ЗависимыеРеквизитыСтрокой",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8413,
+        "startCharacter": 0,
+        "endLine": 8419,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьВидимостьСтатусаИДатыПереходаПраваСобственности",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8422,
+        "startCharacter": 0,
+        "endLine": 8437,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВернутьМногооборотнуюТаруПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8440,
+        "startCharacter": 0,
+        "endLine": 8462,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ТребуетсяЗалогЗаТаруПриИзмененииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8465,
+        "startCharacter": 0,
+        "endLine": 8469,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьПараметрыВыбораВидаЦены",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8472,
+        "startCharacter": 0,
+        "endLine": 8481,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьЗависимыеРеквизитыФормыСерверПоЗаказу",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8484,
+        "startCharacter": 0,
+        "endLine": 8508,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьЗависимыеРеквизитыФормыПоЗаказу",
+       "kind": "Method",
+       "detail": "(Товары, НадписьРасхождениеЗаказ, ЭлементыФормы)",
+       "range": {
+        "startLine": 8511,
+        "startCharacter": 0,
+        "endLine": 8525,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОповеститьОбОкончанииОтвязкиСтрок",
+       "kind": "Method",
+       "detail": "(КоличествоОтработанныхСтрок, СтрокиОтвязаны?)",
+       "range": {
+        "startLine": 8528,
+        "startCharacter": 0,
+        "endLine": 8546,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьОтклоненияОтЗаказаВСтроке",
+       "kind": "Method",
+       "detail": "(ТекущаяСтрока, РеализацияПоЗаказам, ТребуетсяЗалогЗаТару)",
+       "range": {
+        "startLine": 8549,
+        "startCharacter": 0,
+        "endLine": 8559,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьОтклоненияОтЗаказа",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8562,
+        "startCharacter": 0,
+        "endLine": 8568,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВопросПользователюПриИзмененииРеквизитаСтроки",
+       "kind": "Method",
+       "detail": "(ОписаниеОповещения, ТекущаяСтрока)",
+       "range": {
+        "startLine": 8571,
+        "startCharacter": 0,
+        "endLine": 8598,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВопросПользователюПриИзмененииРеквизитаСтрокиВопросЗавершение",
+       "kind": "Method",
+       "detail": "(Ответ, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 8604,
+        "startCharacter": 0,
+        "endLine": 8622,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВозможноНазначениеРучнойСкидкиНаценки",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8625,
+        "startCharacter": 0,
+        "endLine": 8638,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ВозможнаОтменаРучныхСкидокНаценок",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8641,
+        "startCharacter": 0,
+        "endLine": 8654,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ОтвязатьОтЗаказаСервер",
+       "kind": "Method",
+       "detail": "(ВсеСтроки?, ОтвязатьТолькоСтроки?)",
+       "range": {
+        "startLine": 8657,
+        "startCharacter": 0,
+        "endLine": 8697,
+        "endCharacter": 14
+       },
+       "children": [
+        {
+         "name": "КэшированныеЗначения",
+         "kind": "Variable",
+         "detail": null,
+         "range": {
+          "startLine": 8659,
+          "startCharacter": 7,
+          "endLine": 8659,
+          "endCharacter": 27
+         },
+         "children": []
+        }
+       ]
+      },
+      {
+       "name": "УстановитьВидимостьЗапретаОтгрузкиПартнеру",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8700,
+        "startCharacter": 0,
+        "endLine": 8704,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПолучитьЗагруженныеТоварыИзХранилища",
+       "kind": "Method",
+       "detail": "(АдресТоваровВХранилище)",
+       "range": {
+        "startLine": 8707,
+        "startCharacter": 0,
+        "endLine": 8742,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьОснованиеДляПечати",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8745,
+        "startCharacter": 0,
+        "endLine": 8753,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ИзменитьЗаголовкиПоВариантуОформленияПродажи",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8756,
+        "startCharacter": 0,
+        "endLine": 8772,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьТекстСчетаФактурыВыданные",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8775,
+        "startCharacter": 0,
+        "endLine": 8786,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьЗаголовокРеквизитовПечати",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8789,
+        "startCharacter": 0,
+        "endLine": 8797,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьЗаголовокЗаполнитьПоЗаказамОрдерам",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8800,
+        "startCharacter": 0,
+        "endLine": 8813,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДанныеВыбораСкладов",
+       "kind": "Method",
+       "detail": "(Склад)",
+       "range": {
+        "startLine": 8816,
+        "startCharacter": 0,
+        "endLine": 8832,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьПараметрыВыбораТоварыСклад",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8835,
+        "startCharacter": 0,
+        "endLine": 8840,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьЗаголовокТоварыГруппаОтправитель",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8843,
+        "startCharacter": 0,
+        "endLine": 8852,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьНалогообложениеНДСПродажи",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8855,
+        "startCharacter": 0,
+        "endLine": 8861,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗачтенаОплатаСервер",
+       "kind": "Method",
+       "detail": "(ИмяСобытия, Параметр, Источник)",
+       "range": {
+        "startLine": 8864,
+        "startCharacter": 0,
+        "endLine": 8868,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Запись_КорректировкаРеализацииНаСервере",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8871,
+        "startCharacter": 0,
+        "endLine": 8875,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьПризнакЕстьКорректировки",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8878,
+        "startCharacter": 0,
+        "endLine": 8880,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьПризнакЗаполненияСклада",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8883,
+        "startCharacter": 0,
+        "endLine": 8887,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьОбязательностьСкладаВТЧ",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8890,
+        "startCharacter": 0,
+        "endLine": 8899,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьПодразделение",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 8902,
+        "startCharacter": 0,
+        "endLine": 8907,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСтавкуНДСЗавершение",
+       "kind": "Method",
+       "detail": "(СтавкаНДС, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 8910,
+        "startCharacter": 0,
+        "endLine": 8919,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьСтавкуНДСНаСервере",
+       "kind": "Method",
+       "detail": "(СтавкаНДС, КэшированныеЗначения)",
+       "range": {
+        "startLine": 8922,
+        "startCharacter": 0,
+        "endLine": 8947,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПодключитьОбработчикОжиданияПолучениеПеревозчиков",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8950,
+        "startCharacter": 0,
+        "endLine": 8961,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОбновитьСписокПеревозчиковОповещение",
+       "kind": "Method",
+       "detail": "(Результат, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 8964,
+        "startCharacter": 0,
+        "endLine": 8976,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьВидимостьЭлементовБонуснойПрограммыЛояльности",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8979,
+        "startCharacter": 0,
+        "endLine": 8985,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "АдресТабличнойЧастиТовары",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 8988,
+        "startCharacter": 0,
+        "endLine": 9006,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьВидимостьКомандыЗаполненияВидаЦенПоДоговору",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9009,
+        "startCharacter": 0,
+        "endLine": 9014,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВидЦеныДоговора",
+       "kind": "Method",
+       "detail": "(Договор)",
+       "range": {
+        "startLine": 9017,
+        "startCharacter": 0,
+        "endLine": 9037,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьСвязиПараметровВыбораДоговора",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9040,
+        "startCharacter": 0,
+        "endLine": 9076,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "УстановитьСвязиПараметровВыбораВидаЦены",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9079,
+        "startCharacter": 0,
+        "endLine": 9094,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "КонтрольНесогласованныхИзменений",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9098,
+      "startCharacter": 1,
+      "endLine": 9457,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеПриИзменении",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9103,
+        "startCharacter": 0,
+        "endLine": 9169,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеКоманды",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 9174,
+        "startCharacter": 0,
+        "endLine": 9224,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеНажатие",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9227,
+        "startCharacter": 0,
+        "endLine": 9229,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеПередНачаломИзменения",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ)",
+       "range": {
+        "startLine": 9234,
+        "startCharacter": 0,
+        "endLine": 9240,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеПередУдалением",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ)",
+       "range": {
+        "startLine": 9245,
+        "startCharacter": 0,
+        "endLine": 9251,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КонтрольНеСогласованныхИзмененийОбработатьСобытиеПередНачаломДобавления",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ, Копирование, Родитель, Группа)",
+       "range": {
+        "startLine": 9256,
+        "startCharacter": 0,
+        "endLine": 9262,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроверкиПередИзменениемСтатуса",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9265,
+        "startCharacter": 0,
+        "endLine": 9314,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "РезультатВопросаЗавершение",
+       "kind": "Method",
+       "detail": "(КодОтвета, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 9317,
+        "startCharacter": 0,
+        "endLine": 9323,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьУстановитьВидимостьСерийДоступностьПерезаполнитьПоОтгрузке",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9326,
+        "startCharacter": 0,
+        "endLine": 9332,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ПриИзменении_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9337,
+        "startCharacter": 0,
+        "endLine": 9354,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_Нажатие_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9359,
+        "startCharacter": 0,
+        "endLine": 9369,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_Команда_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 9374,
+        "startCharacter": 0,
+        "endLine": 9388,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ПередНачаломИзменения_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ)",
+       "range": {
+        "startLine": 9393,
+        "startCharacter": 0,
+        "endLine": 9405,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ПередУдалением_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ)",
+       "range": {
+        "startLine": 9410,
+        "startCharacter": 0,
+        "endLine": 9426,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ПередНачаломДобавления_УстановитьДоступностьЭлементовПоСтатусуСервер",
+       "kind": "Method",
+       "detail": "(Элемент, Отказ, Копирование, Родитель, Группа)",
+       "range": {
+        "startLine": 9431,
+        "startCharacter": 0,
+        "endLine": 9447,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ПриИзмененииРеквизитаЗависящегоОтСтатуса",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9450,
+        "startCharacter": 0,
+        "endLine": 9455,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "РаботаСКонтрагентами",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9459,
+      "startCharacter": 1,
+      "endLine": 9490,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "Подключаемый_ПоказатьПредложениеИспользоватьПроверкуКонтрагентов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9462,
+        "startCharacter": 0,
+        "endLine": 9464,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ОбработатьРезультатПроверкиКонтрагентов",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9467,
+        "startCharacter": 0,
+        "endLine": 9469,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОтобразитьРезультатПроверкиКонтрагента",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9472,
+        "startCharacter": 0,
+        "endLine": 9474,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьКонтрагентовФоновоеЗадание",
+       "kind": "Method",
+       "detail": "(ПараметрыФоновогоЗадания)",
+       "range": {
+        "startLine": 9477,
+        "startCharacter": 0,
+        "endLine": 9479,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПроверитьКонтрагентов",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 9482,
+        "startCharacter": 0,
+        "endLine": 9488,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ФискальнаяОперация",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9492,
+      "startCharacter": 1,
+      "endLine": 9543,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ФискальнаяОперацияОбработкаНавигационнойСсылки",
+       "kind": "Method",
+       "detail": "(Элемент, НавигационнаяСсылка, СтандартнаяОбработка)",
+       "range": {
+        "startLine": 9495,
+        "startCharacter": 0,
+        "endLine": 9534,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ФискальнаяОперацияЗавершение",
+       "kind": "Method",
+       "detail": "(Результат, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 9537,
+        "startCharacter": 0,
+        "endLine": 9541,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    },
+    {
+     "name": "ПередПодборомТоваровИзЗаказаСервер",
+     "kind": "Method",
+     "detail": "(МассивКодовСтрок, АдресТоваров)",
+     "range": {
+      "startLine": 9546,
+      "startCharacter": 0,
+      "endLine": 9558,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ПодготовитьДанныеПоШтрихкодыУпаковок",
+     "kind": "Method",
+     "detail": "(АдресШтрихкодовУпаковок)",
+     "range": {
+      "startLine": 9561,
+      "startCharacter": 0,
+      "endLine": 9565,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ВыполнитьКоманду",
+     "kind": "Method",
+     "detail": "(Команда)",
+     "range": {
+      "startLine": 9569,
+      "startCharacter": 0,
+      "endLine": 9571,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "Подключаемый_ОбновитьКоманды",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 9574,
+      "startCharacter": 0,
+      "endLine": 9576,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РеализацияПоЗаказамПриИзмененииПослеВыбора",
+     "kind": "Method",
+     "detail": "(Результат, ДополнительныеПараметры)",
+     "range": {
+      "startLine": 9580,
+      "startCharacter": 0,
+      "endLine": 9598,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьВидимостьКомандПоЗаказу",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 9601,
+      "startCharacter": 0,
+      "endLine": 9606,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "РассчитатьИтоговыеПоказатели",
+     "kind": "Method",
+     "detail": "(Форма)",
+     "range": {
+      "startLine": 9609,
+      "startCharacter": 0,
+      "endLine": 9643,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ИспользуютсяЗаказыКакСчета",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 9646,
+      "startCharacter": 0,
+      "endLine": 9683,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработатьИзменениеАдреса",
+     "kind": "Method",
+     "detail": "(Элемент, ИмяРеквизитаАдреса)",
+     "range": {
+      "startLine": 9686,
+      "startCharacter": 0,
+      "endLine": 9711,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "АдресДоставкиПриИзмененииНаСервере",
+     "kind": "Method",
+     "detail": "(Адрес, АдресЗначение, АдресЗначенияПолей)",
+     "range": {
+      "startLine": 9714,
+      "startCharacter": 0,
+      "endLine": 9739,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьТипАдресаВСвободнойФорме",
+     "kind": "Method",
+     "detail": "(АдресДоставкиЗначение)",
+     "range": {
+      "startLine": 9742,
+      "startCharacter": 0,
+      "endLine": 9748,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбработчикиСобытий",
+     "kind": "Namespace",
+     "detail": null,
+     "range": {
+      "startLine": 9750,
+      "startCharacter": 1,
+      "endLine": 9997,
+      "endCharacter": 13
+     },
+     "children": [
+      {
+       "name": "ДекорацияСервисДоставкиСоздатьНажатие",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9753,
+        "startCharacter": 0,
+        "endLine": 9759,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДекорацияСервисДоставкиСписокЗаказовНажатие",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9762,
+        "startCharacter": 0,
+        "endLine": 9768,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДекорацияСервисДоставкиДобавитьВЗаказНаДоставкуНажатие",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9771,
+        "startCharacter": 0,
+        "endLine": 9777,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ДекорацияСервисДоставкиОбработкаНавигационнойСсылки",
+       "kind": "Method",
+       "detail": "(Элемент, НавигационнаяСсылкаФорматированнойСтроки, СтандартнаяОбработка)",
+       "range": {
+        "startLine": 9781,
+        "startCharacter": 0,
+        "endLine": 9790,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СпособМестоДоставкиПеревозчикПриИзменении",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9794,
+        "startCharacter": 0,
+        "endLine": 9799,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "КурьерНачалоВыбора",
+       "kind": "Method",
+       "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+       "range": {
+        "startLine": 9802,
+        "startCharacter": 0,
+        "endLine": 9806,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СборщикНачалоВыбора",
+       "kind": "Method",
+       "detail": "(Элемент, ДанныеВыбора, СтандартнаяОбработка)",
+       "range": {
+        "startLine": 9809,
+        "startCharacter": 0,
+        "endLine": 9813,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОсобыеУсловияПеревозкиПриИзменении",
+       "kind": "Method",
+       "detail": "(Элемент)",
+       "range": {
+        "startLine": 9816,
+        "startCharacter": 0,
+        "endLine": 9820,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнитьИнформациюПоДоставкеКонтактами",
+       "kind": "Method",
+       "detail": "(Команда)",
+       "range": {
+        "startLine": 9823,
+        "startCharacter": 0,
+        "endLine": 9827,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ОсобыеУсловияПеревозкиПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9830,
+        "startCharacter": 0,
+        "endLine": 9834,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ДополнитьИнформациюПоДоставкеКонтактамиСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9837,
+        "startCharacter": 0,
+        "endLine": 9841,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "Подключаемый_ОбработатьЗаписьОбъекта",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9844,
+        "startCharacter": 0,
+        "endLine": 9848,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ВыполнитьПроверкиИЗадатьВопросыПередЗаписью",
+       "kind": "Method",
+       "detail": "(Отказ, ПараметрыЗаписи)",
+       "range": {
+        "startLine": 9851,
+        "startCharacter": 0,
+        "endLine": 9893,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПередЗаписьюПредложитьПодобратьМногооборотнуюТаруЗавершение",
+       "kind": "Method",
+       "detail": "(Результат, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 9896,
+        "startCharacter": 0,
+        "endLine": 9927,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ЗаполнитьПоказателиЭтаповОплатыКлиент",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9930,
+        "startCharacter": 0,
+        "endLine": 9944,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПредложитьПользователюРассчитатьСкидкиЗавершение",
+       "kind": "Method",
+       "detail": "(ОтветНаВопрос, ДополнительныеПараметры)",
+       "range": {
+        "startLine": 9947,
+        "startCharacter": 0,
+        "endLine": 9964,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ПередЗаписьюНаКлиентеСервер",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9967,
+        "startCharacter": 0,
+        "endLine": 9969,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "СпособМестоДоставкиПеревозчикПриИзмененииСервер",
+       "kind": "Method",
+       "detail": "(ЭлементИмя)",
+       "range": {
+        "startLine": 9972,
+        "startCharacter": 0,
+        "endLine": 9977,
+        "endCharacter": 14
+       },
+       "children": []
+      },
+      {
+       "name": "ШтрихкодыУпаковокЗаполнены",
+       "kind": "Method",
+       "detail": "()",
+       "range": {
+        "startLine": 9980,
+        "startCharacter": 0,
+        "endLine": 9984,
+        "endCharacter": 12
+       },
+       "children": []
+      },
+      {
+       "name": "ПриИзмененииРеквизитовПечатиРеализацииСервер",
+       "kind": "Method",
+       "detail": "(ЗаполнитьУстановитьРеквизитыДоставки)",
+       "range": {
+        "startLine": 9987,
+        "startCharacter": 0,
+        "endLine": 9995,
+        "endCharacter": 14
+       },
+       "children": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Локализация",
+   "kind": "Namespace",
+   "detail": null,
+   "range": {
+    "startLine": 10001,
+    "startCharacter": 1,
+    "endLine": 10236,
+    "endCharacter": 13
+   },
+   "children": [
+    {
+     "name": "ОбработкаОповещенияЛокализация",
+     "kind": "Method",
+     "detail": "(ИмяСобытия, Параметр, Источник)",
+     "range": {
+      "startLine": 10004,
+      "startCharacter": 0,
+      "endLine": 10024,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбновитьБанковскийСчетКонтрагента",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10028,
+      "startCharacter": 0,
+      "endLine": 10030,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбновитьТекстЭПД",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10033,
+      "startCharacter": 0,
+      "endLine": 10040,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ОбновитьТекстДокументыНаОснованииЛокализация",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10044,
+      "startCharacter": 0,
+      "endLine": 10061,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ТекстДокументыНаОснованииОбработкаНавигационнойСсылкиЛокализация",
+     "kind": "Method",
+     "detail": "(Элемент, НавигационнаяСсылкаФорматированнойСтроки, СтандартнаяОбработка)",
+     "range": {
+      "startLine": 10064,
+      "startCharacter": 0,
+      "endLine": 10081,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "УстановитьДоступностьВидимостьЭлементовСборкиИДоставки",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10084,
+      "startCharacter": 0,
+      "endLine": 10114,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗакрытьСессиюПроверкиКМНаККТ",
+     "kind": "Method",
+     "detail": "(Отказ)",
+     "range": {
+      "startLine": 10117,
+      "startCharacter": 0,
+      "endLine": 10135,
+      "endCharacter": 14
+     },
+     "children": []
+    },
+    {
+     "name": "ЗакрытьСессиюПроверкиКМНаККТСервер",
+     "kind": "Method",
+     "detail": "(РеквизитыОсновногоОбъекта, ПодключенныйККТ?)",
+     "range": {
+      "startLine": 10148,
+      "startCharacter": 0,
+      "endLine": 10165,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ПолучитьЗначенияФОМаркировки",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10170,
+      "startCharacter": 0,
+      "endLine": 10180,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ИспользоватьРасширенныеВозможностиЗаказаКлиента",
+     "kind": "Method",
+     "detail": "()",
+     "range": {
+      "startLine": 10183,
+      "startCharacter": 0,
+      "endLine": 10222,
+      "endCharacter": 12
+     },
+     "children": []
+    },
+    {
+     "name": "ВозможноПробитиеЧекаПоДокументу",
+     "kind": "Method",
+     "detail": "(ПараметрыОбъекта)",
+     "range": {
+      "startLine": 10228,
+      "startCharacter": 0,
+      "endLine": 10232,
+      "endCharacter": 12
+     },
+     "children": []
+    }
+   ]
+  }
+ ]
+}

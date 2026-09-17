@@ -1,0 +1,15 @@
+{
+  "id": "11-query-deal-based-fill",
+  "genre": "query",
+  "intent": "query",
+  "task": "Где собирается текст запроса в ЗаказКлиента.ЗаполнитьДокументНаОснованииСделкиПоПродаже — нужно понять, какие таблицы и поля он использует, прежде чем добавлять туда ещё одно условие",
+  "target": {
+    "kind": "symbol",
+    "component": "Documents",
+    "module": "ЗаказКлиента.ObjectModule",
+    "name": "ЗаполнитьДокументНаОснованииСделкиПоПродаже"
+  },
+  "requiredCategories": ["query_text", "owner_symbol", "schema", "tables_fields"],
+  "expectedTools": ["get_context_for_task", "get_query_schema"],
+  "notes": "Реальный метод объектного модуля документа ЗаказКлиента (dumps/ut_demo/Documents/ЗаказКлиента/Ext/ObjectModule.bsl, строка ~937), запрос статический (ВТ_КоммерческиеПредложения + Справочник.СделкиСКлиентами), должен резолвиться с confidence=1."
+}

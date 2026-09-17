@@ -1,0 +1,15 @@
+{
+  "id": "02-bugfix-shipping-date",
+  "genre": "bugfix",
+  "intent": "bugfix",
+  "task": "Почему падает ЗаказыСервер.ПолучитьМинимальнуюДатуОтгрузкиЗаказа на некоторых заказах — разберись и почини",
+  "target": {
+    "kind": "symbol",
+    "component": "CommonModules",
+    "module": "ЗаказыСервер",
+    "name": "ПолучитьМинимальнуюДатуОтгрузкиЗаказа"
+  },
+  "requiredCategories": ["definition", "callers", "callees"],
+  "expectedTools": ["get_context_for_task"],
+  "notes": "Второй bugfix-сценарий, другой общий модуль (ЗаказыСервер, строка 45), для проверки, что классификатор и anchor lookup не завязаны на конкретное имя из примера №1."
+}

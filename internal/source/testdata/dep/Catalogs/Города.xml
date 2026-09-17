@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<Catalog uuid="9a222222-2222-3333-4444-555555555555">
+		<Properties>
+			<Name>Города</Name>
+			<CodeLength>5</CodeLength>
+		</Properties>
+		<ChildObjects>
+			<Attribute uuid="9a222222-0000-0000-0000-000000000001">
+				<Properties>
+					<Name>Индекс</Name>
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+					</Type>
+				</Properties>
+			</Attribute>
+		</ChildObjects>
+	</Catalog>
+</MetaDataObject>

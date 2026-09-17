@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<DefinedType uuid="9b666666-0000-0000-0000-000000000001">
+		<Properties>
+			<Name>ДокументыСФайлами</Name>
+			<Type>
+				<v8:Type>cfg:DocumentObject.ЗаказКлиента</v8:Type>
+				<v8:Type>cfg:DocumentObject.РеализацияТоваров</v8:Type>
+			</Type>
+		</Properties>
+	</DefinedType>
+</MetaDataObject>

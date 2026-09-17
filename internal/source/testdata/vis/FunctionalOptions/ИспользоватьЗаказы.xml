@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<FunctionalOption uuid="9e555555-0000-0000-0000-000000000001">
+		<Properties>
+			<Name>ИспользоватьЗаказы</Name>
+			<Synonym><v8:item><v8:lang>ru</v8:lang><v8:content>Использовать заказы клиентов</v8:content></v8:item></Synonym>
+			<Location>Constant.ИспользоватьЗаказы</Location>
+			<PrivilegedGetMode>true</PrivilegedGetMode>
+			<Content>
+				<xr:Object>Document.ЗаказКлиента.Command.Печать</xr:Object>
+				<xr:Object>Document.ЗаказКлиента</xr:Object>
+			</Content>
+		</Properties>
+	</FunctionalOption>
+</MetaDataObject>

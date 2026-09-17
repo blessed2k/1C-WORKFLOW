@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<AccumulationRegister uuid="9a555555-2222-3333-4444-555555555555">
+		<Properties>
+			<Name>Остатки</Name>
+			<RegisterType>Balance</RegisterType>
+		</Properties>
+		<ChildObjects>
+			<Dimension uuid="9a555555-0000-0000-0000-000000000001">
+				<Properties>
+					<Name>Склад</Name>
+					<Type>
+						<v8:Type>cfg:CatalogRef.Склады</v8:Type>
+					</Type>
+				</Properties>
+			</Dimension>
+			<Resource uuid="9a555555-0000-0000-0000-000000000002">
+				<Properties>
+					<Name>Количество</Name>
+					<Type>
+						<v8:Type>xs:decimal</v8:Type>
+					</Type>
+				</Properties>
+			</Resource>
+		</ChildObjects>
+	</AccumulationRegister>
+</MetaDataObject>

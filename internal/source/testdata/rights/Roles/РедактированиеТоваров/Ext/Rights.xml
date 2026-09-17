@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<setForNewObjects>false</setForNewObjects>
+	<object>
+		<name>Catalog.Товары</name>
+		<right>
+			<name>Read</name>
+			<value>true</value>
+			<restrictionByCondition>
+				<condition>Товары.Подразделение В (&amp;ДоступныеПодразделения)</condition>
+			</restrictionByCondition>
+		</right>
+		<right>
+			<name>Update</name>
+			<value>true</value>
+			<restrictionByCondition>
+				<field>Артикул</field>
+				<condition>Товары.Подразделение В (&amp;ДоступныеПодразделения)</condition>
+			</restrictionByCondition>
+		</right>
+		<right>
+			<name>Delete</name>
+			<value>false</value>
+		</right>
+	</object>
+	<object>
+		<name>Catalog.Подразделения</name>
+		<right>
+			<name>Read</name>
+			<value>true</value>
+		</right>
+	</object>
+</Rights>

@@ -1,0 +1,14 @@
+{
+  "id": "09-add-attribute-partner-manager",
+  "genre": "add-attribute",
+  "intent": "add-attribute",
+  "task": "Добавь реквизит ОтветственныйМенеджер в справочник Контрагенты и оцени impact на формы, права и обмены",
+  "target": {
+    "kind": "metadata_object",
+    "type": "Catalog",
+    "name": "Контрагенты"
+  },
+  "requiredCategories": ["structure", "usages", "forms", "rights", "exchanges"],
+  "expectedTools": ["get_context_for_task", "get_object", "find_impact"],
+  "notes": "Второй add-attribute сценарий на справочнике вместо документа. Контрагенты — реальный крупный справочник (более 60 реквизитов, подтверждено grep), хороший стресс-тест бюджета упаковки структуры."
+}

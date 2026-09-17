@@ -1,0 +1,15 @@
+{
+  "id": "01-bugfix-order-flag",
+  "genre": "bugfix",
+  "intent": "bugfix",
+  "task": "Исправь ошибку в ЗаказыКлиентСервер.ДобавитьДействиеЗаполнитьПризнакРасхождениеЗаказ — признак расхождения иногда не выставляется",
+  "target": {
+    "kind": "symbol",
+    "component": "CommonModules",
+    "module": "ЗаказыКлиентСервер",
+    "name": "ДобавитьДействиеЗаполнитьПризнакРасхождениеЗаказ"
+  },
+  "requiredCategories": ["definition", "callers", "callees"],
+  "expectedTools": ["get_context_for_task"],
+  "notes": "Реальный экспортный метод, подтверждён grep по dumps/ut_demo/CommonModules/ЗаказыКлиентСервер/Ext/Module.bsl (строка 11). Ожидание: definition + сигнатуры callees глубины 1 + callers глубины 1, тела остальных модулей не попадают (§25 пример 1)."
+}
