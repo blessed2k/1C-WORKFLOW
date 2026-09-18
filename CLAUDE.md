@@ -1,7 +1,7 @@
 # 1c-workflow
 
-MCP-сервер для разработки 1С (BSL): один stdio-процесс на Go, для Claude Code/Codex и
-других агентов. Два слоя инструментов в одном `newServer`: старый — читает XML-выгрузку или
+MCP-сервер для разработки 1С (BSL): один stdio-процесс на Go для ИИ-агентов (Claude Code,
+Codex и другие). Два слоя инструментов в одном `newServer`: старый читает XML-выгрузку или
 live HTTP-коннектор по требованию на каждый вызов; новый индексный — персистентный SQLite-индекс
 символов, ссылок, call graph, метаданных, запросов и регистров с инкрементальным обновлением
 (может заменить Serena в повседневной работе над выгрузкой 1С).
@@ -64,11 +64,11 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/workspace` — манифест проекта (`1c-project.json`), локальный registry (`.mcp1c/`) и раскладка XML-выгрузки (`dumplayout.go`)
 - `internal/graphweb` — SPA-карта объектного графа в браузере (ассеты, сервировка, эпохи)
 - `internal/arch` — гард на граф импортов (обычные `go test`, не отдельный линтер)
-- `internal/{source,handlers,onec,scaffold,snippets,standards,syntax,validate}` — легаси-слой инструментов, без индекса, по запросу читает XML/live-коннектор; кэш разобранных коллекций живёт здесь (`internal/source/cache.go`); новый код не импортирует этот слой, кроме `internal/syntax`
+- `internal/{source,onec,standards,syntax,validate}`: легаси-слой инструментов, без индекса, по запросу читает XML/live-коннектор; кэш разобранных коллекций живёт здесь (`internal/source/cache.go`); новый код не импортирует этот слой, кроме `internal/syntax`
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
-- `evals` — фикстуры и раннер для сравнительных прогонов агента
+- `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs` — `architecture-index.md` и `architecture-graph.md` (ACCEPTED), `adr/` (ADR-002…ADR-034), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md`
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-034), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -86,9 +86,9 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph}.go` — регистрация индексных инструментов, по файлу на группу
 - `internal/source/cache.go` — `ConfigureCache(ttl, limitBytes)`, `CacheSnapshot() CacheStats`, `cached[T]`, `estimateSize`, `dirStamp`, сам `dumpCache` со сбросом по TTL и вытеснением
 - `internal/syntax/lazy.go` — `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go` — `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`
-- `internal/syntax/syntaxtest` — `Fixture`/`FixtureFile` (синтетический корпус `testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
+- `internal/syntax/syntaxtest`: `Fixture`/`FixtureFile` (синтетический корпус `internal/syntax/syntaxtest/testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
 - `internal/app/projects.go` — `Projects`: активный логический проект → пара store+index.Service, ленивое открытие, кэш на жизнь процесса
-- `internal/app/activeproject.go`: `Projects` владеет активным проектом процесса, то есть парой «raw-выгрузка + индексный проект» (решение D2): `SetDump` (set_dump и `--dump`) привязывает проект по корню компонента манифеста, `reindex projectRoot` переключает raw, без выгрузки активен сохранённый в реестре или единственный проект; `registry.json` не переписывается, `cmd/mcp1c/dumpState` лишь адаптер
+- `internal/app/activeproject.go`: `Projects` владеет активным проектом процесса, то есть парой «raw-выгрузка + индексный проект» (`docs/architecture-graph.md` §4.1): `SetDump` (set_dump и `--dump`) привязывает проект по корню компонента манифеста, `reindex projectRoot` переключает raw, без выгрузки активен сохранённый в реестре или единственный проект; `registry.json` не переписывается, тип `dumpState` в `cmd/mcp1c/tools.go` лишь адаптер
 - `internal/app/readtx.go` — `ReadTx[T]`: ровно одна read-транзакция на MCP-вызов, использовать вместо ручного `store.Read`
 - `internal/app/errors.go` — `Error`/коды/`similarName` — канонический «возможно, вы имели в виду»
 - `internal/app/indexstatus.go` — `Status(ctx, StatusInput)`, `ReindexInput`, `doseDiagnostics`, `DiagnosticsDigest`, `const diagnosticsSample = 10`; `ReindexStageResult{Name, DurationMS}` и `ReindexResultItem.Stages []ReindexStageResult` (`json:"stages,omitempty"`) — поэтапные тайминги `reindex` в MCP-ответе, собираются из `index.Result.Stages`
@@ -123,7 +123,7 @@ live HTTP-коннектор по требованию на каждый выз�
   подмножества прежних таблиц выражены признаками (`ModuleOwner` у индекса, непустая `CollectionRu`
   у парсера), состав закреплён `metakind_test.go`. Вне словаря остались
   `resolve.queryPrefixToMType`, `source.metadataKinds` (typemap.go) и `validate.managerCollections`
-- `internal/arch/*.go` — `Load`, `Check`, правила `RuleDomainStdlibOnly` и др., фикстуры в `testdata/broken`
+- `internal/arch/*.go`: `Load`, `Check`, правила `RuleDomainStdlibOnly` и др., фикстуры в `internal/arch/testdata/broken`
 
 ## Архитектура
 
@@ -228,7 +228,7 @@ blob GC, orphan-sweep, генерация, физическая фиксация
 появляется **только** когда RSS недоступен (Windows) — вместо RSS, никогда рядом с ним.
 
 `connector/` — не Go: исходники BSL-расширения `МCPКоннектор`
-(`connector/src/HTTPServices/MCP_Сервис`, собранный `.cfe` — в `connector/dist`),
+(`connector/src/HTTPServices/MCP_Сервис`; собранный `.cfe` в репозиторий не входит),
 которое раскатывается в живую базу 1С для live-режима легаси-слоя; собирается отдельным
 тулингом (`connector/tools`), в модуль Go не входит.
 
@@ -322,8 +322,8 @@ guard по корпусу, сервер без файла индекса син�
 `dumpCache` — тесты на TTL пишутся через них, а не через `time.Sleep`.
 
 Контрактные тесты `cmd/mcp1c/tools_contract_test.go` / `tools_behaviour_contract_test.go`
-сверяют состав и поведение 53 инструментов (39 легаси + 14 индексных; `posting_review`
-влит в `get_movements review=true` в C3) с реестром в обе стороны: падают и на удаление
+сверяют состав и поведение всех инструментов (легаси и индексных; `posting_review`
+влит в `get_movements review=true`) с реестром в обе стороны: падают и на удаление
 инструмента, и на добавление незадекларированного. Сервер в них поднимается с
 `--projects-root` на пустом `t.TempDir()`, иначе индексных инструментов нет. Новое
 необязательное поле в ответе тест не роняет; смена обязательности или типа — роняет.
@@ -345,14 +345,13 @@ guard по корпусу, сервер без файла индекса син�
 сверяйся с `workspace.Dump*` руками. `internal/store/*_test.go` в границу не входит вовсе:
 там пути намеренно произвольные (`A.bsl`), тестируется хранилище, а не раскладка.
 
-Проверено мутацией: на реальной раскладке откат `objectModuleDir` красит
-`TestPostingHandlerFoundByOwningModule`, на прежней вымышленной — та же мутация проходила
-зелёной; литерал вложенной раскладки в сиде красит гард на месте. Единственный намеренно
+Проверено мутацией: откат `objectModuleDir` красит `TestPostingHandlerFoundByOwningModule`,
+литерал вложенной раскладки в сиде красит гард на месте. Единственный намеренно
 «неправильный» путь — `Documents/Заказ_Метаданные.xml` (`postingfallback_test.go`): по форме
 он конформен, а по смыслу имя файла не совпадает с именем объекта — это и есть проверяемый
 случай «каталог модулей вывести не из чего».
 
-Поэтапные тайминги и фикс F3 покрыты на шве `internal/app` без реальной выгрузки:
+Поэтапные тайминги и подавление шума форм покрыты на шве `internal/app` без реальной выгрузки:
 `TestIndexStatusServiceReindexReportsStageTimings` (полный reindex — все этапы присутствуют,
 сумма `DurationMS` равна общему `durationMs`), `TestIndexStatusServiceReindexIncrementalStageTimingsNearZero`
 (`internal/app/indexstatus_test.go`); `TestFormIntentSuppressesNoFormsNoiseFromMatchedHomonym` и
@@ -370,12 +369,12 @@ guard по корпусу, сервер без файла индекса син�
   нельзя — гнать `gofmt -d` на конкретный файл.
   Исторический долг легаси-слоя (8 файлов `internal/source` + `cmd/mcp1c/formimpact_test.go`)
   виден только там, где дерево в LF; форматировать по-прежнему только то, что правишь сам.
-- `internal/index.TestRealDumpFullIndex` **реально падает** на `ut_demo`: бюджет §28 — холодный
-  полный индекс < 90с, замер — 4m38s (48 698 файлов, 226 420 символов, эпоха 2.28 ГиБ,
-  HeapAlloc до 6.1 ГиБ). Задокументированный принятый долг, не регрессия — не чинить втихую
-  и не удивляться красному тесту.
-- Тот же реальный прогон подтверждает второй известный погранслучай: `find_symbol` p50 ~10%
-  превышает бюджет 20мс, p95 — с запасом.
+- `internal/index.TestRealDumpFullIndex` **падает** на `ut_demo`: бюджет §28 (холодный
+  полный индекс < 90 с) превышен, замер 4m38s (48 698 файлов, 226 420 символов, эпоха 2.28 ГиБ,
+  HeapAlloc до 6.1 ГиБ). Это задокументированный принятый долг (`docs/benchmarks.md`), не
+  регрессия: не чинить втихую и не удивляться красному тесту.
+- Второй известный погранслучай на той же выгрузке: `find_symbol` p50 превышает бюджет 20 мс
+  примерно на 10%, p95 в бюджете.
 - Гонять весь набор `ONEC_DUMP`-тестов разом рискует упереться в дефолтный 10-минутный
   `-test.timeout` пакета — каждый пакет честно строит свой полный индекс той же выгрузки.
   Прогонять точечно (`-run`, один пакет).
@@ -392,10 +391,10 @@ guard по корпусу, сервер без файла индекса син�
   при запуске горутины (`TTL/4`, но не чаще раза в минуту). Записи истекают по правильному
   дедлайну, максимум на один старый период позже.
 - Сброс записи кэша не равен падению RSS: механизм обещает отпускание ссылок кэша, а не
-  возврат страниц ОС. В трёх изолированных прогонах замера пустой кэш (`entries=0`) давал и
+  возврат страниц ОС. В трёх изолированных замерах пустой кэш (`entries=0`) давал и
   падение ниже холодного старта, и RSS на уровне прогретой точки; причина разброса не
-  установлена (ADR-021, `docs/benchmarks.md`, раздел D14) — одиночный замер RSS ничего
-  не доказывает.
+  установлена (ADR-021, `docs/benchmarks.md`, раздел про память процесса). Одиночный замер
+  RSS ничего не доказывает.
 - `estimateSize` — оценка reflect-обходом глубины 12 (она же защита от циклов), не точный
   размер; годится только для сравнения с потолком, не для отчётности.
 - `evictLocked` всегда оставляет одну запись: коллекция крупнее всего потолка иначе вытесняла бы
@@ -405,7 +404,7 @@ guard по корпусу, сервер без файла индекса син�
   байтах, на остальных в кибибайтах), Windows не отдаёт вовсе (`rss_unsupported.go`).
   Подпроцессов для чтения RSS нет и быть не должно — закреплено `nosubprocess_test.go`.
   Отсутствие числа — отсутствующее поле, не ноль.
-- `resolve.NewEnv` работает над in-memory `EnvInput`, не над `*store.ReadTx` (решение D02) —
+- `resolve.NewEnv` работает над in-memory `EnvInput`, не над `*store.ReadTx`:
   собирать `EnvInput` из строк, прочитанных транзакцией `store`, обязанность вызывающего
   (`internal/index`), не самого резолвера.
 - `query_reference` публикуется только для `StaticityStatic`-текстов запроса (98.6% реальных).
@@ -415,13 +414,13 @@ guard по корпусу, сервер без файла индекса син�
   (кроме `field-typed-by`), `reference` в объект метаданных как цель (`target_object_id` не
   заполняется `publishReference`). Ограничения названы в Description самого инструмента, не
   только в коде.
-- С C3 неизвестный `direction` у `trace_call_graph` и `object_graph` (и в graph-режиме)
+- Неизвестный `direction` у `trace_call_graph` и `object_graph` (и в graph-режиме)
   отдаёт `invalid_argument`, а не `not_found`; оба графа понимают слова друг друга
   (`in` = `callers`, `out` = `callees`). Таблица синонимов одна: `directionWords` в
   `internal/app/direction.go`.
-- Пагинация: `NextCursor` дважды ловили на кодировании константы `limit` вместо накопленного
-  offset (вторая страница повторяла первую, коммит `269b3bc`) — есть регрессионный тест;
-  новый курсор сверять с `find_symbol`/`find_references`, не с памятью о том, «как должно быть».
+- Пагинация: `NextCursor` кодирует накопленный offset, а не константу `limit` (иначе вторая
+  страница повторяет первую; есть регрессионный тест). Новый курсор сверять с
+  `find_symbol`/`find_references`.
 - `internal/workspace.SafeJoin` — единственная точка валидации путей для нового кода;
   повторное изобретение join/traversal-проверки в другом месте пробивает границу workspace.
 - Правка существующего MCP-инструмента красит `cmd/mcp1c/tools_contract_test.go` и
@@ -441,13 +440,11 @@ guard по корпусу, сервер без файла индекса син�
   но виды без `ModuleOwner` (Sequence, ExternalDataSource) по-прежнему дают диагностику. Поэтому `internal/retrieve`
   сознательно выводит владельца из каталога `source_file`, а не по этой цепочке.
 - `publishReference` по-прежнему не заполняет `reference.target_object_id` — этот пробел жив.
-- Восстановление эпох НИКОГДА не удаляет файл с данными (ADR-023).
-  До этой правки указатель был единственным источником истины: `pointer.bin` показывал
-  на эпоху нулевого размера, и `Store.start` -> `recoverEpochs` -> `removeEpoch`
-  классифицировал эпоху С ДАННЫМИ как orphan и удалял её. Так 20.08 был снесён
-  индекс ut_demo (2.4 ГБ) первым же вызовом `index_status`. Теперь: удаляется только
-  доказанный остаток прерванной сборки, поверх стоит инвариант «есть данные значит не
-  удаляем», а указатель на пустую эпоху при живой соседней даёт `EpochQuarantineError`
+- Восстановление эпох НИКОГДА не удаляет файл с данными (ADR-023). Указатель `pointer.bin`
+  не единственный источник истины: если он показывает на пустую эпоху, а рядом есть эпоха с
+  данными, удалять её как orphan нельзя (так теряется весь индекс первым же `index_status`).
+  Удаляется только доказанный остаток прерванной сборки, поверх стоит инвариант «есть данные,
+  значит не удаляем», а указатель на пустую эпоху при живой соседней даёт `EpochQuarantineError`
   с диагностикой и командой `reindex`, ничего не трогая.
 - Уборка эпохи на старте идёт ТОЛЬКО через `(*Store).dropUnpublishedEpoch`, номер
   аварийной сборки берётся `nextFreeEpoch`. `buildEpoch` различает режимы:
@@ -461,17 +458,16 @@ guard по корпусу, сервер без файла индекса син�
 
 - **Раскладка выгрузки в фикстуре.** `DumpConfigToFiles` кладёт объявление файлом РЯДОМ с
   каталогом модулей (`Documents/X.xml` + `Documents/X/Ext/ObjectModule.bsl`). Вложенной
-  `Documents/X/X.xml` не бывает. Фикстуры двух пакетов писали её литералами — и правило
-  владения модулем работало на них при любом дефекте `objectModuleDir`: контрольный вызов на
-  живой выгрузке отдавал обработчик проведения ЧУЖОГО документа, а прогон был зелёный.
-  Дважды за прогон зелёный тест не значил ничего. Пути брать из `workspace.Dump*` (ADR-033).
+  `Documents/X/X.xml` не бывает. Фикстура с выдуманной раскладкой маскирует дефекты
+  `objectModuleDir`: тест зелёный, а на реальной выгрузке находится обработчик проведения
+  ЧУЖОГО документа. Пути брать из `workspace.Dump*` (ADR-033).
 - **Подъём `ParserVersion` — это полная пересборка индекса каждого проекта.** Файл со старым
   `parser_version` считается изменённым; пока проект не пересобран, он честно считает себя
   устаревшим, пока его не переиндексируют. Не поднять версию хуже: индекс молча отдаёт факты
   старого парсера.
 - Принудительный `reindex` **не проходит через precheck** — он всегда запускает пайплайн, а
   тот по правилу `toRead` дочитывает все гидратированные записи компонента. Число «перебранных
-  файлов» у него одинаково до и после правки свежести и **ничего о ней не говорит**. Свежесть
+  файлов» у него не зависит от механизма свежести и **ничего о ней не говорит**. Свежесть
   меряется путём `EnsureFresh`: мгновенный ответ без `stale_index` достижим ровно при
   `work.changed == 0`.
 - `precheckWork` не сводить обратно к одному числу: «нужен ли прогон» решается по `changed`,
@@ -509,31 +505,24 @@ guard по корпусу, сервер без файла индекса син�
   общей длительности сверх суммы измеренных этапов, и считать его нужно от суммы УЖЕ округлённых
   до мс значений остальных этапов (`total.Milliseconds() - sum(.Milliseconds())`), не от суммы
   сырых `time.Duration`. Независимое усечение каждого этапа в `.Milliseconds()` теряет свою долю
-  миллисекунды у каждого — на `ut_demo` (228 417 мс, 6 этапов) первая версия на сырой сумме
-  расходилась с `durationMs` на 2 мс. Поймано юнит-тестом на маленькой фикстуре, не замером.
-- `internal/index/publish.go:198` (`tx.ObjectDataEdgesDependingOnFiles(staleIDs...)`) падает с
-  `SQL logic error: too many SQL variables` на большой конфигурации (48 699 файлов, `ut_demo`,
-  `reindex mode=incremental` сразу после полного) — один SQL-параметр на файл превышает лимит
-  SQLite. Известный открытый баг (появился с объектным графом, веха В1). Инкрементальный
-  reindex на выгрузках такого размера пока не работает.
-- `suppressFormNoiseWhenMatched` (`internal/retrieve/build.go`, F3) гасит `no_forms`/
+  миллисекунды у каждого, и сумма этапов расходится с `durationMs` на единицы мс (закреплено
+  юнит-тестом).
+- Список ID в SQL (файлы, рёбра) бывает неограниченной длины: полная пересборка `ut_demo` несёт
+  48 699 файлов. Плейсхолдер на элемент упирается в лимит SQLite на число переменных (`too many
+  SQL variables`), поэтому такой список уходит одним параметром, JSON-массивом через `json_each`
+  (образец `edgesDependingOnFiles` в `internal/store/objectgraph.go`). Не батчить: сравнение
+  «было / стало» должно оставаться одним отбором.
+- `suppressFormNoiseWhenMatched` (`internal/retrieve/build.go`) гасит `no_forms`/
   `form_binding_not_matched` только для intent=form и только внутри ГРУППЫ анкеров одного
-  `(ObjectType, ObjectName)` — не по всему ответу и не по одному имени без учёта типа. Два
-  круга ревью подряд поймали два разных сужения: сперва глобальное
-  подавление по любой находке в ответе теряло честное `no_forms` про объект, вообще не
-  связанный с найденным; затем группировка только по имени объединяла объекты РАЗНЫХ видов
-  с одним именем (одно имя резолвится в несколько объектов разного MType — тот же факт, что
-  в комментарии `dedupWarnings` соседним примером: Catalog + CommonPicture «Номенклатура»).
-  `Component` в ключе группировки сознательно нет — это и есть исходный сценарий F3 (тот же
-  тип+имя в base и в расширении). Третий круг ревью поймал остаточную проблему уже не в
-  логике подавления (она с D03 верна), а в тексте: `no_forms`/`form_binding_not_matched` несли
-  только голое Display-имя (второе — вообще без имени) и рядом с настоящей находкой того же
-  имени читались как противоречие, даже оставаясь правильным решением НЕ гасить. Тексты
-  (`expandForm`, `internal/retrieve/expand2.go`) теперь называют тип и компонент:
-  `"у объекта %s.%s (%s) …"`. Пять тестов в связке (`internal/retrieve/formnoise_test.go`):
-  `TestFormIntentSuppressesNoFormsNoiseFromMatchedHomonym` (омоним с находкой гасит омоним без
-  находки), `TestFormIntentKeepsNoFormsWhenNoMatchAnywhere` (находок нигде нет — предупреждение
-  остаётся), `TestFormIntentDoesNotSuppressNoFormsForUnrelatedObject` (два разных объекта — не
-  гасится), `TestFormIntentDoesNotSuppressNoFormsForSameNameDifferentType` (одно имя, разные
-  типы — не гасится), `TestFormIntentNoFormsMessageNamesTypeAndComponent` (текст называет тип
-  и компонент).
+  `(ObjectType, ObjectName)`. Не расширять: глобальное подавление по любой находке в ответе
+  теряет честное `no_forms` про несвязанный объект, а группировка только по имени объединяет
+  объекты РАЗНЫХ видов с одним именем (Catalog и CommonPicture «Номенклатура», как в
+  комментарии `dedupWarnings`). `Component` в ключе группировки сознательно нет: тот же тип и
+  имя в базовой конфигурации и в расширении и есть подавляемый случай. Тексты предупреждений
+  (`expandForm`, `internal/retrieve/expand2.go`) называют тип и компонент
+  (`"у объекта %s.%s (%s) …"`), иначе рядом с настоящей находкой того же имени читаются как
+  противоречие. Поведение закреплено пятью тестами `internal/retrieve/formnoise_test.go`:
+  `TestFormIntentSuppressesNoFormsNoiseFromMatchedHomonym`, `TestFormIntentKeepsNoFormsWhenNoMatchAnywhere`,
+  `TestFormIntentDoesNotSuppressNoFormsForUnrelatedObject`,
+  `TestFormIntentDoesNotSuppressNoFormsForSameNameDifferentType`,
+  `TestFormIntentNoFormsMessageNamesTypeAndComponent`.
