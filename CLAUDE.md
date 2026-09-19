@@ -68,7 +68,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
 - `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-036), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-037), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -101,6 +101,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/publish.go`, `publishderive.go`, `publishmeta2.go`, `publishforms.go` — публикация фактов в store; `publishModuleOwner` дописывает `module.owner_object_id` после прохода 1
 - `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
 - `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
+- `internal/store/inbound.go`: `InboundPointers`/`RestoreInboundPointers`, указатели нетронутых файлов на узлы переопубликуемых файлов снимаются до удаления и возвращаются после прохода 1 (ADR-037); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
 - `internal/resolve/*.go` — `NewEnv`, `Resolve`, `Derive*`; `layer.go` — `ParseInterceptAnnotation`, `DeriveIntercepts` (второе значение — диагностики), `DetectInsteadConflicts`, `DiagInterceptTargetUnknown`
@@ -484,6 +485,9 @@ guard по корпусу, сервер без файла индекса син�
   `Documents/X/X.xml` не бывает. Фикстура с выдуманной раскладкой маскирует дефекты
   `objectModuleDir`: тест зелёный, а на реальной выгрузке находится обработчик проведения
   ЧУЖОГО документа. Пути брать из `workspace.Dump*` (ADR-033).
+- Шаг миграции без DDL с `needsFullRebuild` — способ объявить СОДЕРЖИМОЕ индексов прежней
+  версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
+  указатели нетронутых файлов на пересозданные узлы). `ParserVersion` ради этого не поднимать.
 - **Подъём `ParserVersion` — это полная пересборка индекса каждого проекта.** Файл со старым
   `parser_version` считается изменённым; пока проект не пересобран, он честно считает себя
   устаревшим, пока его не переиндексируют. Не поднять версию хуже: индекс молча отдаёт факты
