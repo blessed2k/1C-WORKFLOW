@@ -39,8 +39,7 @@ const maxCachedStmts = 256
 // stmtCache: подготовленные выражения по тексту SQL. Писатель один
 // (ADR-014), поэтому кэш без мьютекса.
 type stmtCache struct {
-	byText   map[string]*sql.Stmt
-	prepared int // сколько раз вызван Prepare: число для тестов
+	byText map[string]*sql.Stmt
 }
 
 // beginStmtCache включает кэш на соединении писателя. Зовётся сразу после
@@ -81,7 +80,6 @@ func (c *conn) stmt(ctx context.Context, sqlText string) (*sql.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.stmts.prepared++
 	c.stmts.byText[sqlText] = st
 	return st, nil
 }

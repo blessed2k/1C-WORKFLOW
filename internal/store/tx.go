@@ -42,6 +42,8 @@ type WriteTx struct {
 	touched map[string]struct{}
 	// batches: буферы многострочных INSERT (issue #3, шаг 2).
 	batches *txBatches
+	// refIDs: id строк reference, выданные до их вставки.
+	refIDs refIDs
 }
 
 // ErrTxDone — обращение к завершённой транзакции. Ловит самую дорогую ошибку
@@ -50,7 +52,7 @@ type WriteTx struct {
 var ErrTxDone = errors.New("транзакция уже завершена")
 
 func (tx *ReadTx) check() error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
 	if tx.flush != nil {
@@ -59,11 +61,15 @@ func (tx *ReadTx) check() error {
 	return nil
 }
 
-// checkLive: check без сброса буферов пакетной вставки. Только для вставок и
-// для выборок из таблиц, которые в буфер не попадают (node, source_file,
-// role): им содержимое буфера не видно по построению, а сброс на каждой
-// строке свёл бы пакет к одной строке.
-func (tx *ReadTx) checkLive() error {
+// checkNoFlush: check без сброса буферов пакетной вставки (batch.go). Сброс
+// обязателен перед любым оператором, который читает буферизуемую таблицу или
+// удаляет и обновляет строки, на которые буферизуемые строки ссылаются
+// (каскад и SET NULL прошли бы мимо строк в буфере). Без сброса обходятся:
+// вставки и upsert-ы в небуферизуемые таблицы (upsert не меняет первичный
+// ключ, поэтому внешние ключи буферизуемых строк не задевает) и выборки из
+// таблиц, которые в буфер не попадают (node, source_file, role). Сброс на
+// каждой такой строке свёл бы пакет к одной строке.
+func (tx *ReadTx) checkNoFlush() error {
 	if tx.done {
 		return ErrTxDone
 	}
@@ -201,7 +207,7 @@ func (tx *WriteTx) PutBlob(data []byte) (string, error) {
 // контрактом, что PutBlob. Нулевое значение (образ не подготовлен)
 // отвергается: пустой файл имеет хэш, а пустой хэш значит ошибку вызывающего.
 func (tx *WriteTx) PutPreparedBlob(b PreparedBlob) (string, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return "", err
 	}
 	if b.hash == "" {
@@ -244,7 +250,7 @@ type SourceFile struct {
 
 // InsertSourceFile регистрирует файл и возвращает его id.
 func (tx *WriteTx) InsertSourceFile(f SourceFile) (int64, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
 	}
 	id, err := tx.c.execInsert(tx.ctx, `INSERT INTO source_file(component_id,rel_path,size,mtime_ns,content_hash,parser_version)
@@ -258,7 +264,7 @@ func (tx *WriteTx) InsertSourceFile(f SourceFile) (int64, error) {
 
 // SourceFileID находит файл по компоненту и относительному пути.
 func (tx *ReadTx) SourceFileID(componentID, relPath string) (int64, bool, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, false, err
 	}
 	id, err := tx.c.queryInt(tx.ctx, `SELECT id FROM source_file WHERE component_id=? AND rel_path=?`,
@@ -349,7 +355,7 @@ func (tx *WriteTx) SetReferencesUnresolved(refIDs ...int64) error {
 // identity_key. Узел переживает изменение любого из своих файлов и удаляется
 // только reconciliation-шагом, когда не осталось ни одного аспекта-источника.
 func (tx *WriteTx) ensureNode(kind, componentID, identityKey string) (int64, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
 	}
 	if err := tx.c.exec(tx.ctx, `INSERT INTO node(kind,component_id,identity_key) VALUES(?,?,?)
@@ -371,7 +377,7 @@ func (tx *WriteTx) ensureNode(kind, componentID, identityKey string) (int64, err
 
 // NodeID возвращает id узла по его identity_key.
 func (tx *ReadTx) NodeID(identityKey string) (int64, bool, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, false, err
 	}
 	id, err := tx.c.queryInt(tx.ctx, `SELECT id FROM node WHERE identity_key=?`, identityKey)
@@ -409,7 +415,7 @@ func (tx *WriteTx) EnsureModule(m Module) (int64, error) {
 
 // PutModuleContext привязывает аспект свойств модуля к его XML-файлу.
 func (tx *WriteTx) PutModuleContext(moduleID, fileID int64, propsJSON string) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO module_context(module_id,file_id,props) VALUES(?,?,?)
@@ -419,7 +425,7 @@ func (tx *WriteTx) PutModuleContext(moduleID, fileID int64, propsJSON string) er
 
 // PutModuleCode привязывает аспект кода модуля к его BSL-файлу.
 func (tx *WriteTx) PutModuleCode(moduleID, fileID int64) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO module_code(module_id,file_id) VALUES(?,?)
@@ -462,7 +468,7 @@ func (tx *WriteTx) InsertSymbol(s Symbol) (int64, error) {
 		return 0, err
 	}
 	// rowid FTS-строки = symbol.id: удаление символа стоит один DELETE by rowid.
-	if err := tx.batches.fts.add(tx.ctx, tx.c, id, s.NameDisplay, s.Signature, s.DocFirstLine); err != nil {
+	if err := tx.batches.fts.add(tx.ctx, tx.c, ftsRow{id, s}); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -478,10 +484,10 @@ type Parameter struct {
 
 // InsertParameter добавляет параметр символа.
 func (tx *WriteTx) InsertParameter(symbolID int64, p Parameter) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.parameter.add(tx.ctx, tx.c, symbolID, p.Ord, p.Name, boolInt(p.ByVal), nullString(p.DefaultExpr))
+	return tx.batches.parameter.add(tx.ctx, tx.c, paramRow{symbolID, p})
 }
 
 // MetadataObject — объект метаданных из XML.
@@ -572,7 +578,7 @@ func (tx *WriteTx) EnsureForm(f Form) (int64, error) {
 
 // PutFormDeclaration привязывает аспект объявления формы к XML владельца.
 func (tx *WriteTx) PutFormDeclaration(formID, fileID int64) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO form_declaration(form_id,file_id) VALUES(?,?)
@@ -581,7 +587,7 @@ func (tx *WriteTx) PutFormDeclaration(formID, fileID int64) error {
 
 // PutFormStructure привязывает аспект структуры формы к Form.xml.
 func (tx *WriteTx) PutFormStructure(formID, fileID int64) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO form_structure(form_id,file_id) VALUES(?,?)
@@ -654,12 +660,10 @@ type HandlerBinding struct {
 
 // InsertHandlerBinding добавляет привязку обработчика.
 func (tx *WriteTx) InsertHandlerBinding(b HandlerBinding) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.handlerBinding.add(tx.ctx, tx.c,
-		b.FormID, b.Source, b.Event, b.HandlerNameNorm, nullID(b.HandlerSymbolID),
-		b.OriginFileID, b.Resolution)
+	return tx.batches.handlerBinding.add(tx.ctx, tx.c, b)
 }
 
 // Reference — ссылка со своим состоянием разрешения. Инварианты XOR-автомата
@@ -682,47 +686,38 @@ type Reference struct {
 }
 
 // InsertReference добавляет ссылку и возвращает её id. Строка уходит в буфер
-// пакетной вставки, id выдаётся сразу (см. txBatches.nextRefID).
+// пакетной вставки, id выдаётся сразу (см. refIDs).
 func (tx *WriteTx) InsertReference(r Reference) (int64, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
 	}
-	if tx.batches.nextRefID == 0 {
-		maxID, err := tx.c.queryInt(tx.ctx, `SELECT COALESCE(MAX(id),0) FROM reference`)
-		if err != nil {
-			return 0, err
-		}
-		tx.batches.nextRefID = maxID + 1
-	}
-	id := tx.batches.nextRefID
-	if err := tx.batches.reference.add(tx.ctx, tx.c, id,
-		r.FileID, nullID(r.FromSymbolID), r.Kind, nullString(r.QualifierNorm), r.NameNorm,
-		r.Resolution, nullString(r.TargetClass), nullID(r.TargetSymbolID), nullID(r.TargetObjectID),
-		nullString(r.PlatformKey), r.Confidence, layerOrBase(r.Layer),
-		r.Span.StartByte, r.Span.EndByte, r.Span.StartLine, r.Span.StartCol); err != nil {
+	id, err := tx.refIDs.take(tx.ctx, tx.c)
+	if err != nil {
 		return 0, err
 	}
-	tx.batches.nextRefID++
+	if err := tx.batches.reference.add(tx.ctx, tx.c, refRow{id, r}); err != nil {
+		return 0, err
+	}
 	return id, nil
 }
 
 // InsertReferenceCandidate добавляет кандидата ambiguous-разрешения. Инвариант
 // validate-шага: у ambiguous их минимум два — один кандидат обязан стать resolved.
 func (tx *WriteTx) InsertReferenceCandidate(refID, targetNodeID int64, rank int, reason string) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.candidate.add(tx.ctx, tx.c, refID, targetNodeID, rank, nullString(reason))
+	return tx.batches.candidate.add(tx.ctx, tx.c, candidateRow{refID, targetNodeID, rank, reason})
 }
 
 // InsertResolutionDep регистрирует ключ, который консультировала ссылка.
 // Регистрируются ВСЕ консультированные ключи, включая негативные: без них
 // инкремент не узнает, что появившееся имя меняет уже разрешённую ссылку (18.4).
 func (tx *WriteTx) InsertResolutionDep(keyHash string, refID int64) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.resolutionDep.add(tx.ctx, tx.c, keyHash, refID)
+	return tx.batches.resolutionDep.add(tx.ctx, tx.c, depRow{keyHash, refID})
 }
 
 // CallEdge — ребро графа вызовов, привязанное к своей ссылке.
@@ -739,12 +734,10 @@ type CallEdge struct {
 
 // InsertCallEdge добавляет ребро графа вызовов.
 func (tx *WriteTx) InsertCallEdge(e CallEdge) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.callEdge.add(tx.ctx, tx.c,
-		e.CallerID, nullID(e.CalleeID), e.CalleeNameNorm, nullString(e.QualifierNorm),
-		e.Kind, e.Resolution, e.Confidence, e.RefID)
+	return tx.batches.callEdge.add(tx.ctx, tx.c, e)
 }
 
 // Query — текст запроса 1С внутри символа.
@@ -786,11 +779,10 @@ type QueryReference struct {
 
 // InsertQueryReference добавляет использование в запросе.
 func (tx *WriteTx) InsertQueryReference(r QueryReference) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.queryReference.add(tx.ctx, tx.c, r.QueryID, r.Kind, r.NameNorm, nullID(r.ObjectID), nullID(r.MemberID),
-		r.SpanStart, r.SpanEnd)
+	return tx.batches.queryReference.add(tx.ctx, tx.c, r)
 }
 
 // RegisterAccess — доступ к регистру: режим, транзакционность, статичность,
@@ -811,16 +803,10 @@ type RegisterAccess struct {
 
 // InsertRegisterAccess добавляет доступ к регистру.
 func (tx *WriteTx) InsertRegisterAccess(a RegisterAccess) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	var inTx any
-	if a.InTransaction != nil {
-		inTx = boolInt(*a.InTransaction)
-	}
-	return tx.batches.registerAccess.add(tx.ctx, tx.c,
-		a.FileID, nullID(a.SymbolID), nullID(a.ObjectID), a.RegisterNameNorm, a.Mode,
-		inTx, boolInt(a.Static), a.Confidence, a.Span.StartByte, a.Span.EndByte, layerOrBase(a.Layer))
+	return tx.batches.registerAccess.add(tx.ctx, tx.c, a)
 }
 
 // EventSubscription — подписка на событие. SourceKind различает голый вид
@@ -889,7 +875,7 @@ type Role struct {
 
 // EnsureRole создаёт или обновляет роль и возвращает её id.
 func (tx *WriteTx) EnsureRole(r Role) (int64, error) {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
 	}
 	if err := tx.c.exec(tx.ctx, `INSERT INTO role(component_id,name_norm,name_display,object_id,file_id,layer)
@@ -918,12 +904,10 @@ type RoleRight struct {
 
 // InsertRoleRight добавляет право роли.
 func (tx *WriteTx) InsertRoleRight(r RoleRight) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.roleRight.add(tx.ctx, tx.c,
-		r.RoleID, nullID(r.ObjectID), r.ObjectNameNorm, r.RightName, boolInt(r.Value),
-		nullString(r.RLS), boolInt(r.SetForNewObject), r.OriginFileID)
+	return tx.batches.roleRight.add(tx.ctx, tx.c, r)
 }
 
 // DependencyEdge — связь без собственных атрибутов: подсистема содержит объект,
@@ -939,10 +923,10 @@ type DependencyEdge struct {
 
 // InsertDependencyEdge добавляет generic-связь.
 func (tx *WriteTx) InsertDependencyEdge(e DependencyEdge) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.dependencyEdge.add(tx.ctx, tx.c, e.Kind, e.FromNode, e.ToNode, e.OriginFileID, e.Confidence, layerOrBase(e.Layer))
+	return tx.batches.dependencyEdge.add(tx.ctx, tx.c, e)
 }
 
 // Diagnostic — замечание парсера или резолвера.
@@ -957,12 +941,10 @@ type Diagnostic struct {
 
 // InsertDiagnostic добавляет диагностику.
 func (tx *WriteTx) InsertDiagnostic(d Diagnostic) error {
-	if err := tx.checkLive(); err != nil {
+	if err := tx.checkNoFlush(); err != nil {
 		return err
 	}
-	return tx.batches.diagnostic.add(tx.ctx, tx.c,
-		nullID(d.FileID), d.ComponentID, d.Severity, d.Code, d.Message,
-		d.Span.StartByte, d.Span.EndByte, d.Span.StartLine, d.Span.StartCol)
+	return tx.batches.diagnostic.add(tx.ctx, tx.c, d)
 }
 
 // --- вспомогательное ---
