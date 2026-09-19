@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Файл — типизированная выборка объектного графа для сервиса графа (таск 08):
@@ -316,4 +317,98 @@ func scanObjectDataEdge(rows *sql.Rows) (ObjectDataEdgeRow, error) {
 		r.InTransaction = &b
 	}
 	return r, nil
+}
+
+// Ярусы поиска объекта по имени: точное совпадение, префикс, вхождение.
+// Ярус отдаётся вызывающему, чтобы тот мог показать, почему объект стоит выше.
+const (
+	ObjectSearchExact    = 0
+	ObjectSearchPrefix   = 1
+	ObjectSearchContains = 2
+)
+
+// ObjectSearchRow: объект метаданных, найденный по подстроке имени, со
+// степенями в объектном графе: сколько рёбер входит и сколько выходит.
+// Степень считается по всем рёбрам, без фильтра карты: поиск отвечает на
+// вопрос «с чего начать», а не «что сейчас на экране».
+type ObjectSearchRow struct {
+	MetadataObjectRow
+	Tier   int
+	FanIn  int64
+	FanOut int64
+}
+
+// objectDegreeColumns: степени узла коррелированными подзапросами. Каждый
+// идёт по своему индексу (idx_ode_to, idx_ode_from), поэтому стоит
+// пропорционально числу найденных объектов, а не размеру таблицы рёбер.
+const objectDegreeColumns = `(SELECT COUNT(*) FROM object_data_edge e WHERE e.to_object_id = o.id) AS fan_in,
+	(SELECT COUNT(*) FROM object_data_edge e WHERE e.from_object_id = o.id) AS fan_out`
+
+// escapeLike экранирует служебные символы LIKE, чтобы «_» в имени объекта
+// искался как символ, а не как «любой один».
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// SearchObjectsByName ищет объекты метаданных по подстроке нормализованного
+// имени. Порядок: точное совпадение, затем префикс, затем вхождение; внутри
+// яруса сначала объекты, у которых есть хоть одно ребро (со справочником
+// без связей на карте делать нечего), затем короче имя, затем по алфавиту.
+// Отдаёт не больше limit строк; вызывающий, которому нужен признак «есть
+// ещё», просит limit+1.
+//
+// nameNorm обязан быть уже нормализован (domain.NormalizeName): name_norm
+// хранится в нижнем регистре, а LOWER в SQLite кириллицу не понижает.
+func (tx *ReadTx) SearchObjectsByName(nameNorm string, limit int) ([]ObjectSearchRow, error) {
+	if err := tx.check(); err != nil {
+		return nil, err
+	}
+	if nameNorm == "" {
+		return nil, fmt.Errorf("пустая строка поиска объекта")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	esc := escapeLike(nameNorm)
+	q := `SELECT id, component_id, uuid, mtype, name_norm, name_display, synonym, file_id, props, layer,
+		tier, fan_in, fan_out FROM (
+		SELECT o.id, o.component_id, o.uuid, o.mtype, o.name_norm, o.name_display, o.synonym, o.file_id, o.props, o.layer,
+			CASE WHEN o.name_norm = ? THEN 0 WHEN o.name_norm LIKE ? ESCAPE '\' THEN 1 ELSE 2 END AS tier,
+			` + objectDegreeColumns + `
+		FROM metadata_object o WHERE o.name_norm LIKE ? ESCAPE '\')
+		ORDER BY tier, CASE WHEN fan_in + fan_out > 0 THEN 0 ELSE 1 END, length(name_norm), name_norm, mtype, component_id, id
+		LIMIT ?`
+	rows, err := tx.c.query(tx.ctx, q, nameNorm, esc+"%", "%"+esc+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ObjectSearchRow
+	for rows.Next() {
+		var r ObjectSearchRow
+		var uuid, synonym, props sql.NullString
+		if err := rows.Scan(&r.ID, &r.ComponentID, &uuid, &r.MType, &r.NameNorm, &r.NameDisplay,
+			&synonym, &r.FileID, &props, &r.Layer, &r.Tier, &r.FanIn, &r.FanOut); err != nil {
+			return nil, err
+		}
+		r.UUID, r.Synonym, r.PropsJSON = uuid.String, synonym.String, props.String
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ObjectDegree: сколько рёбер входит в узел и выходит из него, без фильтра
+// карты. Карточка узла показывает это как «всего связей», чтобы было видно,
+// раскрыт ли узел целиком.
+func (tx *ReadTx) ObjectDegree(objectID int64) (fanIn, fanOut int64, err error) {
+	if err := tx.check(); err != nil {
+		return 0, 0, err
+	}
+	if fanIn, err = tx.c.queryInt(tx.ctx, `SELECT COUNT(*) FROM object_data_edge WHERE to_object_id = ?`, objectID); err != nil {
+		return 0, 0, err
+	}
+	if fanOut, err = tx.c.queryInt(tx.ctx, `SELECT COUNT(*) FROM object_data_edge WHERE from_object_id = ?`, objectID); err != nil {
+		return 0, 0, err
+	}
+	return fanIn, fanOut, nil
 }

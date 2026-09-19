@@ -41,6 +41,9 @@ const (
 	defaultGodNodeLimit = 20
 	maxGodNodeLimit     = 100
 
+	defaultSearchLimit = 20
+	maxSearchLimit     = 100
+
 	// DefaultRadiusNodesCap — потолок узлов ответа Radius, применяется, когда
 	// вызывающий (cmd/mcp1c, таск 09) не передал свой через
 	// NewObjectGraphService: тот же дефолт, что у флага -graph-radius-nodes
@@ -172,6 +175,10 @@ type NodeItem struct {
 	Synonym     string      `json:"synonym,omitempty"`
 	Layer       string      `json:"layer"`
 	Badges      []BadgeItem `json:"badges,omitempty"`
+	// FanIn/FanOut: все рёбра узла без фильтра карты: по ним карта видит,
+	// раскрыт ли узел целиком.
+	FanIn  int64 `json:"fanIn"`
+	FanOut int64 `json:"fanOut"`
 }
 
 // EdgeItem — одно ребро object_data_edge, денормализованное для показа: оба
@@ -327,8 +334,13 @@ func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[N
 		if berr != nil {
 			return out, berr
 		}
+		fanIn, fanOut, derr := tx.ObjectDegree(row.ID)
+		if derr != nil {
+			return out, derr
+		}
 		out.ok = true
 		out.item = nodeItemFrom(row, badges)
+		out.item.FanIn, out.item.FanOut = fanIn, fanOut
 		out.warnings = multipleLayersWarning(rows, false)
 		return out, nil
 	})
@@ -932,4 +944,88 @@ func (g *ObjectGraphService) EdgeEvidence(ctx context.Context, in EdgeEvidenceIn
 			WithProject(op.Entry.ID).WithGeneration(res.gen)
 	}
 	return Response[EdgeEvidenceItem]{Generation: res.gen, Items: []EdgeEvidenceItem{res.item}, TotalCount: 1}, nil
+}
+
+// SearchItem: объект метаданных, найденный по части имени: точка входа на
+// карту для человека, который не знает числового id узла.
+type SearchItem struct {
+	ObjectID    int64  `json:"objectId"`
+	Component   string `json:"component"`
+	MType       string `json:"mtype"`
+	NameDisplay string `json:"nameDisplay"`
+	Synonym     string `json:"synonym,omitempty"`
+	Layer       string `json:"layer"`
+	// Match: ярус совпадения: exact, prefix или contains.
+	Match  string `json:"match"`
+	FanIn  int64  `json:"fanIn"`
+	FanOut int64  `json:"fanOut"`
+}
+
+// SearchInput: вход Search.
+type SearchInput struct {
+	Query string
+	Limit int
+}
+
+var searchMatchNames = map[int]string{
+	store.ObjectSearchExact:    "exact",
+	store.ObjectSearchPrefix:   "prefix",
+	store.ObjectSearchContains: "contains",
+}
+
+// Search ищет объекты метаданных по подстроке имени без учёта регистра:
+// сначала точные совпадения, затем по префиксу, затем по вхождению. Синоним
+// не участвует: LOWER в SQLite не понижает кириллицу, а name_norm уже
+// хранится в нижнем регистре.
+func (g *ObjectGraphService) Search(ctx context.Context, in SearchInput) (Response[SearchItem], error) {
+	op, err := g.projects.Active(ctx)
+	if err != nil {
+		return Response[SearchItem]{}, err
+	}
+	q := domain.NormalizeName(strings.TrimSpace(in.Query))
+	if q == "" {
+		return Response[SearchItem]{}, NewError(CodeInvalidArgument,
+			"пустая строка поиска", "передайте часть имени объекта, например q=Заказ").WithProject(op.Entry.ID)
+	}
+	limit := clampLimit(in.Limit, defaultSearchLimit, maxSearchLimit)
+
+	type txResult struct {
+		rows []store.ObjectSearchRow
+		gen  domain.Generation
+	}
+	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+		var out txResult
+		gen, gerr := tx.Generation()
+		if gerr != nil {
+			return out, gerr
+		}
+		out.gen = gen
+		// Строка сверх лимита: признак «есть ещё», как у страничных выборок.
+		rows, rerr := tx.SearchObjectsByName(q, limit+1)
+		if rerr != nil {
+			return out, rerr
+		}
+		out.rows = rows
+		return out, nil
+	})
+	if err != nil {
+		return Response[SearchItem]{}, err
+	}
+	var warnings []Warning
+	if len(res.rows) > limit {
+		res.rows = res.rows[:limit]
+		warnings = append(warnings, Warning{
+			Code:    "search_truncated",
+			Message: fmt.Sprintf("показаны первые %d совпадений", limit),
+			Hint:    "уточните строку поиска",
+		})
+	}
+	items := make([]SearchItem, 0, len(res.rows))
+	for _, r := range res.rows {
+		items = append(items, SearchItem{
+			ObjectID: r.ID, Component: r.ComponentID, MType: r.MType, NameDisplay: r.NameDisplay,
+			Synonym: r.Synonym, Layer: r.Layer, Match: searchMatchNames[r.Tier], FanIn: r.FanIn, FanOut: r.FanOut,
+		})
+	}
+	return Response[SearchItem]{Generation: res.gen, Warnings: warnings, Items: items, TotalCount: len(items)}, nil
 }

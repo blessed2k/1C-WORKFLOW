@@ -40,6 +40,7 @@ func NewHandler(projects []ProjectHandle) http.Handler {
 	mux.HandleFunc("GET /api/radius/{id}", h.handleRadius)
 	mux.HandleFunc("GET /api/godnodes", h.handleGodNodes)
 	mux.HandleFunc("GET /api/edge/{id}/evidence", h.handleEdgeEvidence)
+	mux.HandleFunc("GET /api/search", h.handleSearch)
 	registerAssets(mux) // тикет 10: SPA — GET / и GET /assets/cytoscape.min.js (assets.go)
 	return mux
 }
@@ -293,6 +294,34 @@ func (h *Handler) handleEdgeEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	defer closeFn()
 	resp, err := gs.EdgeEvidence(r.Context(), app.EdgeEvidenceInput{EdgeID: id})
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleSearch: поиск объекта по части имени: точка входа на карту без
+// знания числового id. Пустой q отсекается здесь, до открытия проекта:
+// это ошибка запроса, а не состояние индекса.
+func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		respondErr(w, badRequest("пустая строка поиска: нужен параметр q", "передайте часть имени объекта, например /api/search?q=Заказ"))
+		return
+	}
+	ph, aerr := h.resolveProject(r)
+	if aerr != nil {
+		respondErr(w, aerr)
+		return
+	}
+	gs, closeFn, aerr := h.openGraphService(r, ph)
+	if aerr != nil {
+		respondErr(w, aerr)
+		return
+	}
+	defer closeFn()
+	resp, err := gs.Search(r.Context(), app.SearchInput{Query: q, Limit: queryInt(r, "limit")})
 	if err != nil {
 		respondErr(w, err)
 		return

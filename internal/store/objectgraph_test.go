@@ -486,3 +486,84 @@ func TestObjectEdgesByFilesSurviveHugeFileList(t *testing.T) {
 	}
 	assertValid(t, s, "после удаления рёбер по длинному списку файлов")
 }
+
+// Поиск объекта по имени: ярусы точное/префикс/вхождение, внутри яруса
+// объекты со связями раньше, «_» в строке поиска не подстановочный знак.
+// Степени считаются по всем рёбрам узла.
+func TestSearchObjectsByName(t *testing.T) {
+	s := openTestStore(t, Options{})
+	g := seedGraph(t, s)
+	ids := map[string]int64{}
+	if err := s.Write(context.Background(), func(tx *WriteTx) error {
+		for _, name := range []string{"ОтменаЗаказа", "ЗаказПоставщику", "Заказ", "ЗаказКлиента", "Заказ_Тест", "ЗаказXТест"} {
+			norm := strings.ToLower(name)
+			id, err := tx.EnsureMetadataObject(MetadataObject{
+				IdentityKey: "metadata_object:cfg:Documents/" + name, ComponentID: fxComponent,
+				MType: "Document", NameNorm: norm, NameDisplay: name, FileID: g.fileObjectXML, PropsJSON: "{}",
+			})
+			if err != nil {
+				return err
+			}
+			ids[name] = id
+		}
+		_, err := tx.InsertObjectDataEdge(ObjectDataEdge{
+			FromObjectID: ids["ЗаказКлиента"], ToObjectID: g.registerID, Kind: EdgeWritesDeclared,
+			Provenance: EdgeProvenanceDeclared, Confidence: 0.5,
+			Evidence: `{"xml":"Documents/ЗаказКлиента.xml"}`, FileIDs: []int64{g.fileObjectXML},
+		})
+		return err
+	}); err != nil {
+		t.Fatalf("наполнение: %v", err)
+	}
+
+	search := func(q string, limit int) []ObjectSearchRow {
+		t.Helper()
+		var got []ObjectSearchRow
+		if err := s.Read(context.Background(), func(tx *ReadTx) error {
+			var err error
+			got, err = tx.SearchObjectsByName(q, limit)
+			return err
+		}); err != nil {
+			t.Fatalf("поиск %q: %v", q, err)
+		}
+		return got
+	}
+
+	got := search("заказ", 10)
+	var names []string
+	for _, r := range got {
+		names = append(names, r.NameDisplay)
+	}
+	// ЗаказКлиента первый в ярусе префикса не из-за длины (Заказ_Тест короче),
+	// а потому что у него есть ребро. Дальше по длине, при равной длине по имени.
+	want := []string{"Заказ", "ЗаказКлиента", "Заказ_Тест", "ЗаказXТест", "ЗаказПоставщику", "ОтменаЗаказа"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("порядок %v, ожидался %v", names, want)
+	}
+	if got[0].Tier != ObjectSearchExact || got[1].Tier != ObjectSearchPrefix || got[5].Tier != ObjectSearchContains {
+		t.Errorf("ярусы %d/%d/%d, ожидались точный/префикс/вхождение", got[0].Tier, got[1].Tier, got[5].Tier)
+	}
+	if got[1].FanOut != 1 || got[1].FanIn != 0 {
+		t.Errorf("степени ЗаказКлиента in=%d out=%d, ожидались 0 и 1", got[1].FanIn, got[1].FanOut)
+	}
+
+	if got := search("заказ_", 10); len(got) != 1 || got[0].NameDisplay != "Заказ_Тест" {
+		t.Errorf("«_» сработал как подстановочный знак: %+v", got)
+	}
+	if got := search("заказ", 2); len(got) != 2 {
+		t.Errorf("limit=2 дал %d строк", len(got))
+	}
+
+	var fanIn, fanOut int64
+	if err := s.Read(context.Background(), func(tx *ReadTx) error {
+		var err error
+		fanIn, fanOut, err = tx.ObjectDegree(g.registerID)
+		return err
+	}); err != nil {
+		t.Fatalf("ObjectDegree: %v", err)
+	}
+	// Три входящих из фикстуры графа плюс одно от ЗаказКлиента, одно исходящее.
+	if fanIn != 4 || fanOut != 1 {
+		t.Errorf("степень регистра in=%d out=%d, ожидались 4 и 1", fanIn, fanOut)
+	}
+}

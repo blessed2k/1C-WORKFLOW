@@ -420,3 +420,112 @@ func TestHandlerProjectSelection(t *testing.T) {
 		t.Fatalf("неожиданный статус %d под project=B", rrCross.Code)
 	}
 }
+
+// searchItem: поля items[] ответа /api/search, которые читает SPA.
+type searchItem struct {
+	ObjectID    int64  `json:"objectId"`
+	MType       string `json:"mtype"`
+	NameDisplay string `json:"nameDisplay"`
+	Component   string `json:"component"`
+	Match       string `json:"match"`
+	FanIn       int64  `json:"fanIn"`
+	FanOut      int64  `json:"fanOut"`
+}
+
+func decodeSearchItems(t *testing.T, env envelope) []searchItem {
+	t.Helper()
+	out := make([]searchItem, len(env.Items))
+	for i, raw := range env.Items {
+		if err := json.Unmarshal(raw, &out[i]); err != nil {
+			t.Fatalf("decode search item: %v", err)
+		}
+	}
+	return out
+}
+
+// TestHandlerSearchByName: /api/search находит объект по части имени без
+// учёта регистра, точное совпадение идёт первым, в ответе id, вид, имя,
+// компонент и степени узла. Лимит режет выдачу и честно об этом говорит.
+func TestHandlerSearchByName(t *testing.T) {
+	tp := newTestProject(t, "graphweb-search")
+	o1, o2, _, _ := seedTwoNodesWithEdge(t, tp)
+	h := graphweb.NewHandler([]graphweb.ProjectHandle{tp.handle})
+
+	rr, env := doGET(t, h, "/api/search?q="+url.QueryEscape("O1"))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	items := decodeSearchItems(t, env)
+	if len(items) != 1 || items[0].ObjectID != o1 {
+		t.Fatalf("q=O1: ожидался ровно O1 (id %d), получили %+v", o1, items)
+	}
+	it := items[0]
+	if it.MType != "Document" || it.NameDisplay != "O1" || it.Component != "cfg" || it.Match != "exact" {
+		t.Errorf("поля найденного объекта: %+v", it)
+	}
+	if it.FanOut != 1 || it.FanIn != 0 {
+		t.Errorf("степени O1: in=%d out=%d, ожидались 0 и 1", it.FanIn, it.FanOut)
+	}
+
+	// Подстрока в другом регистре находит все три объекта, объекты со
+	// связями раньше объекта без связей.
+	_, env = doGET(t, h, "/api/search?q=o")
+	items = decodeSearchItems(t, env)
+	if len(items) != 3 || env.TotalCount != 3 {
+		t.Fatalf("q=o: ожидались три объекта, получили %+v", items)
+	}
+	if items[0].ObjectID != o1 || items[1].ObjectID != o2 || items[2].NameDisplay != "O3" {
+		t.Errorf("q=o: порядок %+v, ожидались O1, O2 (со связями), затем O3", items)
+	}
+
+	_, env = doGET(t, h, "/api/search?q=o&limit=1")
+	if len(env.Items) != 1 {
+		t.Fatalf("limit=1 дал %d объектов", len(env.Items))
+	}
+	if len(env.Warnings) == 0 || !strings.Contains(string(env.Warnings[0]), "search_truncated") {
+		t.Errorf("обрезанная выдача без предупреждения: %+v", env.Warnings)
+	}
+
+	_, env = doGET(t, h, "/api/search?q=нетТакого")
+	if env.TotalCount != 0 || len(env.Items) != 0 {
+		t.Errorf("несуществующее имя: ожидался пустой список, получили %+v", env)
+	}
+}
+
+// TestHandlerSearchEmptyQueryIsBadRequest: на пустой или пробельный q ответ 400 с
+// текстом, который называет параметр и даёт пример.
+func TestHandlerSearchEmptyQueryIsBadRequest(t *testing.T) {
+	tp := newTestProject(t, "graphweb-search-empty")
+	h := graphweb.NewHandler([]graphweb.ProjectHandle{tp.handle})
+	for _, path := range []string{"/api/search", "/api/search?q=", "/api/search?q=%20%20"} {
+		rr, aerr := doGETErr(t, h, path)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want 400; body = %s", path, rr.Code, rr.Body.String())
+		}
+		if aerr.Code != "bad_request" || !strings.Contains(aerr.Message, "q") || !strings.Contains(aerr.Hint, "q=") {
+			t.Errorf("%s: невнятная ошибка %+v", path, aerr)
+		}
+	}
+}
+
+// TestHandlerNodeCarriesDegree: карточка узла несёт fanIn/fanOut, по ним
+// карта показывает, сколько связей узла ещё не раскрыто.
+func TestHandlerNodeCarriesDegree(t *testing.T) {
+	tp := newTestProject(t, "graphweb-node-degree")
+	_, o2, _, _ := seedTwoNodesWithEdge(t, tp)
+	h := graphweb.NewHandler([]graphweb.ProjectHandle{tp.handle})
+	_, env := doGET(t, h, fmt.Sprintf("/api/node/%d", o2))
+	var node struct {
+		FanIn  int64 `json:"fanIn"`
+		FanOut int64 `json:"fanOut"`
+	}
+	if len(env.Items) != 1 {
+		t.Fatalf("ожидался один узел: %+v", env)
+	}
+	if err := json.Unmarshal(env.Items[0], &node); err != nil {
+		t.Fatalf("decode node: %v", err)
+	}
+	if node.FanIn != 1 || node.FanOut != 0 {
+		t.Errorf("степени O2: in=%d out=%d, ожидались 1 и 0", node.FanIn, node.FanOut)
+	}
+}
