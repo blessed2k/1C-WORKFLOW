@@ -179,6 +179,26 @@ type NodeItem struct {
 	// раскрыт ли узел целиком.
 	FanIn  int64 `json:"fanIn"`
 	FanOut int64 `json:"fanOut"`
+	// Components: все компоненты, где лежит объект (база и расширения,
+	// заимствовавшие его). Заполняется, когда задан view.
+	Components []string `json:"components,omitempty"`
+	// ExtensionEdges: рёбра расширений, касающиеся объекта, с именем
+	// расширения в Layer. Заполняется в view=effective и view=diff: так
+	// карточка узла отвечает, какое расширение добавило связь.
+	ExtensionEdges []NodeExtensionEdge `json:"extensionEdges,omitempty"`
+}
+
+// NodeExtensionEdge: одно ребро расширения в карточке узла. Концы
+// канонические (см. objectgraph_view.go), Direction считается от узла.
+type NodeExtensionEdge struct {
+	EdgeID       int64  `json:"edgeId"`
+	Layer        string `json:"layer"`
+	Kind         string `json:"kind"`
+	Direction    string `json:"direction"` // out: узел источник, in: узел цель
+	OtherID      int64  `json:"otherObjectId"`
+	OtherMType   string `json:"otherMType"`
+	OtherDisplay string `json:"otherDisplay"`
+	Diff         string `json:"diff,omitempty"`
 }
 
 // EdgeItem — одно ребро object_data_edge, денормализованное для показа: оба
@@ -198,6 +218,9 @@ type EdgeItem struct {
 	Confidence    float64 `json:"confidence"`
 	Mode          string  `json:"mode,omitempty"`
 	InTransaction *bool   `json:"inTransaction,omitempty"`
+	// Diff: added, если ребро пришло из расширения и такой связи в слое base
+	// нет. Заполняется в view=effective и view=diff.
+	Diff string `json:"diff,omitempty"`
 }
 
 // RadiusEdgeItem — EdgeItem плюс глубина, на которой ребро встретил обход
@@ -293,6 +316,9 @@ func (g *ObjectGraphService) resolveProject(ctx context.Context, root string) (*
 // NodeInput — вход Node.
 type NodeInput struct {
 	Target ObjectTarget
+	// View: raw|effective|diff (objectgraph_view.go). Задан: карточка строится
+	// по каноническому узлу объекта, степени считаются по рёбрам режима.
+	View string
 }
 
 // Node отдаёт карточку одного узла: сам объект плюс его бейджи (R27).
@@ -304,6 +330,10 @@ func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[N
 	target, terr := normalizeObjectTarget(in.Target)
 	if terr != nil {
 		return Response[NodeItem]{}, terr
+	}
+	view, verr := normalizeGraphView(in.View, "")
+	if verr != nil {
+		return Response[NodeItem]{}, verr.WithProject(op.Entry.ID)
 	}
 
 	type txResult struct {
@@ -324,6 +354,14 @@ func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[N
 			return out, rerr
 		}
 		if len(rows) == 0 {
+			return out, nil
+		}
+		if view != "" {
+			item, warnings, verr := viewNode(tx, op.Manifest, view, rows[0].ID)
+			if verr != nil {
+				return out, verr
+			}
+			out.ok, out.item, out.warnings = true, item, warnings
 			return out, nil
 		}
 		// Карточка узла — про ОДИН узел (её id уходит в Neighbors), поэтому
@@ -371,6 +409,7 @@ type NeighborsInput struct {
 	Direction     string // in|out|both; пусто — both
 	Kinds         []string
 	Layer         string
+	View          string // raw|effective|diff, objectgraph_view.go; пусто: как до В3
 	MinConfidence float64
 	Limit         int
 	Cursor        string
@@ -388,16 +427,24 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 	if derr != nil {
 		return Response[EdgeItem]{}, derr.WithProject(op.Entry.ID)
 	}
+	view, verr := normalizeGraphView(in.View, in.Layer)
+	if verr != nil {
+		return Response[EdgeItem]{}, verr.WithProject(op.Entry.ID)
+	}
 	limit := clampLimit(in.Limit, defaultNeighborLimit, maxNeighborLimit)
-	paramsKey := fmt.Sprintf("id=%d&dir=%s&kinds=%s&layer=%s&minc=%v&l=%d",
-		in.ObjectID, direction, strings.Join(in.Kinds, ","), in.Layer, in.MinConfidence, limit)
+	paramsKey := fmt.Sprintf("id=%d&dir=%s&kinds=%s&layer=%s&view=%s&minc=%v&l=%d",
+		in.ObjectID, direction, strings.Join(in.Kinds, ","), in.Layer, view, in.MinConfidence, limit)
+	if view == GraphViewDiff {
+		return g.neighborsDiff(ctx, op, in, direction, limit, paramsKey)
+	}
 
 	type txResult struct {
-		rows    []store.ObjectDataEdgeRow
-		objects map[int64]store.MetadataObjectRow
-		total   int64
-		gen     domain.Generation
-		found   bool
+		rows     []viewEdge
+		objects  map[int64]store.MetadataObjectRow
+		total    int64
+		gen      domain.Generation
+		found    bool
+		warnings []Warning
 	}
 	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
@@ -420,25 +467,39 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 		if key != "" {
 			afterID, _ = strconv.ParseInt(key, 10, 64)
 		}
-		filter := store.ObjectEdgeFilter{
-			ObjectID: in.ObjectID, Direction: direction, Kinds: in.Kinds, Layer: in.Layer,
+		li := newLayerIndex(tx, op.Manifest)
+		filter, ferr := li.edgeFilterFor(view, in.ObjectID, store.ObjectEdgeFilter{
+			Direction: direction, Kinds: in.Kinds, Layer: in.Layer,
 			MinConfidence: in.MinConfidence, AfterID: afterID, Limit: limit,
+		})
+		if ferr != nil {
+			return out, ferr
 		}
 		rows, rerr := tx.ObjectDataEdges(filter)
 		if rerr != nil {
 			return out, rerr
 		}
-		out.rows = rows
+		// Курсор стоит на id строки, а не приведённого ребра: страница
+		// обрезается до приведения, id ребра приведение не меняет.
+		projected, perr := li.project(view, rows)
+		if perr != nil {
+			return out, perr
+		}
+		out.rows = projected
 		total, cerr := tx.CountObjectDataEdges(filter)
 		if cerr != nil {
 			return out, cerr
 		}
 		out.total = total
-		objects, oerr := resolveEdgeObjects(tx, rows)
+		objects, oerr := resolveEdgeObjects(tx, rowsOfView(projected))
 		if oerr != nil {
 			return out, oerr
 		}
 		out.objects = objects
+		out.warnings, oerr = graphViewWarnings(tx, view)
+		if oerr != nil {
+			return out, oerr
+		}
 		return out, nil
 	})
 	if err != nil {
@@ -455,11 +516,13 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 	}
 	items := make([]EdgeItem, 0, len(res.rows))
 	for _, r := range res.rows {
-		items = append(items, edgeItemFrom(r, res.objects))
+		item := edgeItemFrom(r.row, res.objects)
+		item.Diff = r.diff
+		items = append(items, item)
 	}
-	resp := Response[EdgeItem]{Generation: res.gen, Items: items, TotalCount: int(res.total)}
+	resp := Response[EdgeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: int(res.total)}
 	if hasMore {
-		resp.NextCursor = EncodeCursor(res.gen, strconv.FormatInt(res.rows[len(res.rows)-1].ID, 10), paramsKey)
+		resp.NextCursor = EncodeCursor(res.gen, strconv.FormatInt(res.rows[len(res.rows)-1].row.ID, 10), paramsKey)
 	}
 	return resp, nil
 }
@@ -504,6 +567,7 @@ type RadiusInput struct {
 	Depth         int
 	Kinds         []string
 	Layer         string
+	View          string // raw|effective|diff, objectgraph_view.go; пусто: как до В3
 	MinConfidence float64
 	Limit         int
 	Cursor        string
@@ -520,6 +584,7 @@ type radiusCandidate struct {
 	row    store.ObjectDataEdgeRow
 	other  int64
 	isFrom bool // true, если other — from_object_id (значит текущий узел — to)
+	diff   string
 }
 
 // radiusTruncation — ПОЧЕМУ Radius не гарантированно вернул полный подграф:
@@ -573,9 +638,13 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 	if depth > maxRadiusDepth {
 		depth = maxRadiusDepth
 	}
+	view, verr := normalizeGraphView(in.View, in.Layer)
+	if verr != nil {
+		return Response[RadiusEdgeItem]{}, verr.WithProject(op.Entry.ID)
+	}
 	limit := clampLimit(in.Limit, defaultNeighborLimit, maxNeighborLimit)
-	paramsKey := fmt.Sprintf("t=%s&dir=%s&depth=%d&kinds=%s&layer=%s&minc=%v&l=%d",
-		targetDisplay(target), direction, depth, strings.Join(in.Kinds, ","), in.Layer, in.MinConfidence, limit)
+	paramsKey := fmt.Sprintf("t=%s&dir=%s&depth=%d&kinds=%s&layer=%s&view=%s&minc=%v&l=%d",
+		targetDisplay(target), direction, depth, strings.Join(in.Kinds, ","), in.Layer, view, in.MinConfidence, limit)
 
 	type txResult struct {
 		edges      []RadiusEdgeItem
@@ -601,10 +670,29 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 			return out, nil
 		}
 		out.found = true
-		out.warnings = multipleLayersWarning(rows, true)
+		li := newLayerIndex(tx, op.Manifest)
 		roots := make([]int64, 0, len(rows))
-		for _, r := range rows {
-			roots = append(roots, r.ID)
+		if view == "" {
+			out.warnings = multipleLayersWarning(rows, true)
+			for _, r := range rows {
+				roots = append(roots, r.ID)
+			}
+		} else {
+			// В режимах корень один: канонический узел объекта. Строки
+			// других слоёв подтягивает сам обход (edgeFilterFor), а
+			// предупреждение о склейке заменяет явный view.
+			c, ok, cerr := li.canonical(rows[0].ID)
+			if cerr != nil {
+				return out, cerr
+			}
+			if ok {
+				roots = append(roots, c.ID)
+			}
+			vw, werr := graphViewWarnings(tx, view)
+			if werr != nil {
+				return out, werr
+			}
+			out.warnings = vw
 		}
 		key, derr := DecodeCursor(in.Cursor, gen, paramsKey)
 		if derr != nil {
@@ -615,14 +703,16 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 			afterIdx, _ = strconv.Atoi(key)
 		}
 
-		edges, objects, truncation, berr := g.radiusBFS(tx, roots, direction, in.Kinds, in.Layer, in.MinConfidence, depth)
+		edges, objects, truncation, berr := g.radiusBFS(tx, li, view, roots, direction, in.Kinds, in.Layer, in.MinConfidence, depth)
 		if berr != nil {
 			return out, berr
 		}
 		out.truncation = truncation
 		items := make([]RadiusEdgeItem, 0, len(edges))
 		for _, e := range edges {
-			items = append(items, RadiusEdgeItem{EdgeItem: edgeItemFrom(e.row, objects), Depth: e.depth})
+			item := edgeItemFrom(e.row, objects)
+			item.Diff = e.diff
+			items = append(items, RadiusEdgeItem{EdgeItem: item, Depth: e.depth})
 		}
 		// total — размер ВСЕГО обрезанного потолком узлов результата, ДО
 		// постраничной нарезки ниже: тот же смысл, что у Neighbors
@@ -684,6 +774,7 @@ func radiusTruncationWarnings(radiusNodesCap, radiusFetchLim int, t radiusTrunca
 type radiusEdge struct {
 	row   store.ObjectDataEdgeRow
 	depth int
+	diff  string
 }
 
 // radiusBFS — сам обход: по уровням, на каждом уровне рёбра-кандидаты
@@ -697,7 +788,12 @@ type radiusEdge struct {
 // одного и того же объекта конфигурации, и рёбра у них свои (см.
 // resolveObjectTargets). Все корни лежат на нулевом уровне: ребро из слоя
 // расширения имеет ту же глубину, что и ребро из базы.
-func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, roots []int64, direction string, kinds []string, layer string, minConfidence float64, depth int) ([]radiusEdge, map[int64]store.MetadataObjectRow, radiusTruncation, error) {
+//
+// view (objectgraph_view.go) меняет две вещи: какие рёбра узла читаются
+// (edgeFilterFor) и во что превращаются их концы (project: канонические узлы
+// в effective и diff), поэтому обход идёт по каноническим узлам и не
+// раздваивается на строки слоёв.
+func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, li *layerIndex, view string, roots []int64, direction string, kinds []string, layer string, minConfidence float64, depth int) ([]radiusEdge, map[int64]store.MetadataObjectRow, radiusTruncation, error) {
 	visited := make(map[int64]bool, len(roots))
 	frontier := make([]int64, 0, len(roots))
 	for _, id := range roots {
@@ -714,9 +810,12 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, roots []int64, directio
 	for level := 1; level <= depth && len(frontier) > 0; level++ {
 		var candidates []radiusCandidate
 		for _, node := range frontier {
-			filter := store.ObjectEdgeFilter{
-				ObjectID: node, Direction: direction, Kinds: kinds, Layer: layer,
+			filter, err := li.edgeFilterFor(view, node, store.ObjectEdgeFilter{
+				Direction: direction, Kinds: kinds, Layer: layer,
 				MinConfidence: minConfidence, Limit: g.radiusFetchLimit,
+			})
+			if err != nil {
+				return nil, nil, radiusTruncation{}, err
 			}
 			rows, err := tx.ObjectDataEdges(filter)
 			if err != nil {
@@ -732,7 +831,12 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, roots []int64, directio
 				truncation.ByFetch = true
 				rows = rows[:g.radiusFetchLimit]
 			}
-			for _, r := range rows {
+			projected, err := li.project(view, rows)
+			if err != nil {
+				return nil, nil, radiusTruncation{}, err
+			}
+			for _, pe := range projected {
+				r := pe.row
 				if seenEdge[r.ID] {
 					continue
 				}
@@ -741,7 +845,7 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, roots []int64, directio
 				if r.FromObjectID != node {
 					other, isFrom = r.FromObjectID, true
 				}
-				candidates = append(candidates, radiusCandidate{row: r, other: other, isFrom: isFrom})
+				candidates = append(candidates, radiusCandidate{row: r, other: other, isFrom: isFrom, diff: pe.diff})
 			}
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
@@ -758,7 +862,7 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, roots []int64, directio
 				visited[c.other] = true
 				next = append(next, c.other)
 			}
-			result = append(result, radiusEdge{row: c.row, depth: level})
+			result = append(result, radiusEdge{row: c.row, depth: level, diff: c.diff})
 		}
 		frontier = next
 	}
@@ -783,6 +887,7 @@ func rowsOf(edges []radiusEdge) []store.ObjectDataEdgeRow {
 type GodNodesInput struct {
 	Kinds         []string
 	Layer         string
+	View          string // raw|effective|diff, objectgraph_view.go; пусто: как до В3
 	MinConfidence float64
 	MTypes        []string
 	By            string // fan-in|fan-out|total; пусто — total
@@ -801,10 +906,15 @@ func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Re
 		return Response[GodNodeItem]{}, berr.WithProject(op.Entry.ID)
 	}
 	limit := clampLimit(in.Limit, defaultGodNodeLimit, maxGodNodeLimit)
+	view, verr := normalizeGraphView(in.View, in.Layer)
+	if verr != nil {
+		return Response[GodNodeItem]{}, verr.WithProject(op.Entry.ID)
+	}
 
 	type txResult struct {
-		rows []store.GodNodeRow
-		gen  domain.Generation
+		rows     []store.GodNodeRow
+		gen      domain.Generation
+		warnings []Warning
 	}
 	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
@@ -813,14 +923,47 @@ func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Re
 			return out, gerr
 		}
 		out.gen = gen
-		rows, rerr := tx.GodNodes(store.GodNodeFilter{
+		li := newLayerIndex(tx, op.Manifest)
+		if view == GraphViewDiff {
+			rows, warnings, derr := godNodesDiff(tx, li, in, by, limit)
+			if derr != nil {
+				return out, derr
+			}
+			out.rows, out.warnings = rows, warnings
+			return out, nil
+		}
+		filter := store.GodNodeFilter{
 			Kinds: in.Kinds, Layer: in.Layer, MinConfidence: in.MinConfidence,
 			MTypes: in.MTypes, By: by, Limit: limit,
-		})
+		}
+		switch view {
+		case GraphViewRaw:
+			filter.Layer = baseLayer
+		case GraphViewEffective:
+			filter.MergeLayers = true
+		}
+		rows, rerr := tx.GodNodes(filter)
 		if rerr != nil {
 			return out, rerr
 		}
+		if view == GraphViewEffective {
+			// Строка склеенного объекта в ответе store любая из его строк:
+			// карте нужен канонический узел, тот же, что у соседей.
+			for i := range rows {
+				c, ok, cerr := li.canonical(rows[i].ObjectID)
+				if cerr != nil {
+					return out, cerr
+				}
+				if ok {
+					rows[i].ObjectID, rows[i].NameDisplay = c.ID, c.NameDisplay
+				}
+			}
+		}
 		out.rows = rows
+		out.warnings, rerr = graphViewWarnings(tx, view)
+		if rerr != nil {
+			return out, rerr
+		}
 		return out, nil
 	})
 	if err != nil {
@@ -831,7 +974,7 @@ func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Re
 		items = append(items, GodNodeItem{ObjectID: r.ObjectID, MType: r.MType, NameDisplay: r.NameDisplay,
 			FanIn: r.FanIn, FanOut: r.FanOut})
 	}
-	return Response[GodNodeItem]{Generation: res.gen, Items: items, TotalCount: len(items)}, nil
+	return Response[GodNodeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: len(items)}, nil
 }
 
 // normalizeGodNodeMetric разбирает ось сортировки god-node — тем же способом,

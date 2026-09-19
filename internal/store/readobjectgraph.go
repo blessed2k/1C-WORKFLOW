@@ -43,10 +43,17 @@ type ObjectDataEdgeRow struct {
 // ObjectEdgeFilter — фильтр соседей узла. ObjectID обязателен: без него это
 // был бы полный скан таблицы рёбер на реальной выгрузке.
 type ObjectEdgeFilter struct {
-	ObjectID      int64
+	ObjectID int64
+	// ObjectIDs, когда не пуст, заменяет ObjectID: рёбра любой из строк.
+	// Нужен режимам карты «до и после расширений» (веха В3): заимствованный
+	// объект лежит в индексе отдельной строкой на каждый слой, и рёбра
+	// расширения висят на строке расширения, а не базы. Список короткий
+	// (по строке на компонент), поэтому идёт плейсхолдерами.
+	ObjectIDs     []int64
 	Direction     string   // out|in|both; пусто — both
 	Kinds         []string // пусто — любой вид ребра
 	Layer         string   // пусто — любой слой
+	ExcludeLayer  string   // непусто: рёбра всех слоёв, кроме этого
 	MinConfidence float64
 	AfterID       int64
 	Limit         int
@@ -60,6 +67,7 @@ type ObjectEdgeFilter struct {
 type edgeSelector struct {
 	kinds         []string
 	layer         string
+	excludeLayer  string
 	minConfidence float64
 }
 
@@ -78,6 +86,10 @@ func (s edgeSelector) where() (string, []any) {
 		q += ` AND layer = ?`
 		args = append(args, s.layer)
 	}
+	if s.excludeLayer != "" {
+		q += ` AND layer <> ?`
+		args = append(args, s.excludeLayer)
+	}
 	if s.minConfidence > 0 {
 		q += ` AND confidence >= ?`
 		args = append(args, s.minConfidence)
@@ -86,7 +98,7 @@ func (s edgeSelector) where() (string, []any) {
 }
 
 func (f ObjectEdgeFilter) selector() edgeSelector {
-	return edgeSelector{kinds: f.Kinds, layer: f.Layer, minConfidence: f.MinConfidence}
+	return edgeSelector{kinds: f.Kinds, layer: f.Layer, excludeLayer: f.ExcludeLayer, minConfidence: f.MinConfidence}
 }
 
 func (f GodNodeFilter) selector() edgeSelector {
@@ -99,19 +111,31 @@ func (f GodNodeFilter) selector() edgeSelector {
 func (f ObjectEdgeFilter) edgeWhere() (string, []any) {
 	q := ``
 	var args []any
+	ids := f.ObjectIDs
+	if len(ids) == 0 {
+		ids = []int64{f.ObjectID}
+	}
+	in := inClause(len(ids))
 	switch f.Direction {
 	case EdgeDirectionOut:
-		q += ` AND from_object_id = ?`
-		args = append(args, f.ObjectID)
+		q += ` AND from_object_id IN ` + in
+		args = appendIDs(args, ids)
 	case EdgeDirectionIn:
-		q += ` AND to_object_id = ?`
-		args = append(args, f.ObjectID)
+		q += ` AND to_object_id IN ` + in
+		args = appendIDs(args, ids)
 	default:
-		q += ` AND (from_object_id = ? OR to_object_id = ?)`
-		args = append(args, f.ObjectID, f.ObjectID)
+		q += ` AND (from_object_id IN ` + in + ` OR to_object_id IN ` + in + `)`
+		args = appendIDs(appendIDs(args, ids), ids)
 	}
 	sel, selArgs := f.selector().where()
 	return q + sel, append(args, selArgs...)
+}
+
+func appendIDs(args []any, ids []int64) []any {
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	return args
 }
 
 const objectEdgeColumns = `id, from_object_id, to_object_id, kind, layer, provenance, confidence,
@@ -155,6 +179,54 @@ func (tx *ReadTx) CountObjectDataEdges(f ObjectEdgeFilter) (int64, error) {
 	}
 	where, args := f.edgeWhere()
 	return tx.c.queryInt(tx.ctx, `SELECT COUNT(*) FROM object_data_edge WHERE 1=1`+where, args...)
+}
+
+// ObjectDataEdgeExists отвечает, есть ли ребро вида kind в слое layer из
+// любой строки fromIDs в любую строку toIDs. Так режим diff узнаёт, что
+// связь, найденная в расширении, уже есть в базе: объекты с обеих сторон
+// бывают заимствованы, и сравнивать надо по всем их строкам.
+func (tx *ReadTx) ObjectDataEdgeExists(fromIDs, toIDs []int64, kind, layer string) (bool, error) {
+	if err := tx.check(); err != nil {
+		return false, err
+	}
+	if len(fromIDs) == 0 || len(toIDs) == 0 {
+		return false, nil
+	}
+	q := `SELECT EXISTS(SELECT 1 FROM object_data_edge WHERE from_object_id IN ` + inClause(len(fromIDs)) +
+		` AND to_object_id IN ` + inClause(len(toIDs)) + ` AND kind = ? AND layer = ?)`
+	args := appendIDs(appendIDs(nil, fromIDs), toIDs)
+	args = append(args, kind, layer)
+	n, err := tx.c.queryInt(tx.ctx, q, args...)
+	return n != 0, err
+}
+
+// ObjectDataEdgesOutsideLayer отдаёт рёбра всех слоёв, кроме layer, по всей
+// таблице, в порядке id, не больше limit+1 (лишняя строка: признак обрезания).
+// Точка входа панели god-node в режиме diff: рёбер расширений немного, а
+// считать «что добавило расширение» по узлам иначе не из чего.
+func (tx *ReadTx) ObjectDataEdgesOutsideLayer(layer string, kinds []string, minConfidence float64, limit int) ([]ObjectDataEdgeRow, error) {
+	if err := tx.check(); err != nil {
+		return nil, err
+	}
+	sel, args := edgeSelector{kinds: kinds, excludeLayer: layer, minConfidence: minConfidence}.where()
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := tx.c.query(tx.ctx, `SELECT `+objectEdgeColumns+` FROM object_data_edge WHERE 1=1`+sel+` ORDER BY id LIMIT ?`,
+		append(args, limit+1)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ObjectDataEdgeRow
+	for rows.Next() {
+		r, err := scanObjectDataEdge(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // ObjectDataEdgeByID читает ребро по id: точка входа evidence.
@@ -243,6 +315,10 @@ type GodNodeFilter struct {
 	MTypes        []string // виды объектов; пусто — любые
 	By            string   // fan-in|fan-out|total; пусто — total
 	Limit         int
+	// MergeLayers складывает строки одного объекта из разных слоёв (тот же
+	// вид и имя) в один узел: режим effective карты. ObjectID такой строки
+	// ответа: одна из строк объекта, какая именно, решает вызывающий.
+	MergeLayers bool
 }
 
 // GodNodes отдаёт топ узлов по fan-in/fan-out. Ось сортировки разбирается
@@ -269,7 +345,11 @@ func (tx *ReadTx) GodNodes(f GodNodeFilter) ([]GodNodeRow, error) {
 	}
 	// Агрегация идёт от рёбер, а не от объектов: перебирать всю metadata_object
 	// ради узлов без единого ребра нечем оправдать.
-	q := `SELECT o.id, o.mtype, o.name_display, a.fan_in, a.fan_out FROM (
+	columns := `o.id AS node_id, o.mtype, o.name_display, a.fan_in AS fan_in, a.fan_out AS fan_out`
+	if f.MergeLayers {
+		columns = `MIN(o.id) AS node_id, o.mtype, MIN(o.name_display), SUM(a.fan_in) AS fan_in, SUM(a.fan_out) AS fan_out`
+	}
+	q := `SELECT ` + columns + ` FROM (
 		SELECT object_id, SUM(fin) AS fan_in, SUM(fout) AS fan_out FROM (
 		  SELECT to_object_id AS object_id, 1 AS fin, 0 AS fout FROM object_data_edge WHERE 1=1` + edgeWhere + `
 		  UNION ALL
@@ -284,7 +364,10 @@ func (tx *ReadTx) GodNodes(f GodNodeFilter) ([]GodNodeRow, error) {
 			args = append(args, m)
 		}
 	}
-	q += ` ORDER BY ` + order + `, o.id LIMIT ?`
+	if f.MergeLayers {
+		q += ` GROUP BY o.mtype, o.name_norm`
+	}
+	q += ` ORDER BY ` + order + `, node_id LIMIT ?`
 	args = append(args, limit)
 
 	rows, err := tx.c.query(tx.ctx, q, args...)
