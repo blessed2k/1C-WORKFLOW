@@ -21,7 +21,9 @@ package store
 // (права ролей, рёбра и бейджи объектного графа, ADR-038), тот же шаг без DDL.
 // 5: факты HTTP-вызовов и HTTP-сервисов (http_call, http_endpoint), веха В2,
 // ADR-039; таблицы пустые до полной пересборки.
-const SchemaVersion = 5
+// 6: DDL прежний; инкремент перестал оставлять module.owner_object_id висячим
+// после удаления XML объекта при живом модуле (issue #14), тот же шаг без DDL.
+const SchemaVersion = 6
 
 // createScript — схема раздела 15 архитектуры целиком: единое пространство id в
 // node, aspect-модель (module_context/module_code, form_declaration/form_structure),

@@ -101,6 +101,51 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// у них больше нет. Итог тот же, что у чистой пересборки.
 		checkIncrementRows(t, 30, registerRemoveEdits)
 	})
+	t.Run("удаление XML объекта при живом модуле", func(t *testing.T) {
+		// XML документа удалён, модули объекта и менеджера остались.
+		// module.owner_object_id пишет проход 2 файла модуля, а модуль не
+		// переопубликуется: без SET NULL на удалённый объект указатель
+		// оставался висячим до полной пересборки, где он пуст (issue #14).
+		checkIncrementRows(t, 30, objectXMLRemoveEdits)
+	})
+	t.Run("удаление XML объекта при живом модуле, fallback", func(t *testing.T) {
+		// Модуль переопубликуется в той же транзакции: владелец ищется по
+		// узлу объекта, а узел живёт до reconciliation, хотя строки
+		// metadata_object уже нет (issue #14).
+		checkIncrementRows(t, 0, objectXMLRemoveEdits)
+	})
+	t.Run("удаление XML объекта и правка его модуля", func(t *testing.T) {
+		// Модуль переопубликуется в том же инкременте, где удалён XML: узел
+		// объекта живёт до reconciliation, а строки metadata_object уже нет.
+		// Владелец по узлу давал висячий id, а кодовое ребро графа от него
+		// валило инкремент на FOREIGN KEY (issue #14).
+		checkIncrementRows(t, 30, objectXMLRemoveModuleEdits)
+	})
+	t.Run("XML объекта добавлен к живому модулю", func(t *testing.T) {
+		// Обратное направление: модули объекта лежали без XML, затем XML
+		// появился. Модули не менялись, но владелец, рёбра и бейдж графа
+		// появляются только при их переопубликовании (issue #14).
+		checkIncrementRows(t, 30, objectXMLAddEdits)
+	})
+	t.Run("удаление XML объекта при живой форме", func(t *testing.T) {
+		// form.owner_object_id тоже без REFERENCES: Form.xml нетронут, а
+		// объект удалён (issue #14).
+		checkIncrementRows(t, 30, formObjectXMLRemoveEdits)
+	})
+	t.Run("XML объекта добавлен к живой форме", func(t *testing.T) {
+		checkIncrementRows(t, 30, formObjectXMLAddEdits)
+	})
+	t.Run("правка XML справочника при живой форме", func(t *testing.T) {
+		// Строка справочника пересоздаётся, указатель формы снимается,
+		// обнуляется и возвращается узлу с прежним id; Form.xml нетронут
+		// (issue #14, ADR-037).
+		checkIncrementRows(t, 30, formObjectXMLEdits)
+	})
+	t.Run("удаление XML объекта и правка формы", func(t *testing.T) {
+		// Form.xml и модуль формы переопубликуются в том же инкременте, где
+		// удалён XML объекта: владелец формы по узлу висел бы (issue #14).
+		checkIncrementRows(t, 30, formObjectXMLRemoveFormEdits)
+	})
 	t.Run("удаление XML роли при живом Rights.xml", func(t *testing.T) {
 		// Граница ADR-038: чистая пересборка создаёт роль из одного
 		// Rights.xml (file_id на нём, без объекта роли), а инкремент роль не
@@ -134,6 +179,124 @@ var registerRemoveEdits = incrementScenario{
 	// Декларированное ребро пропадает честно, а бейдж has-dynamic документа
 	// остаётся: сценарий создал граф, рёбра которого исчезают.
 	mustHave: []string{"badge=has-dynamic"},
+}
+
+var objectXMLRemoveEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Document", "Отгрузка"))
+	},
+	// Модуль объекта жив, а владельца у него в чистой пересборке нет.
+	mustHave: []string{"rel_path=" + workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleObject)},
+}
+
+var objectXMLRemoveModuleEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Document", "Отгрузка"))
+		write(workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleObject), `
+Процедура ОбработкаПроведения(Отказ, Режим)
+	// правка тела
+	Движения.ТоварыНаСкладах.Записать();
+КонецПроцедуры
+`)
+	},
+	mustHave: objectXMLRemoveEdits.mustHave,
+}
+
+// edgeSeedWithoutXML: edgeSeed без XML документа, модули на месте.
+func edgeSeedWithoutXML() map[string]string {
+	seed := map[string]string{}
+	for k, v := range edgeSeed {
+		seed[k] = v
+	}
+	delete(seed, workspace.DumpDeclarationPath("Document", "Отгрузка"))
+	return seed
+}
+
+var objectXMLAddEdits = incrementScenario{
+	seed: edgeSeedWithoutXML(),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Document", "Отгрузка"), fmt.Sprintf(edgeDocument, "исходный"))
+	},
+	mustHave: append([]string{"owner_object_id=node:" + metadataObjectIdentityKey("cfg", "Document", "отгрузка")}, edgeMustHave...),
+}
+
+const formCatalog = `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+  <Catalog uuid="88888888-8888-8888-8888-888888888888">
+    <Properties>
+      <Name>Номенклатура</Name>
+    </Properties>
+    <ChildObjects>
+      <Form>ФормаЭлемента</Form>
+    </ChildObjects>
+  </Catalog>
+</MetaDataObject>`
+
+const formXML = `<?xml version="1.0" encoding="UTF-8"?>
+<Form xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+	<Events>
+		<Event name="OnOpen">ПриОткрытии</Event>
+	</Events>%s
+</Form>`
+
+// formSeed: справочник с формой, её структурой и модулем.
+func formSeed(withXML bool) map[string]string {
+	seed := map[string]string{
+		"Catalogs/Номенклатура/Forms/ФормаЭлемента/Ext/Form.xml": fmt.Sprintf(formXML, ""),
+		workspace.DumpFormModulePath("Catalog", "Номенклатура", "ФормаЭлемента"): `
+&НаКлиенте
+Процедура ПриОткрытии(Отказ)
+КонецПроцедуры
+`,
+	}
+	if withXML {
+		seed[workspace.DumpDeclarationPath("Catalog", "Номенклатура")] = formCatalog
+	}
+	return seed
+}
+
+var formOwnerMustHave = "owner_object_id=node:" + metadataObjectIdentityKey("cfg", "Catalog", "номенклатура")
+
+var formObjectXMLRemoveEdits = incrementScenario{
+	seed: formSeed(true),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Catalog", "Номенклатура"))
+	},
+	mustHave: []string{"rel_path=Catalogs/Номенклатура/Forms/ФормаЭлемента/Ext/Form.xml"},
+}
+
+var formObjectXMLAddEdits = incrementScenario{
+	seed: formSeed(false),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Catalog", "Номенклатура"), formCatalog)
+	},
+	mustHave: []string{formOwnerMustHave},
+}
+
+var formObjectXMLEdits = incrementScenario{
+	seed: formSeed(true),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Catalog", "Номенклатура"),
+			strings.Replace(formCatalog, "<Name>Номенклатура</Name>", "<Name>Номенклатура</Name>\n      <Comment>правка свойства</Comment>", 1))
+	},
+	mustHave: []string{formOwnerMustHave},
+}
+
+var formObjectXMLRemoveFormEdits = incrementScenario{
+	seed: formSeed(true),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Catalog", "Номенклатура"))
+		write("Catalogs/Номенклатура/Forms/ФормаЭлемента/Ext/Form.xml", fmt.Sprintf(formXML, "\n\t<!-- правка -->"))
+		write(workspace.DumpFormModulePath("Catalog", "Номенклатура", "ФормаЭлемента"), `
+&НаКлиенте
+Процедура ПриОткрытии(Отказ)
+	// правка тела
+КонецПроцедуры
+`)
+	},
+	mustHave: formObjectXMLRemoveEdits.mustHave,
 }
 
 var roleXMLRemoveEdits = incrementScenario{

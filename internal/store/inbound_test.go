@@ -8,7 +8,7 @@ import (
 
 // TestInboundKindsCoverSetNullColumns: каждый столбец схемы с ON DELETE SET
 // NULL на строку-узел, которую удаление файла пересоздаёт (symbol,
-// metadata_object, metadata_member), обязан быть в inboundKinds. Пропущенный
+// metadata_object, metadata_member), обязан быть в setNullKinds. Пропущенный
 // столбец означает тот же дефект issue #10 для нового вида указателя: правка файла
 // цели молча обнулит его в нетронутых файлах (ADR-037).
 func TestInboundKindsCoverSetNullColumns(t *testing.T) {
@@ -40,18 +40,45 @@ func TestInboundKindsCoverSetNullColumns(t *testing.T) {
 		t.Fatal("в схеме не найдено ни одного SET NULL на узлы: выборка сломана, проверка ничего не значит")
 	}
 	have := map[string]bool{}
-	for _, k := range inboundKinds {
+	for _, k := range setNullKinds {
 		have[k.name()] = true
+	}
+	// Мягкий указатель без REFERENCES: столбец обязан существовать и не иметь
+	// FK, иначе SET NULL сделал бы SQLite, а явное обнуление в
+	// DeleteSourceFiles было бы лишним (issue #14).
+	for _, k := range softKinds {
+		checkNoFKColumn(t, s, k)
 	}
 	sort.Strings(want)
 	for _, col := range want {
 		if !have[col] {
-			t.Errorf("столбец %s (ON DELETE SET NULL на узел) не входит в inboundKinds", col)
+			t.Errorf("столбец %s (ON DELETE SET NULL на узел) не входит в setNullKinds", col)
 		}
 		delete(have, col)
 	}
 	for extra := range have {
-		t.Errorf("inboundKinds содержит %s, которого нет среди SET NULL-столбцов схемы", extra)
+		t.Errorf("setNullKinds содержит %s, которого нет среди SET NULL-столбцов схемы", extra)
+	}
+}
+
+func checkNoFKColumn(t *testing.T, s *Store, k inboundKind) {
+	t.Helper()
+	var cols, fks int
+	if err := s.Read(context.Background(), func(tx *ReadTx) error {
+		if err := tx.c.sc.QueryRowContext(tx.ctx, `SELECT count(*) FROM pragma_table_info(?) WHERE name=?`,
+			k.table, k.column).Scan(&cols); err != nil {
+			return err
+		}
+		return tx.c.sc.QueryRowContext(tx.ctx, `SELECT count(*) FROM pragma_foreign_key_list(?) WHERE "from"=?`,
+			k.table, k.column).Scan(&fks)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if cols != 1 {
+		t.Errorf("столбца %s (softKinds) нет в схеме", k.name())
+	}
+	if fks != 0 {
+		t.Errorf("у столбца %s есть REFERENCES, а вид лежит в softKinds", k.name())
 	}
 }
 

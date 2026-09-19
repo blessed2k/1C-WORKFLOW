@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -250,11 +252,59 @@ func (d *dumper) translated(table string) ([]int64, []string, error) {
 				parts[i] = name + "=" + k
 				continue
 			}
+			if name == "evidence" {
+				ev, err := d.evidence(v)
+				if err != nil {
+					return nil, nil, err
+				}
+				parts[i] = name + "=" + ev
+				continue
+			}
 			parts[i] = fmt.Sprintf("%s=%v", name, printable(v))
 		}
 		rows[ri] = strings.Join(parts, "|")
 	}
 	return ids, rows, nil
+}
+
+// evidenceIDs: id символа и файла внутри JSON доказательства ребра графа.
+var evidenceIDs = regexp.MustCompile(`"(symbolId|fileId)":(\d+)`)
+
+// evidence переводит id внутри JSON доказательства тем же правилом, что и
+// колонки: id символа (узла) законно различается между инкрементом и чистой
+// пересборкой, когда узлы выданы в другом порядке (issue #14).
+func (d *dumper) evidence(v any) (string, error) {
+	var text string
+	switch x := v.(type) {
+	case nil:
+		return "NULL", nil
+	case string:
+		text = x
+	case []byte:
+		text = string(x)
+	default:
+		return fmt.Sprint(x), nil
+	}
+	var err error
+	out := evidenceIDs.ReplaceAllStringFunc(text, func(m string) string {
+		sub := evidenceIDs.FindStringSubmatch(m)
+		table := "node"
+		if sub[1] == "fileId" {
+			table = "source_file"
+		}
+		keys, kerr := d.keyMap(table)
+		if kerr != nil {
+			err = kerr
+			return m
+		}
+		id, _ := strconv.ParseInt(sub[2], 10, 64)
+		k, ok := keys[id]
+		if !ok {
+			k = "ВИСЯЧИЙ " + table + "#" + sub[2]
+		}
+		return `"` + sub[1] + `":` + strconv.Quote(k)
+	})
+	return out, err
 }
 
 func printable(v any) any {

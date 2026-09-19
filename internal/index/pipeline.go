@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
@@ -361,6 +362,49 @@ func incrementalRepublishSet(comp domain.ComponentID, layer domain.Layer, env re
 	for _, rel := range changedRes {
 		out[rel] = true
 	}
+	for _, rel := range filesOfAppearedObjects(corpus, changedSet, oldSnapshots) {
+		out[rel] = true
+	}
+	return out
+}
+
+// filesOfAppearedObjects: файлы каталога объекта, чей XML появился в этом
+// инкременте (раньше файла не было). Модули и Form.xml такого объекта лежали
+// без владельца, а их владелец (module.owner_object_id, form.owner_object_id),
+// рёбра и бейджи объектного графа пишет только их собственная публикация:
+// без переопубликования они расходились с чистой пересборкой (issue #14).
+// Каталог объекта лежит рядом с его XML: "X.xml" и "X/..." (ADR-033).
+// Исчезновение объекта сюда не входит: указатели на него обнуляет
+// DeleteSourceFiles, рёбра и бейджи уходят каскадом.
+func filesOfAppearedObjects(corpus *componentCorpus, changedSet map[string]bool, oldSnapshots map[string]*fileRecord) []string {
+	dirs := map[string]bool{}
+	for rel := range changedSet {
+		rec := corpus.files[rel]
+		if oldSnapshots[rel] != nil || rec == nil || rec.metaFacts.Object == nil || !strings.HasSuffix(rel, ".xml") {
+			continue
+		}
+		dirs[strings.TrimSuffix(rel, ".xml")+"/"] = true
+	}
+	if len(dirs) == 0 {
+		return nil
+	}
+	// Каталоги ищутся по префиксам пути файла до каждого "/": проход линеен
+	// по корпусу (глубина пути мала), а не корпус на число новых объектов.
+	var out []string
+	for rel := range corpus.files {
+		for i := strings.IndexByte(rel, '/'); i >= 0; {
+			if dirs[rel[:i+1]] {
+				out = append(out, rel)
+				break
+			}
+			next := strings.IndexByte(rel[i+1:], '/')
+			if next < 0 {
+				break
+			}
+			i += next + 1
+		}
+	}
+	sort.Strings(out)
 	return out
 }
 

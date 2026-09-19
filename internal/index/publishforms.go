@@ -38,7 +38,10 @@ func publishFormDecls(tx *store.WriteTx, ts *txState, rel string, fileID, ownerO
 func publishFormStructure(tx *store.WriteTx, ts *txState, rel string, fileID int64, fp *formStructurePlan) error {
 	var ownerID int64
 	if fp.ownerKey != "" {
-		if id, found, err := ts.nodes.lookup(tx, fp.ownerKey); err != nil {
+		// Почему не по узлу: store.MetadataObjectID. XML объекта сортируется
+		// раньше своего каталога ("X.xml" < "X/..."), поэтому
+		// переопубликуемый объект к этому моменту уже вставлен.
+		if id, found, err := tx.MetadataObjectID(fp.ownerKey); err != nil {
 			return fmt.Errorf("владелец формы %s: %w", rel, err)
 		} else if found {
 			ownerID = id

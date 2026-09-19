@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -276,13 +277,14 @@ func TestMigrationToSchema2(t *testing.T) {
 // Индекс, собранный и полностью переиндексированный версией схемы 2, мог
 // накопить оборванные инкрементом указатели (ADR-037), версией 3 потерянные
 // каскадом строки нетронутых файлов (ADR-038), у версии 4 нет фактов HTTP
-// (ADR-039). Открытие новой версией обязано затребовать полную пересборку, не
-// трогая данные и эпоху.
+// (ADR-039), версия 5 могла оставить висячим владельца модуля (issue #14).
+// Открытие новой версией обязано затребовать полную пересборку, не трогая
+// данные и эпоху.
 func TestMigrationFromUnreliableContentRequiresFullRebuild(t *testing.T) {
-	if SchemaVersion != 5 {
+	if SchemaVersion != 6 {
 		t.Fatalf("SchemaVersion=%d: новая версия добавляет сюда свою строку и меняет ожидание", SchemaVersion)
 	}
-	for _, from := range []string{"2", "3", "4"} {
+	for _, from := range []string{"2", "3", "4", "5"} {
 		t.Run("из "+from, func(t *testing.T) { checkMigrationRequiresFullRebuild(t, from) })
 	}
 }
@@ -304,9 +306,11 @@ func checkMigrationRequiresFullRebuild(t *testing.T, from string) {
 	}
 	if err := s.Write(ctx, func(tx *WriteTx) error {
 		// Таблиц шага до 5 у индекса версии 2...4 ещё нет.
-		for _, q := range storetest.DowngradeToSchema4Statements {
-			if err := tx.c.exec(tx.ctx, q); err != nil {
-				return err
+		if v, _ := strconv.Atoi(from); v < 5 {
+			for _, q := range storetest.DowngradeToSchema4Statements {
+				if err := tx.c.exec(tx.ctx, q); err != nil {
+					return err
+				}
 			}
 		}
 		return tx.SetMeta(metaSchemaVersion, from)
