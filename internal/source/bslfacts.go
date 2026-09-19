@@ -1,6 +1,9 @@
 package source
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -30,6 +33,122 @@ func parseModule(src []byte) *bsl.Module {
 func parseDeclarations(src []byte) *bsl.Module {
 	mod, _ := bsl.Parse(src, bsl.Options{SkipReferences: true})
 	return mod
+}
+
+// moduleCache holds the modules one tool call has parsed, keyed by file path.
+// A common module shared by many subscriptions (the БСП exchange handlers) is
+// then read and parsed once per call, not once per handler. A module that
+// cannot be read is kept as nil, so it is not retried either.
+type moduleCache map[string]*bsl.Module
+
+// module returns the parsed module at path, nil when the file cannot be read.
+// Only the declarations are parsed: callers look for methods by name.
+func (c moduleCache) module(path string) *bsl.Module {
+	if mod, ok := c[path]; ok {
+		return mod
+	}
+	var mod *bsl.Module
+	if data, err := os.ReadFile(path); err == nil {
+		mod = parseDeclarations(stripBOM(data))
+	}
+	c[path] = mod
+	return mod
+}
+
+// methodByPath returns the text of method name from the module at path, whole
+// lines from its directives (&НаСервере, ...) to its closing keyword. The
+// parser finds the method, so a wrapped declaration or English keywords are
+// read as any other. Returns "" when the file or the method is missing.
+func (c moduleCache) methodByPath(path, name string) string {
+	mod := c.module(path)
+	m, ok := methodIn(mod, name)
+	if !ok {
+		return ""
+	}
+	return methodSource(mod, m)
+}
+
+// commonMethod resolves a "CommonModule.Модуль.Метод" reference, as event
+// subscriptions name their handlers, to the method in the common module of
+// the export at root. ok is false for another kind of reference and when the
+// module or the method is missing.
+func (c moduleCache) commonMethod(root, handler string) (*bsl.Module, bsl.Method, bool) {
+	parts := strings.Split(handler, ".")
+	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
+		return nil, bsl.Method{}, false
+	}
+	mod := c.module(filepath.Join(root, "CommonModules", parts[1], "Ext", "Module.bsl"))
+	m, ok := methodIn(mod, parts[2])
+	return mod, m, ok
+}
+
+// methodIn returns the first method of the module named name. Method names are
+// case-insensitive in 1C. A nil module has no methods.
+func methodIn(mod *bsl.Module, name string) (bsl.Method, bool) {
+	if mod == nil {
+		return bsl.Method{}, false
+	}
+	for _, m := range mod.Methods {
+		if strings.EqualFold(m.Name, name) {
+			return m, true
+		}
+	}
+	return bsl.Method{}, false
+}
+
+// methodSource returns the whole source lines of a method: from the line of its
+// first directive or annotation to the line of its closing keyword, trailing
+// comment included, without the final line break. A method without the closing
+// keyword ends before the line where the next declaration starts, its
+// directives included, or at the end of the module.
+func methodSource(mod *bsl.Module, m bsl.Method) string {
+	src := mod.Source()
+	start := bytes.LastIndexByte(src[:m.Span.StartByte], '\n') + 1
+	end := len(src)
+	if m.Complete {
+		if i := bytes.IndexByte(src[m.Span.EndByte:], '\n'); i >= 0 {
+			end = m.Span.EndByte + i
+		}
+		return string(src[start:end])
+	}
+	// The parser closes an unclosed method at the keyword of the next
+	// declaration; the directives above that keyword belong to the next one.
+	stop := m.Span.EndByte
+	for _, next := range mod.Methods {
+		if next.Span.StartByte > m.Span.StartByte && next.Span.StartByte < stop {
+			stop = next.Span.StartByte
+		}
+	}
+	if stop < len(src) {
+		end = max(bytes.LastIndexByte(src[:stop], '\n'), start)
+	}
+	return string(src[start:end])
+}
+
+// bodyText returns the body of a method: the source between its declaration
+// and its closing keyword.
+func bodyText(mod *bsl.Module, m bsl.Method) string {
+	return spanText(mod, m.BodySpan.StartByte, m.BodySpan.EndByte)
+}
+
+// interceptorOf returns the interceptor annotation of a method: its canonical
+// kind and target. With several annotations the last one wins. ok is false
+// for a method without an interceptor annotation whose target is a name.
+func interceptorOf(m bsl.Method) (kind, target string, ok bool) {
+	for _, a := range m.Annotations {
+		if k, known := interceptorKind(a); known {
+			kind, target, ok = k, a.Arg, true
+		}
+	}
+	return kind, target, ok
+}
+
+// interceptorKind returns the canonical kind of an interceptor annotation
+// (&Перед, &After, ...). ok is false for any other annotation and for an
+// interceptor whose target is not a name.
+func interceptorKind(a bsl.Annotation) (kind string, ok bool) {
+	kind, ok = canonicalKind[strings.ToLower(strings.TrimPrefix(a.Name, "&"))]
+	return kind, ok && a.Arg != ""
 }
 
 // spanText returns the source between two byte offsets of the module.

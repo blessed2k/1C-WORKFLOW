@@ -50,3 +50,73 @@ func BenchmarkRealPostingReview(b *testing.B) {
 		}
 	}
 }
+
+// realBenchExchangeObjects are ut_demo objects in exchange plans whose write
+// path carries registration subscriptions into large БСП common modules.
+var realBenchExchangeObjects = [][2]string{
+	{"Catalog", "Номенклатура"}, {"Catalog", "Контрагенты"}, {"Catalog", "Партнеры"},
+	{"Document", "ЗаказКлиента"}, {"Document", "РеализацияТоваровУслуг"},
+}
+
+// BenchmarkRealExchangeAudit audits several objects per iteration, each call
+// reading the handler modules of its subscriptions once.
+func BenchmarkRealExchangeAudit(b *testing.B) {
+	s := realBenchSource(b)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, o := range realBenchExchangeObjects {
+			if _, err := s.ExchangeAudit(context.Background(), o[0], o[1]); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+// BenchmarkRealWritePath builds the write path of the same objects: its
+// subscription handlers are read from the same common modules.
+func BenchmarkRealWritePath(b *testing.B) {
+	s := realBenchSource(b)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, o := range realBenchExchangeObjects {
+			if _, err := s.WritePath(context.Background(), o[0], o[1]); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+// realBenchForms are large form modules of ut_demo.
+var realBenchForms = [][3]string{
+	{"Document", "ЗаказКлиента", "ФормаДокумента"},
+	{"Document", "РеализацияТоваровУслуг", "ФормаДокумента"},
+	{"Document", "ПриобретениеТоваровУслуг", "ФормаДокумента"},
+	{"Catalog", "Номенклатура", "ФормаЭлемента"},
+	{"Catalog", "Партнеры", "ФормаЭлемента"},
+}
+
+// BenchmarkRealFormImpact analyses several forms per iteration, one form
+// module read and cut into procedures per call.
+func BenchmarkRealFormImpact(b *testing.B) {
+	s := realBenchSource(b)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, f := range realBenchForms {
+			if _, err := s.FormImpact(context.Background(), f[0], f[1], f[2], nil, nil); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+// BenchmarkRealAccessProfiles reads the profiles supplied by the code, as
+// rights_audit does for a profile.
+func BenchmarkRealAccessProfiles(b *testing.B) {
+	s := realBenchSource(b)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := s.AccessProfiles(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

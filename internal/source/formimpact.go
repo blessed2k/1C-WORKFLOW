@@ -245,48 +245,33 @@ type procedure struct {
 
 // splitModule cuts a module into procedures, attributing every edit to the
 // procedure it sits in and recording module-local calls, so that edits made in
-// helper procedures can be charged to the interceptor that reaches them.
+// helper procedures can be charged to the interceptor that reaches them. The
+// parser finds the procedures, their interceptor annotations and their bodies,
+// so a wrapped declaration or English keywords do not hide a procedure.
 func splitModule(module string) []procedure {
-	lines := strings.Split(module, "\n")
-	var out []procedure
-	var cur *procedure
-	pendingKind, pendingTarget := "", ""
-
-	for i := 0; i < len(lines); i++ {
-		raw := strings.TrimRight(lines[i], "\r")
-		line := stripLineComment(raw)
-		trimmed := strings.TrimSpace(line)
-
-		if m := reAnnotation.FindStringSubmatch(raw); m != nil {
-			pendingKind, pendingTarget = canonicalKind[strings.ToLower(m[1])], m[2]
-			continue
-		}
-		if h := reMethodHead.FindStringSubmatch(line); h != nil {
-			out = append(out, procedure{name: h[2], kind: pendingKind, target: pendingTarget})
-			cur = &out[len(out)-1]
-			pendingKind, pendingTarget = "", ""
-			continue
-		}
-		if cur == nil || trimmed == "" {
-			continue
-		}
-		if isMethodEnd(line) {
-			cur = nil
-			continue
-		}
-		// A call may span lines: join until parentheses balance, so that a name
-		// literal on the next line is still seen.
-		logical, consumed := joinLogicalLine(lines, i)
-		if consumed > 0 {
+	mod := parseDeclarations([]byte(module))
+	out := make([]procedure, 0, len(mod.Methods))
+	for _, m := range mod.Methods {
+		p := procedure{name: m.Name}
+		p.kind, p.target, _ = interceptorOf(m)
+		lines := strings.Split(bodyText(mod, m), "\n")
+		for i := 0; i < len(lines); i++ {
+			if strings.TrimSpace(stripLineComment(strings.TrimRight(lines[i], "\r"))) == "" {
+				continue
+			}
+			// A call may span lines: join until parentheses balance, so that a
+			// name literal on the next line is still seen.
+			logical, consumed := joinLogicalLine(lines, i)
 			i += consumed
+			p.edits = append(p.edits, parseLineEdits(logical, m.BodySpan.StartLine+i)...)
+			if reContinueCall.MatchString(logical) {
+				p.continues = true
+			}
+			for _, c := range reProcCall.FindAllStringSubmatch(logical, -1) {
+				p.calls = append(p.calls, strings.ToLower(c[1]))
+			}
 		}
-		cur.edits = append(cur.edits, parseLineEdits(logical, i+1)...)
-		if reContinueCall.MatchString(logical) {
-			cur.continues = true
-		}
-		for _, c := range reProcCall.FindAllStringSubmatch(logical, -1) {
-			cur.calls = append(cur.calls, strings.ToLower(c[1]))
-		}
+		out = append(out, p)
 	}
 	return out
 }

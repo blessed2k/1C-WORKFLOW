@@ -26,7 +26,6 @@ var (
 	reProfileName     = regexp.MustCompile(`(?i)\.(?:Имя|Идентификатор)\s*=\s*"([^"]+)"`)
 	reProfileDescNStr = regexp.MustCompile(`(?i)\.Наименование\s*=\s*НСтр\(\s*"ru\s*=\s*'([^']+)'`)
 	reProfileDesc     = regexp.MustCompile(`(?i)\.Наименование\s*=\s*"([^"]+)"`)
-	reProcedureHead   = regexp.MustCompile(`(?i)^\s*(?:Процедура|Функция|Procedure|Function)\s+([\p{L}\d_]+)`)
 )
 
 // AccessProfile is one BSP access-group profile as declared in configuration code.
@@ -104,13 +103,14 @@ func (s *XMLSource) profilesFromModules(modules []string, known map[string]bool)
 }
 
 // parseAccessProfiles extracts the profiles of one module's text. Roles belong
-// to the nearest preceding profile name; roles with no name at all are grouped
-// under the enclosing procedure, so nothing is silently dropped.
+// to the nearest preceding profile name within the same procedure; roles with
+// no name at all are grouped under the enclosing procedure, so nothing is
+// silently dropped. The parser finds the procedures and their bodies, so a
+// wrapped declaration or English keywords do not merge two procedures, and
+// code quoted in a comment (a БСП usage example) is not read as a profile.
 func parseAccessProfiles(text, module string) []AccessProfile {
 	var out []AccessProfile
 	var cur *AccessProfile
-	procedure := ""
-
 	flush := func() {
 		if cur != nil && len(cur.Roles) > 0 {
 			out = append(out, *cur)
@@ -118,48 +118,37 @@ func parseAccessProfiles(text, module string) []AccessProfile {
 		cur = nil
 	}
 
-	for _, line := range strings.Split(text, "\n") {
-		if m := reProcedureHead.FindStringSubmatch(line); m != nil {
-			flush()
-			procedure = m[1]
-			continue
-		}
-		if m := reProfileName.FindStringSubmatch(line); m != nil {
-			if cur != nil && len(cur.Roles) > 0 {
-				flush() // the previous profile is complete
+	mod := parseDeclarations([]byte(text))
+	for _, method := range mod.Methods {
+		flush()
+		for _, line := range strings.Split(bodyText(mod, method), "\n") {
+			line = stripLineComment(line)
+			name := reProfileName.FindStringSubmatch(line)
+			desc := reProfileDescNStr.FindStringSubmatch(line)
+			if desc == nil {
+				desc = reProfileDesc.FindStringSubmatch(line)
+			}
+			role := reProfileRoleAdd.FindStringSubmatch(line)
+			if name == nil && desc == nil && role == nil {
+				continue
+			}
+			if name != nil && cur != nil && len(cur.Roles) > 0 {
+				flush() // a new name: the previous profile is complete
 			}
 			if cur == nil {
-				cur = &AccessProfile{Module: module, Procedure: procedure}
+				cur = &AccessProfile{Module: module, Procedure: method.Name}
 			}
-			if cur.Name == "" {
-				cur.Name = m[1]
-			}
-			continue
-		}
-		if m := reProfileDescNStr.FindStringSubmatch(line); m != nil {
-			if cur == nil {
-				cur = &AccessProfile{Module: module, Procedure: procedure}
-			}
-			if cur.Description == "" {
-				cur.Description = m[1]
-			}
-			continue
-		}
-		if m := reProfileDesc.FindStringSubmatch(line); m != nil {
-			if cur == nil {
-				cur = &AccessProfile{Module: module, Procedure: procedure}
-			}
-			if cur.Description == "" {
-				cur.Description = m[1]
-			}
-			continue
-		}
-		if m := reProfileRoleAdd.FindStringSubmatch(line); m != nil {
-			if cur == nil {
-				cur = &AccessProfile{Module: module, Procedure: procedure}
-			}
-			if !containsString(cur.Roles, m[1]) {
-				cur.Roles = append(cur.Roles, m[1])
+			switch {
+			case name != nil:
+				if cur.Name == "" {
+					cur.Name = name[1]
+				}
+			case desc != nil:
+				if cur.Description == "" {
+					cur.Description = desc[1]
+				}
+			case !containsString(cur.Roles, role[1]):
+				cur.Roles = append(cur.Roles, role[1])
 			}
 		}
 	}
