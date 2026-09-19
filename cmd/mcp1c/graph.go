@@ -254,7 +254,7 @@ func dumpInsteadOfWorkspace(root string) string {
 	}
 	return fmt.Sprintf("mcp1c graph: в %s лежит %s, но нет %s: похоже, это каталог выгрузки или проекта, а не корень workspace.\n"+
 		"Флаг -project ждёт корень workspace, где лежит каталог %s (тот же, что --projects-root у MCP-сервера), а не саму выгрузку.\n"+
-		"Пример: mcp1c graph -project ~/Dev, если индекс лежит в ~/Dev/%s.",
+		"Пример: mcp1c graph -project /path/to/workspace, если индекс лежит в /path/to/workspace/%s.",
 		root, found, filepath.Join(workspace.RegistryDirName, workspace.RegistryFileName),
 		workspace.RegistryDirName, workspace.RegistryDirName)
 }
