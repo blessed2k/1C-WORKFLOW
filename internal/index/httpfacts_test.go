@@ -69,3 +69,30 @@ var httpFactEdits = incrementScenario{
 func TestHTTPFactsIncrementEqualsCleanRebuild(t *testing.T) {
 	checkIncrementRows(t, 30, httpFactEdits)
 }
+
+// TestHTTPFactsIncrementAfterRemoval: удаление XML сервиса и модуля вызова
+// инкрементом даёт те же строки, что чистая пересборка оставшегося дерева.
+func TestHTTPFactsIncrementAfterRemoval(t *testing.T) {
+	// Сервис удаляется целиком, XML и модуль: так его удаляет выгрузка
+	// конфигуратора. Удаление одного XML при живом модуле оставляет
+	// module.owner_object_id висячим, это отдельный дефект вне фактов HTTP.
+	t.Run("удаление сервиса", func(t *testing.T) {
+		checkIncrementRows(t, 30, incrementScenario{
+			seed: httpFactEdits.seed,
+			edit: func(write func(rel, content string), remove func(rel string)) {
+				remove(workspace.DumpDeclarationPath("HTTPService", "ОбменЗаказами"))
+				remove(workspace.DumpModulePath("HTTPService", "ОбменЗаказами", workspace.ModuleCommon))
+			},
+			mustHave: []string{"path=/erp/hs/exchange/version"},
+		})
+	})
+	t.Run("удаление модуля вызова", func(t *testing.T) {
+		checkIncrementRows(t, 30, incrementScenario{
+			seed: httpFactEdits.seed,
+			edit: func(write func(rel, content string), remove func(rel string)) {
+				remove(workspace.DumpModulePath("CommonModule", "ОбменСЕРП", workspace.ModuleCommon))
+			},
+			mustHave: []string{"handler=ВерсияGet"},
+		})
+	})
+}
