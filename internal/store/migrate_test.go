@@ -274,10 +274,20 @@ func TestMigrationToSchema2(t *testing.T) {
 }
 
 // Индекс, собранный и полностью переиндексированный версией схемы 2, мог
-// накопить оборванные инкрементом указатели (ADR-037). Открытие новой версией
-// обязано затребовать полную пересборку, не трогая данные и эпоху: DDL у шага
-// нет, ненадёжно только содержимое.
-func TestMigrationTo3RequiresFullRebuild(t *testing.T) {
+// накопить оборванные инкрементом указатели (ADR-037), версией 3 потерянные
+// каскадом строки нетронутых файлов (ADR-038). Открытие новой версией обязано
+// затребовать полную пересборку, не трогая данные и эпоху: DDL у шагов нет,
+// ненадёжно только содержимое.
+func TestMigrationFromUnreliableContentRequiresFullRebuild(t *testing.T) {
+	if SchemaVersion != 4 {
+		t.Fatalf("SchemaVersion=%d: новая версия добавляет сюда свою строку и меняет ожидание", SchemaVersion)
+	}
+	for _, from := range []string{"2", "3"} {
+		t.Run("из "+from, func(t *testing.T) { checkMigrationRequiresFullRebuild(t, from) })
+	}
+}
+
+func checkMigrationRequiresFullRebuild(t *testing.T, from string) {
 	root := t.TempDir()
 	opts := Options{ProjectID: "project", StateDirName: testStateDir}
 	ctx := context.Background()
@@ -292,8 +302,8 @@ func TestMigrationTo3RequiresFullRebuild(t *testing.T) {
 	if err := s.Rebuild(ctx, fill); err != nil {
 		t.Fatalf("полная переиндексация: %v", err)
 	}
-	if err := s.Write(ctx, func(tx *WriteTx) error { return tx.SetMeta(metaSchemaVersion, "2") }); err != nil {
-		t.Fatalf("сведение версии схемы к 2: %v", err)
+	if err := s.Write(ctx, func(tx *WriteTx) error { return tx.SetMeta(metaSchemaVersion, from) }); err != nil {
+		t.Fatalf("сведение версии схемы к %s: %v", from, err)
 	}
 	st := statusOf(t, s)
 	if st.NeedsFullRebuild {
@@ -307,15 +317,15 @@ func TestMigrationTo3RequiresFullRebuild(t *testing.T) {
 
 	s1, err := Open(root, opts)
 	if err != nil {
-		t.Fatalf("открытие индекса версии 2: %v", err)
+		t.Fatalf("открытие индекса версии %s: %v", from, err)
 	}
 	defer s1.Close()
 	st = statusOf(t, s1)
 	if !st.NeedsFullRebuild {
-		t.Error("индекс версии 2 открыт без требования полной пересборки: оборванные указатели остались бы под видом свежих")
+		t.Errorf("индекс версии %s открыт без требования полной пересборки: потерянные строки остались бы под видом свежих", from)
 	}
-	if st.SchemaVersion != 3 || SchemaVersion != 3 {
-		t.Errorf("schema_version=%d (пакет %d), ожидалась 3", st.SchemaVersion, SchemaVersion)
+	if st.SchemaVersion != SchemaVersion {
+		t.Errorf("schema_version=%d, ожидалась %d", st.SchemaVersion, SchemaVersion)
 	}
 	if st.Epoch != epochBefore {
 		t.Errorf("эпоха %d, ожидалась прежняя %d", st.Epoch, epochBefore)

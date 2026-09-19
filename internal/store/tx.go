@@ -869,7 +869,10 @@ type Role struct {
 	Layer       string
 }
 
-// EnsureRole создаёт или обновляет роль и возвращает её id.
+// EnsureRole создаёт или обновляет роль и возвращает её id. Пустой ObjectID
+// прежний объект не стирает: его не знает публикация Rights.xml, которая
+// приходит после XML роли, и без этого чистая пересборка оставляла указатель
+// пустым, а инкремент по XML роли заполнял (ADR-038).
 func (tx *WriteTx) EnsureRole(r Role) (int64, error) {
 	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
@@ -877,7 +880,7 @@ func (tx *WriteTx) EnsureRole(r Role) (int64, error) {
 	if err := tx.c.exec(tx.ctx, `INSERT INTO role(component_id,name_norm,name_display,object_id,file_id,layer)
 		VALUES(?,?,?,?,?,?)
 		ON CONFLICT(component_id,name_norm) DO UPDATE SET name_display=excluded.name_display,
-		  object_id=excluded.object_id, file_id=excluded.file_id, layer=excluded.layer`,
+		  object_id=COALESCE(excluded.object_id, role.object_id), file_id=excluded.file_id, layer=excluded.layer`,
 		r.ComponentID, r.NameNorm, r.NameDisplay, nullID(r.ObjectID), r.FileID, layerOrBase(r.Layer)); err != nil {
 		return 0, err
 	}

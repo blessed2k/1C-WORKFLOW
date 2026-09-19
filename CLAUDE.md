@@ -68,7 +68,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
 - `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-037), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-038), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -102,6 +102,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
 - `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
 - `internal/store/inbound.go`: `ReplaceSourceFiles(fileIDs, insert)`, единственный путь переопубликования: снимок указателей нетронутых файлов на узлы переопубликуемых во `temp.inbound_ptr`, `DeleteSourceFiles`, `insert` (проход 1), возврат указателей узлам с прежним id (ADR-037); `staleNodes` общий с шагом (1b); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
+- `internal/store/cascade.go`: снимок и возврат строк нетронутых файлов, которые уходят `ON DELETE CASCADE` вместе с владельцем переопубликуемого файла (права ролей, рёбра и бейджи объектного графа), внутри того же `ReplaceSourceFiles` (ADR-038); `cascadeKinds` плюс `sameFileCascades` обязаны покрывать все каскады на строки, которые сносит удаление файла (`TestCascadeKindsCoverCrossFileCascades`)
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
 - `internal/resolve/*.go` — `NewEnv`, `Resolve`, `Derive*`; `layer.go` — `ParseInterceptAnnotation`, `DeriveIntercepts` (второе значение — диагностики), `DetectInsteadConflicts`, `DiagInterceptTargetUnknown`
@@ -487,7 +488,8 @@ guard по корпусу, сервер без файла индекса син�
   ЧУЖОГО документа. Пути брать из `workspace.Dump*` (ADR-033).
 - Шаг миграции без DDL с `needsFullRebuild`: способ объявить СОДЕРЖИМОЕ индексов прежней
   версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
-  указатели нетронутых файлов на пересозданные узлы). `ParserVersion` ради этого не поднимать.
+  указатели нетронутых файлов на пересозданные узлы; схема 4, ADR-038: сносил каскадом их права
+  ролей, рёбра и бейджи графа). `ParserVersion` ради этого не поднимать.
   Переключение бинарника `main` (схема 2) и схемы 3 на одном `--projects-root` каждый раз
   стоит полной пересборки: схема 3 требует её у эпохи версии 2, а `main` на эпохе версии 3
   заводит новую пустую эпоху.

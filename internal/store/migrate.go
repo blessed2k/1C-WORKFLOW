@@ -51,6 +51,12 @@ type migration struct {
 // обработчики подписок и объекты запросов пустыми. Какие строки задеты,
 // по базе не восстановить (unresolved неотличим от честного), и починить их
 // может только полная пересборка, её шаг и требует.
+//
+// Шаг до 4 тоже без DDL, по тому же основанию (ADR-038): до него инкремент
+// после правки XML роли, регистра или документа сносил каскадом права из
+// нетронутого Rights.xml, рёбра объектного графа и бейджи, а чистая
+// пересборка оставляла пустым role.object_id. Потерю строки по базе не
+// увидеть.
 var migrations = []migration{{
 	to:               2,
 	needsFullRebuild: true,
@@ -59,6 +65,9 @@ var migrations = []migration{{
 	}, append(splitStatements(objectGraphTables), splitStatements(objectGraphIndexes)...)...),
 }, {
 	to:               3,
+	needsFullRebuild: true,
+}, {
+	to:               4,
 	needsFullRebuild: true,
 }}
 
