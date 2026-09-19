@@ -150,7 +150,8 @@
 
 - `from_object_id`, `to_object_id`: узлы;
 - `kind`: `writes-register` | `reads-register` | `reads-query` |
-  `ref-attribute` | `creates` | `http-call` (В2);
+  `ref-attribute` | `creates`; `http-call` (В2) в таблицу не попал: конец ребра
+  лежит в индексе другой базы, связь сшивается при чтении (ADR-039, раздел 11);
 - `layer`: base | имя расширения (D11, с первого дня);
 - `confidence`: минимум по цепочке атрибуции, типизированный (эвристика не
   может выдать себя за 1.0, инвариант индекса сохраняется);
@@ -230,7 +231,10 @@ http_endpoint facts (В2)
 - `GET /api/search?q=...&limit=N`: объект по части имени (точные, затем префикс, затем
   вхождение, со степенями fanIn/fanOut): точка входа на карту без знания id;
 - В3: `view=raw|effective|diff` у `node`, `neighbors`, `radius` и `godnodes` (раздел 12);
-- В2: `GET /api/crosslinks?projects=...`: HTTP-рёбра между проектами.
+- В2: `GET /api/crosslinks?projects=...`: HTTP-рёбра между проектами (без `projects`
+  все открытые `--project`; ответ `links` с концами «проект, id» и `badges`
+  `has-dynamic-http`, ADR-039). Две базы одного workspace открываются как
+  `--project <workspace>#<id>`.
 
 Progressive disclosure живёт на этом API: UI не грузит весь граф никогда.
 
@@ -287,6 +291,24 @@ DeriveObjectDataEdges, graph-режим с API из раздела 8, `object_gr
 Критерий готовности: синтетическая двух-проектная фикстура (сервис + вызов),
 ребро строится, немапленный хост даёт «внешний HTTP»; на рабочих базах
 ручная проверка по известной паре обменов.
+
+Реализация (issue #6, ADR-039):
+
+- факты `http_call` (`parse/bsl`: соединение и запрос, созданные в том же методе; путь
+  `static`, `prefix` или `dynamic`) и `http_endpoint` (`parse/meta`: RootURL, шаблоны,
+  методы с обработчиками) лежат в индексе своей базы, `ParserVersion` 5, схема 5;
+- сшивка и атрибуция при чтении: `internal/app/httplinks.go` читает факты каждого проекта,
+  приписывает вызов владельцу тем же обходом графа вызовов, что и запись в регистр (D6),
+  `resolve.StitchHTTPCall` сопоставляет путь `/<публикация>/hs/<RootURL><Template>`;
+- `http-call` не материализуется в `object_data_edge`: конец ребра в другом индексе, а
+  правка маппинга хостов не должна стоить переиндексации;
+- маппинг хостов: `<workspace>/.mcp1c/http-hosts.json`
+  (`{"version":1,"hosts":[{"host":"...","project":"..."}]}`, `*.домен` для поддоменов);
+  немапленный литеральный хост даёт «внешний HTTP», вычисляемый хост ищет сервис по пути
+  во всех переданных проектах с меньшей достоверностью;
+- динамический путь ребра не даёт: бейдж `has-dynamic-http` со счётчиком и местами вызова;
+- выдача: `/api/crosslinks`, слой «HTTP-связи» на карте, `object_graph` с
+  `crossProjects`/`kinds=[http-call]` (блок `httpLinks`).
 
 ## 12. Веха В3: raw vs effective diff
 

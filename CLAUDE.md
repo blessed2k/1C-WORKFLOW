@@ -55,7 +55,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c` — точка входа MCP, регистрация всех инструментов (легаси + индексных), настройки процесса, блок памяти `server_info`
 - `cmd/syntaxgen` — генератор индекса синтаксиса платформы (`internal/syntax`) из `.hbk` установленной платформы; индекс в репозиторий не входит
 - `internal/domain` — сущности и инварианты индекса, ноль зависимостей кроме stdlib
-- `internal/store` — SQLite: схема (36 таблиц), эпохи, WAL, reader pool, единственный writer
+- `internal/store` — SQLite: схема (38 таблиц), эпохи, WAL, reader pool, единственный writer
 - `internal/parse/{bsl,meta,query}` — три независимых парсера: BSL (свой tolerant, не tree-sitter — ADR-3), XML метаданных, текст запроса 1С
 - `internal/resolve` — разрешение имён, call graph, вывод обращений к регистрам/запросам/обработчикам форм
 - `internal/index` — пайплайн индексации: discover→fingerprint→parse→normalize→resolve→derive→validate→publish
@@ -68,7 +68,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
 - `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-038), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-039), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -94,7 +94,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/app/indexstatus.go` — `Status(ctx, StatusInput)`, `ReindexInput`, `doseDiagnostics`, `DiagnosticsDigest`, `const diagnosticsSample = 10`; `ReindexStageResult{Name, DurationMS}` и `ReindexResultItem.Stages []ReindexStageResult` (`json:"stages,omitempty"`) — поэтапные тайминги `reindex` в MCP-ответе, собираются из `index.Result.Stages`
 - `internal/index/service.go`, `pipeline.go` — `Service.Reindex/Status/EnsureFresh`, сам пайплайн; `Result.Stages []StageTiming`
 - `internal/index/stagetiming.go` — `StageTiming{Name, DurationMS}`, `stageAccum` (накопитель этапов по имени, `add`/`mark`/`stages`), синтетический этап `"commit"` — остаток вне `runComponent`
-- `internal/index/parserversion.go`: `const ParserVersion` (сейчас 3); поднимает каждый, кто меняет ВЫХОД парсера
+- `internal/index/parserversion.go`: `const ParserVersion` (сейчас 5); поднимает каждый, кто меняет ВЫХОД парсера
 - `internal/index/corpus.go`, `hydrate.go`, `envbuild.go` — резидентный корпус файлов, восстановление из `source_file`, `fileRecord.hydrated`, инвариант `buildEnvInput`
 - `internal/index/freshness.go` — `precheckWork{changed, pending}`, `precheckWorkload`, `precheckChangedCount` (обёртка)
 - `internal/index/diskcheck.go`: `CachedFreshness` (дешёвый источник `stale` без запуска инкремента), исход обхода `diskCheck` с TTL/MaxAge (`Config.FreshnessTTL`/`FreshnessMaxAge`, 30 с / 5 мин), обход один на сервис (`diskFlight`, singleflight: синхронный путь, фон и прогрев `WarmFreshness` ждут общий, `opMu` берётся прерываемо с перепроверкой исхода, `Close` отменяет обход и ждёт горутину, после него `ErrServiceClosed`), типизированные причины `StaleReason`; каждый `precheckWorkload` пишет исход, прогон по всем компонентам сбрасывает его в «расхождений нет» на момент старта (ADR-036)
@@ -102,6 +102,15 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
 - `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
 - `internal/store/inbound.go`: `ReplaceSourceFiles(fileIDs, insert)`, единственный путь переопубликования: снимок указателей нетронутых файлов на узлы переопубликуемых во `temp.inbound_ptr`, `DeleteSourceFiles`, `insert` (проход 1), возврат указателей узлам с прежним id (ADR-037); `staleNodes` общий с шагом (1b); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
+- HTTP-связи между базами (веха В2, ADR-039): факты `parse/bsl/httpcalls.go`
+  (`Module.HTTPCalls`) и `parse/meta` (`Facts.HTTPService`), таблицы `http_call`/`http_endpoint`
+  (`internal/store/httpfacts.go`, держатся только за свой файл), чистая сшивка и атрибуция
+  `internal/resolve/httpstitch.go` (`StitchHTTPCall`, `AttributeSymbolFact`), маппинг хостов
+  `internal/workspace/httphosts.go` (`.mcp1c/http-hosts.json`), чтение и сборка связей
+  `internal/app/httplinks.go` (`ReadHTTPFacts`, `StitchCrossLinks`, `ObjectHTTPLinks`),
+  транспорт `internal/graphweb/crosslinks.go` (`/api/crosslinks`) и `object_graph`
+  (`crossProjects`, блок `httpLinks`). В `object_data_edge` вида `http-call` нет: конец ребра
+  в индексе другой базы
 - `internal/store/cascade.go`: снимок и возврат строк нетронутых файлов, которые уходят `ON DELETE CASCADE` вместе с владельцем переопубликуемого файла (права ролей, рёбра и бейджи объектного графа), внутри того же `ReplaceSourceFiles` (ADR-038); `cascadeKinds` плюс `sameFileCascades` обязаны покрывать все каскады на строки, которые сносит удаление файла (`TestCascadeKindsCoverCrossFileCascades`)
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
