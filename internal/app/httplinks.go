@@ -559,3 +559,46 @@ func (g *ObjectGraphService) stitchProjects(ctx context.Context, ops []*openProj
 	}
 	return StitchCrossLinks(hosts, facts), facts[0].Generation, snap, warnings, nil
 }
+
+// HTTPFacts — факты HTTP активного проекта сервиса (graph-режим: каждый
+// --project открыт своим сервисом, сшивку делает CrossLinksResponse).
+func (g *ObjectGraphService) HTTPFacts(ctx context.Context) (ProjectHTTPFacts, Snapshot, error) {
+	op, err := g.projects.Active(ctx)
+	if err != nil {
+		return ProjectHTTPFacts{}, Snapshot{}, err
+	}
+	return ReadHTTPFacts(ctx, op)
+}
+
+// CrossLinksResponse собирает ответ /api/crosslinks из фактов проектов,
+// прочитанных по отдельности: свежесть объединяется (stale любого проекта
+// делает ответ stale), предупреждения фактов и маппинга хостов идут в ответ.
+func CrossLinksResponse(hosts workspace.HTTPHosts, facts []ProjectHTTPFacts, snaps []Snapshot, warnings []Warning) Response[CrossLinksItem] {
+	var snap Snapshot
+	for _, s := range snaps {
+		snap.Stale = snap.Stale || s.Stale
+		for _, w := range s.Warnings {
+			if !containsWarning(snap.Warnings, w) {
+				snap.Warnings = append(snap.Warnings, w)
+			}
+		}
+	}
+	for _, f := range facts {
+		warnings = append(warnings, f.Warnings...)
+	}
+	item := StitchCrossLinks(hosts, facts)
+	resp := Response[CrossLinksItem]{Items: []CrossLinksItem{item}, Warnings: warnings, TotalCount: len(item.Links)}
+	if len(facts) > 0 {
+		resp.Generation = facts[0].Generation
+	}
+	return withSnapshot(resp, snap)
+}
+
+func containsWarning(ws []Warning, w Warning) bool {
+	for _, x := range ws {
+		if x == w {
+			return true
+		}
+	}
+	return false
+}

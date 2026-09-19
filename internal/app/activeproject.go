@@ -293,3 +293,20 @@ func unboundDumpHint(dump, note string) string {
 func unboundDumpError(dump, note string) *Error {
 	return NewError(CodeNoActiveProject, "нет индексного проекта для активной выгрузки", unboundDumpHint(dump, note))
 }
+
+// UseProject делает зарегистрированный проект активным в этом процессе, не
+// переписывая registry.json: graph-режим открывает конкретный проект
+// workspace (--project <workspace>#<id>), когда их в реестре несколько (D3,
+// веха В2: две базы одного workspace на одной карте).
+func (p *Projects) UseProject(id domain.ProjectID) error {
+	if p.registry == nil {
+		return p.noActiveProjectError()
+	}
+	entry, ok := p.registry.Project(id)
+	if !ok {
+		return NewError(CodeNotFound, fmt.Sprintf("проект %s не зарегистрирован в workspace", id),
+			"зарегистрируйте его через reindex(projectRoot=...) или проверьте id в .mcp1c/registry.json")
+	}
+	p.activateInProcess(entry, nil)
+	return nil
+}

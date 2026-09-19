@@ -28,7 +28,9 @@
     "writes-register": { color: "#4da3ff", verb: "пишет в", title: "запись в регистр из кода", read: false },
     "writes-declared": { color: "#e0a72e", verb: "делает движения по", title: "движения, объявленные в метаданных", read: false },
     "reads-register": { color: "#5bd67d", verb: "читает", title: "чтение регистра из кода", read: true },
-    "reads-query": { color: "#b085f5", verb: "читает запросом", title: "чтение запросом", read: true }
+    "reads-query": { color: "#b085f5", verb: "читает запросом", title: "чтение запросом", read: true },
+    // В2 (ADR-039): HTTP-вызов сервиса другой базы, приходит из /api/crosslinks.
+    "http-call": { color: "#7dcfff", verb: "вызывает по HTTP", title: "HTTP-вызов сервиса (сшивка по пути и маппингу хостов)", read: false }
   };
 
   // mtype -> [полное русское имя, короткая подпись на узле, цвет].
@@ -71,14 +73,16 @@
   var BADGE_SYMBOL = {
     "has-dynamic": "⚡",              // молния: динамика не даёт ребра
     "attribution-truncated": "✂",     // ножницы: обход упёрся в потолок
-    "attribution-stale": "⏳"          // песочные часы: могло устареть
+    "attribution-stale": "⏳",         // песочные часы: могло устареть
+    "has-dynamic-http": "⚡H"          // HTTP-вызов с вычисляемым адресом
   };
   // Точная формулировка из interfaces.md: attribution-stale значит «связь
   // могла устареть», НЕ «связь потеряна»; подписывать этими словами.
   var BADGE_TEXT = {
     "has-dynamic": "есть динамические обращения, статически не отслежены",
     "attribution-truncated": "обход атрибуции упёрся в потолок глубины, ребро могло быть",
-    "attribution-stale": "связь могла устареть (снимается полной пересборкой)"
+    "attribution-stale": "связь могла устареть (снимается полной пересборкой)",
+    "has-dynamic-http": "HTTP-вызовы с вычисляемым адресом: ребра нет, адресат статически не выводится"
   };
 
   var VIEWS = ["raw", "effective", "diff"];
@@ -216,6 +220,10 @@
         style: { "underlay-color": COLOR_EXT, "underlay-padding": 3, "underlay-opacity": 0.22 }
       },
       { selector: "edge.added", style: { "underlay-opacity": 0.6, "width": 2.4 } },
+      // В2: кросс-базовое ребро и узлы другой базы или внешнего адресата.
+      { selector: "edge.http", style: { "line-style": "dashed", "line-dash-pattern": [2, 3], "width": 2 } },
+      { selector: "node.foreign", style: { "shape": "round-rectangle", "border-width": 2, "border-style": "dashed", "border-color": "#7dcfff" } },
+      { selector: "node.external", style: { "shape": "diamond", "background-color": "#8b929c" } },
       { selector: "edge.hl", style: { "width": 3, "opacity": 1, "z-index": 10 } },
       { selector: "node.hl", style: { "font-weight": "bold", "z-index": 10 } },
       { selector: ".faded", style: { "opacity": 0.12 } },
@@ -245,6 +253,7 @@
       var b = badgeText(card.badges);
       if (b) parts.push(b);
     }
+    if (d.httpDynamic) parts.push(BADGE_SYMBOL["has-dynamic-http"] + d.httpDynamic);
     el.data("label", breakCamel(d.nameDisplay || ("#" + d.objectId)) + "\n" + parts.join(" "));
   }
 
@@ -858,15 +867,117 @@
   cy.on("viewport", hideTip);
 
   cy.on("tap", "node", function (evt) {
-    selectNode(evt.target.data("objectId"));
+    var d = evt.target.data();
+    if (d.foreign || d.external) { renderHTTPNodePanel(evt.target); return; }
+    selectNode(d.objectId);
   });
   cy.on("dbltap", "node", function (evt) {
     hideTip();
-    expand(evt.target.data("objectId"));
+    var d = evt.target.data();
+    if (d.foreign || d.external) return; // соседей чужой базы карта этого проекта не раскрывает
+    expand(d.objectId);
   });
   cy.on("tap", "edge", function (evt) {
-    showEdgeEvidence(evt.target.data());
+    var d = evt.target.data();
+    if (d.kind === "http-call") { showHTTPEdge(d); return; }
+    showEdgeEvidence(d);
   });
+
+  // ---- HTTP-связи между базами (веха В2, ADR-039) ------------------
+  // /api/crosslinks сшивает HTTP-вызовы открытых проектов с их HTTP-сервисами.
+  // Узел своего проекта встаёт на карту своим id, узел другой базы и внешний
+  // адресат получают составной id: пространства id у баз разные.
+  function httpNode(ref, near) {
+    if (ref.project === state.project) return ensureNode(ref.id, ref.type, ref.name, near);
+    var id = "p:" + ref.project + ":" + ref.id;
+    var el = cy.getElementById(id);
+    if (el.nonempty()) return el;
+    el = cy.add({ group: "nodes", classes: "foreign",
+      data: { id: id, objectId: null, foreign: true, project: ref.project, mtype: ref.type,
+        nameDisplay: "[" + ref.project + "] " + ref.name, color: mtypeColor(ref.type), label: "" },
+      position: near && near.nonempty() ? { x: near.position("x") + 40, y: near.position("y") + 40 } : { x: 0, y: 0 } });
+    refreshLabel(el);
+    return el;
+  }
+
+  function externalNode(host, near) {
+    var id = "ext:" + (host || "?");
+    var el = cy.getElementById(id);
+    if (el.nonempty()) return el;
+    el = cy.add({ group: "nodes", classes: "external",
+      data: { id: id, objectId: null, external: true, mtype: "",
+        nameDisplay: host ? "внешний HTTP: " + host : "внешний HTTP (адресат не найден)", color: "#8b929c", label: "" },
+      position: near && near.nonempty() ? { x: near.position("x") - 40, y: near.position("y") + 40 } : { x: 0, y: 0 } });
+    el.data("label", el.data("nameDisplay"));
+    return el;
+  }
+
+  function loadHTTPLinks() {
+    setStatus("загружаю HTTP-связи…");
+    var gen = state.gen;
+    return fetchJSON("/api/crosslinks").then(function (resp) {
+      if (gen !== state.gen) return;
+      var item = resp.items && resp.items[0];
+      if (!item) return;
+      (item.links || []).forEach(function (l) {
+        var from = httpNode(l.from);
+        var to = l.to ? httpNode(l.to, from) : externalNode(l.externalHost, from);
+        var id = "h:" + l.id;
+        if (cy.getElementById(id).nonempty()) return;
+        cy.add({ group: "edges", classes: "http",
+          data: { id: id, source: from.id(), target: to.id(), kind: "http-call", confidence: l.confidence || 0,
+            provenance: "code", layer: "", layers: [], diff: "", http: l,
+            color: l.external ? "#8b929c" : KIND_INFO["http-call"].color, opacity: edgeOpacity(l.confidence || 0.3) } });
+      });
+      (item.badges || []).forEach(function (b) {
+        var el = httpNode(b.node);
+        el.data("httpDynamic", b.count);
+        el.data("httpBadge", b);
+        refreshLabel(el);
+      });
+      applyFilters();
+      runLayout();
+      var ext = (item.links || []).filter(function (l) { return l.external; }).length;
+      setStatus("HTTP-связей " + (item.links || []).length + " (внешних " + ext + "), объектов с вычисляемым адресом " +
+        (item.badges || []).length + "; проекты: " + (item.projects || []).join(", ") +
+        ((resp.warnings || []).length ? "; " + resp.warnings.map(function (w) { return w.message; }).join("; ") : ""));
+    }).catch(function (err) { setStatus("HTTP-связи: " + err.message, true); });
+  }
+
+  function callSitesHTML(calls) {
+    return (calls || []).map(function (c) {
+      return "<div class='evidence-chain-step'>" + escapeHTML(c.file + ":" + c.line) + (c.symbol ? " " + escapeHTML(c.symbol) : "") +
+        (c.verb ? " " + escapeHTML(c.verb) : "") + (c.host ? " " + escapeHTML(c.host) : "") +
+        (c.path ? " " + escapeHTML(c.path) : "") + " <span class='muted'>(" + escapeHTML(c.pathKind) + (c.attributed ? "" : ", вызов в модуле без вызывающих объектов") + ")</span></div>";
+    }).join("");
+  }
+
+  function showHTTPEdge(d) {
+    var l = d.http;
+    var panel = document.getElementById("edgePanel");
+    var html = "<div><b>" + escapeHTML(mtypeShort(l.from.type) + " " + l.from.name) + "</b> [" + escapeHTML(l.from.project) + "] вызывает по HTTP " +
+      (l.to ? "<b>" + escapeHTML(mtypeShort(l.to.type) + " " + l.to.name) + "</b> [" + escapeHTML(l.to.project) + "]"
+        : "<b>внешний адресат</b> " + escapeHTML(l.externalHost || "(адрес вычисляется)")) + "</div>";
+    html += "<div class='muted' style='margin-top:4px;'>http-call · причина " + escapeHTML(l.reason) + (l.to ? " · confidence " + Number(l.confidence).toFixed(2) : "") + "</div>";
+    if (l.endpoints && l.endpoints.length) {
+      html += "<div style='margin-top:8px;'>Обработчики:</div>" + l.endpoints.map(function (e) {
+        return "<div class='evidence-chain-step'>" + escapeHTML((e.httpMethod || "?") + " " + e.template + " → " + (e.handler || "(без обработчика)")) + "</div>";
+      }).join("");
+    }
+    html += "<div style='margin-top:8px;'>Места вызова:</div>" + callSitesHTML(l.calls);
+    document.getElementById("edgeContent").innerHTML = html;
+    panel.hidden = false;
+  }
+
+  function renderHTTPNodePanel(node) {
+    var d = node.data();
+    var html = "<h2>Узел</h2><div class='card-name'>" + escapeHTML(d.nameDisplay) + "</div>";
+    html += "<div class='card-sub'>" + (d.external ? "адресат вне открытых проектов" : escapeHTML(mtypeFull(d.mtype)) + ", проект " + escapeHTML(d.project)) + "</div>";
+    html += "<div class='hint'>Узел другой базы: выберите её проект вверху, чтобы раскрыть соседей.</div>";
+    document.getElementById("nodePanel").innerHTML = html;
+  }
+
+  document.getElementById("httpBtn").addEventListener("click", loadHTTPLinks);
 
   // ---- поиск ---------------------------------------------------------
   var searchEl = document.getElementById("search");
