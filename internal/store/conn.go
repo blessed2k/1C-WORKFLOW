@@ -24,6 +24,66 @@ type conn struct {
 	db   *sql.DB
 	sc   *sql.Conn
 	path string
+
+	// stmts: кэш подготовленных выражений, живёт ровно одну write-транзакцию
+	// (issue #3, шаг 2). nil вне транзакции писателя и у читателей: тогда
+	// каждый вызов идёт прежним путём, текст SQL разбирается заново.
+	stmts *stmtCache
+}
+
+// maxCachedStmts: потолок кэша на транзакцию. Выражения с переменным числом
+// плейсхолдеров (IN-список, хвост пакетной вставки) дают новый текст на
+// каждую длину; сверх потолка они идут без кэша, а не растят его без меры.
+const maxCachedStmts = 256
+
+// stmtCache: подготовленные выражения по тексту SQL. Писатель один
+// (ADR-014), поэтому кэш без мьютекса.
+type stmtCache struct {
+	byText   map[string]*sql.Stmt
+	prepared int // сколько раз вызван Prepare: число для тестов
+}
+
+// beginStmtCache включает кэш на соединении писателя. Зовётся сразу после
+// BEGIN IMMEDIATE.
+func (c *conn) beginStmtCache() {
+	c.stmts = &stmtCache{byText: make(map[string]*sql.Stmt)}
+}
+
+// endStmtCache закрывает все подготовленные выражения. Зовётся ДО COMMIT или
+// ROLLBACK: незакрытое выражение не должно пережить свою транзакцию.
+func (c *conn) endStmtCache() error {
+	if c.stmts == nil {
+		return nil
+	}
+	var first error
+	for _, st := range c.stmts.byText {
+		if err := st.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	c.stmts = nil
+	return first
+}
+
+// stmt отдаёт подготовленное выражение из кэша (готовит при промахе). nil без
+// ошибки: кэша нет или он полон, вызывающий идёт путём без подготовки.
+func (c *conn) stmt(ctx context.Context, sqlText string) (*sql.Stmt, error) {
+	if c.stmts == nil {
+		return nil, nil
+	}
+	if st, ok := c.stmts.byText[sqlText]; ok {
+		return st, nil
+	}
+	if len(c.stmts.byText) >= maxCachedStmts {
+		return nil, nil
+	}
+	st, err := c.sc.PrepareContext(ctx, sqlText)
+	if err != nil {
+		return nil, err
+	}
+	c.stmts.prepared++
+	c.stmts.byText[sqlText] = st
+	return st, nil
 }
 
 // createConn создаёт НОВЫЙ файл БД: применимы creation-only и persistent pragma.
@@ -71,37 +131,71 @@ func dsn(path string) string {
 }
 
 func (c *conn) exec(ctx context.Context, sqlText string, args ...any) error {
-	_, err := c.sc.ExecContext(ctx, sqlText, args...)
+	_, err := c.execResult(ctx, sqlText, args...)
 	return err
+}
+
+// execResult: ExecContext через кэш подготовленных выражений, если он включён.
+func (c *conn) execResult(ctx context.Context, sqlText string, args ...any) (sql.Result, error) {
+	st, err := c.stmt(ctx, sqlText)
+	if err != nil {
+		return nil, err
+	}
+	if st != nil {
+		return st.ExecContext(ctx, args...)
+	}
+	return c.sc.ExecContext(ctx, sqlText, args...)
 }
 
 // execInsert выполняет вставку и отдаёт присвоенный rowid.
 func (c *conn) execInsert(ctx context.Context, sqlText string, args ...any) (int64, error) {
-	res, err := c.sc.ExecContext(ctx, sqlText, args...)
+	res, err := c.execResult(ctx, sqlText, args...)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
+// queryRow: QueryRowContext через кэш подготовленных выражений. Ошибка
+// подготовки не теряется: её вернёт Scan, как и у обычного QueryRowContext.
+func (c *conn) queryRow(ctx context.Context, sqlText string, args ...any) rowScanner {
+	st, err := c.stmt(ctx, sqlText)
+	if err != nil {
+		return errRow{err}
+	}
+	if st != nil {
+		return st.QueryRowContext(ctx, args...)
+	}
+	return c.sc.QueryRowContext(ctx, sqlText, args...)
+}
+
+type rowScanner interface{ Scan(dest ...any) error }
+
+type errRow struct{ err error }
+
+func (r errRow) Scan(...any) error { return r.err }
+
 func (c *conn) queryInt(ctx context.Context, sqlText string, args ...any) (int64, error) {
 	var v sql.NullInt64
-	err := c.sc.QueryRowContext(ctx, sqlText, args...).Scan(&v)
+	err := c.queryRow(ctx, sqlText, args...).Scan(&v)
 	return v.Int64, err
 }
 
 func (c *conn) queryText(ctx context.Context, sqlText string, args ...any) (string, error) {
 	var v sql.NullString
-	err := c.sc.QueryRowContext(ctx, sqlText, args...).Scan(&v)
+	err := c.queryRow(ctx, sqlText, args...).Scan(&v)
 	return v.String, err
 }
 
 func (c *conn) queryBlob(ctx context.Context, sqlText string, args ...any) ([]byte, error) {
 	var v []byte
-	err := c.sc.QueryRowContext(ctx, sqlText, args...).Scan(&v)
+	err := c.queryRow(ctx, sqlText, args...).Scan(&v)
 	return v, err
 }
 
+// query идёт мимо кэша сознательно: курсор держит выражение открытым, и
+// вложенный вызов того же текста до закрытия курсора сбросил бы его на
+// середине обхода. Строчные выборки у писателя не горячие.
 func (c *conn) query(ctx context.Context, sqlText string, args ...any) (*sql.Rows, error) {
 	return c.sc.QueryContext(ctx, sqlText, args...)
 }
@@ -114,6 +208,9 @@ func (c *conn) checkpoint(ctx context.Context, mode string) (busy, walPages, mov
 	return
 }
 
+// Close кэш выражений не трогает: им владеет только runWriteTx, а закрытие
+// соединения может прийти из другой горутины посреди транзакции (Store.Close).
+// Подготовленные выражения закрываются вместе с соединением.
 func (c *conn) Close() error {
 	err := c.sc.Close()
 	if e := c.db.Close(); err == nil {
