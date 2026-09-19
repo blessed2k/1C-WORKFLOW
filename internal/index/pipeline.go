@@ -151,7 +151,10 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	stages.mark(now, "fingerprint", fingerprintStart)
 
 	parseStart := now()
-	raw := make(map[string][]byte, len(toRead))
+	// blobs: образы для blob, подготовленные пулом (хэш и deflate уже
+	// посчитаны). Писатель удаляет запись сразу после PutPreparedBlob, так
+	// что сжатые байты отпускаются по мере публикации, а не в её конце.
+	blobs := make(map[string]store.PreparedBlob, len(toRead))
 	changedSet := make(map[string]bool, len(toRead))
 	if len(toRead) > 0 {
 		// parse (§17 п.3): bounded worker pool — чтение и разбор тысяч
@@ -179,7 +182,7 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 				oldSnapshots[rec.relPath] = old
 			}
 			corpus.files[rec.relPath] = rec
-			raw[rec.relPath] = r.raw
+			blobs[rec.relPath] = r.blob
 			changedSet[rec.relPath] = true
 		}
 	}
@@ -240,12 +243,12 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	stages.mark(now, "resolve", resolveStart)
 
 	publishStart := now()
-	// raw для файлов, republish-нутых ТОЛЬКО из-за смены резолюции (не сами
+	// Образ для файлов, republish-нутых ТОЛЬКО из-за смены резолюции (не сами
 	// изменились), берём заново с диска — их байты не менялись, но
-	// publishFiles обязан положить blob, а PutBlob дедуплицирует по хэшу,
+	// publishFiles обязан положить blob, а blob дедуплицируется по хэшу,
 	// то есть повторное чтение не тратит место в БД, только время на диске.
 	for _, rel := range republish {
-		if _, ok := raw[rel]; ok {
+		if _, ok := blobs[rel]; ok {
 			continue
 		}
 		abs, err := workspace.SafeJoin(comp.AbsRoot, rel)
@@ -256,12 +259,16 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 		if err != nil {
 			return stats, fmt.Errorf("чтение %s: %w", rel, err)
 		}
-		raw[rel] = data
+		blob, err := store.PrepareBlob(data)
+		if err != nil {
+			return stats, fmt.Errorf("образ %s: %w", rel, err)
+		}
+		blobs[rel] = blob
 	}
 
 	out, err := publishFiles(tx, publishInput{
 		project: project, component: comp.ID, layer: layer,
-		corpus: corpus, raw: raw, resolve: corpus.resolved, env: env,
+		corpus: corpus, blobs: blobs, resolve: corpus.resolved, env: env,
 		tunables:  cfg.GraphTunables,
 		republish: republish, removed: removed,
 	})

@@ -16,10 +16,27 @@ import (
 // D01/interfaces.md). Чистая функция: диска не касается, hash считает через
 // store.HashContent (единственный алгоритм хэша на весь индекс).
 func parseOneFile(relPath string, data []byte) *fileRecord {
+	return parseHashedFile(relPath, data, store.HashContent(data))
+}
+
+// prepareFile: работа пула разбора над одним файлом (issue #3, шаг 1).
+// Образ для blob хэшируется и сжимается здесь же, в воркере, и тот же хэш
+// становится contentHash записи: SHA-256 на файл считается один раз, а
+// писателю остаётся положить готовые байты.
+func prepareFile(relPath string, data []byte) (*fileRecord, store.PreparedBlob, error) {
+	blob, err := store.PrepareBlob(data)
+	if err != nil {
+		return nil, store.PreparedBlob{}, err
+	}
+	return parseHashedFile(relPath, data, blob.Hash()), blob, nil
+}
+
+// parseHashedFile: тело parseOneFile при уже посчитанном хэше содержимого.
+func parseHashedFile(relPath string, data []byte, hash string) *fileRecord {
 	rec := &fileRecord{
 		relPath:       relPath,
 		size:          int64(len(data)),
-		contentHash:   store.HashContent(data),
+		contentHash:   hash,
 		parserVersion: ParserVersion,
 	}
 

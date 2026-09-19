@@ -18,8 +18,11 @@ type publishInput struct {
 	component domain.ComponentID
 	layer     domain.Layer
 
-	corpus  *componentCorpus
-	raw     map[string][]byte // relPath -> сырые байты, только для republish
+	corpus *componentCorpus
+	// blobs: relPath -> образ файла для blob, подготовленный пулом разбора,
+	// только для republish. publishFiles удаляет запись сразу после записи
+	// blob: сжатые байты не доживают до конца публикации.
+	blobs   map[string]store.PreparedBlob
 	resolve map[string][]resolvedRef
 	// env — тот же Env, что построил resolve-шаг: derive-функции таска 08
 	// (DeriveRegisterAccess/DeriveHandlerBinding/DeriveQueryReference/
@@ -229,11 +232,11 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 		if rec == nil {
 			continue
 		}
-		data := in.raw[rel]
-		hash, err := tx.PutBlob(data)
+		hash, err := tx.PutPreparedBlob(in.blobs[rel])
 		if err != nil {
 			return out, fmt.Errorf("blob %s: %w", rel, err)
 		}
+		delete(in.blobs, rel)
 		fileID, err := tx.InsertSourceFile(store.SourceFile{
 			ComponentID: string(in.component), RelPath: rel,
 			Size: rec.size, MtimeNS: rec.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,

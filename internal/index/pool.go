@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
 // parseTask — один файл, ожидающий разбора: relPath для identity, absPath —
@@ -14,12 +16,14 @@ type parseTask struct {
 	absPath string
 }
 
-// parseResult — исход разбора одного файла (запись + сырые байты для blob)
-// или ошибка чтения с диска.
+// parseResult: исход разбора одного файла (запись + образ для blob, уже
+// захэшированный и сжатый) или ошибка чтения с диска. Сырых байтов здесь
+// нет: XML-файл после разбора больше никому не нужен, и держать его до
+// публикации значило бы держать в памяти весь корпус (issue #3, шаг 1).
 type parseResult struct {
-	rec *fileRecord
-	raw []byte
-	err error
+	rec  *fileRecord
+	blob store.PreparedBlob
+	err  error
 }
 
 // runParsePool разбирает tasks параллельно через bounded worker pool (§17
@@ -54,7 +58,12 @@ func runParsePool(ctx context.Context, workers int, tasks []parseTask) ([]parseR
 					out <- parseResult{err: fmt.Errorf("чтение %s: %w", t.relPath, err)}
 					continue
 				}
-				out <- parseResult{rec: parseOneFile(t.relPath, data), raw: data}
+				rec, blob, err := prepareFile(t.relPath, data)
+				if err != nil {
+					out <- parseResult{err: fmt.Errorf("образ %s: %w", t.relPath, err)}
+					continue
+				}
+				out <- parseResult{rec: rec, blob: blob}
 			}
 		}()
 	}

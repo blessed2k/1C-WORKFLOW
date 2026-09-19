@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
@@ -136,6 +137,33 @@ func HashContent(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// PreparedBlob: образ файла, уже захэшированный и сжатый вне писателя
+// (issue #3, шаг 1). SHA-256 и deflate идут в пуле разбора параллельно, а
+// единственный писатель только кладёт готовые байты. Поля закрыты: собрать
+// образ можно только через PrepareBlob, поэтому хэш и сжатые байты не могут
+// разойтись (адресация по содержимому держится на этом).
+type PreparedBlob struct {
+	hash   string
+	size   int64
+	packed []byte
+}
+
+// PrepareBlob считает хэш и сжимает образ. Чистая функция, годна для
+// вызова из любого числа горутин.
+func PrepareBlob(data []byte) (PreparedBlob, error) {
+	packed, err := deflate(data)
+	if err != nil {
+		return PreparedBlob{}, err
+	}
+	return PreparedBlob{hash: HashContent(data), size: int64(len(data)), packed: packed}, nil
+}
+
+// Hash: content hash исходного (несжатого) образа, тот же, что HashContent.
+func (b PreparedBlob) Hash() string { return b.hash }
+
+// Size: размер исходного образа в байтах.
+func (b PreparedBlob) Size() int64 { return b.size }
+
 // PutBlob кладёт ТОЧНЫЙ байтовый образ файла в content-addressed хранилище и
 // возвращает его хэш. Дедупликация по хэшу: повторное появление того же
 // содержимого не пишет данные заново и снимает метку unreferenced_since (18.2).
@@ -143,18 +171,30 @@ func (tx *WriteTx) PutBlob(data []byte) (string, error) {
 	if err := tx.check(); err != nil {
 		return "", err
 	}
-	hash := HashContent(data)
-	packed, err := deflate(data)
+	b, err := PrepareBlob(data)
 	if err != nil {
 		return "", err
 	}
-	if err := tx.c.exec(tx.ctx, `INSERT INTO blob(content_hash,size,compressed_size,unreferenced_since,data)
-		VALUES(?,?,?,NULL,?) ON CONFLICT(content_hash) DO NOTHING`,
-		hash, int64(len(data)), int64(len(packed)), packed); err != nil {
+	return tx.PutPreparedBlob(b)
+}
+
+// PutPreparedBlob кладёт образ, подготовленный PrepareBlob, с тем же
+// контрактом, что PutBlob. Нулевое значение (образ не подготовлен)
+// отвергается: пустой файл имеет хэш, а пустой хэш значит ошибку вызывающего.
+func (tx *WriteTx) PutPreparedBlob(b PreparedBlob) (string, error) {
+	if err := tx.check(); err != nil {
 		return "", err
 	}
-	tx.touched[hash] = struct{}{}
-	return hash, nil
+	if b.hash == "" {
+		return "", errors.New("образ файла не подготовлен: пустой хэш")
+	}
+	if err := tx.c.exec(tx.ctx, `INSERT INTO blob(content_hash,size,compressed_size,unreferenced_since,data)
+		VALUES(?,?,?,NULL,?) ON CONFLICT(content_hash) DO NOTHING`,
+		b.hash, b.size, int64(len(b.packed)), b.packed); err != nil {
+		return "", err
+	}
+	tx.touched[b.hash] = struct{}{}
+	return b.hash, nil
 }
 
 // Blob отдаёт распакованный образ файла. Тела и фрагменты режутся ИЗ НЕГО, а не
@@ -949,17 +989,26 @@ func inClause(n int) string {
 	return string(append(b, ')'))
 }
 
+// flateWriters: сжиматели переиспользуются. flate.NewWriter выделяет около
+// мегабайта таблиц на вызов, и с пулом разбора (issue #3, шаг 1) это десятки
+// гигабайт мусора за полную пересборку, который раздувает пик RSS.
+var flateWriters = sync.Pool{New: func() any {
+	w, _ := flate.NewWriter(io.Discard, flate.DefaultCompression)
+	return w
+}}
+
 func deflate(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	w, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	buf.Grow(len(data)/4 + 64)
+	w := flateWriters.Get().(*flate.Writer)
+	w.Reset(&buf)
+	_, err := w.Write(data)
+	if cerr := w.Close(); err == nil {
+		err = cerr
+	}
+	w.Reset(io.Discard)
+	flateWriters.Put(w)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := w.Write(data); err != nil {
-		w.Close()
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
