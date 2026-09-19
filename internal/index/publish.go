@@ -199,15 +199,6 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	// DELETE сравнивать «было» будет не с чем, а сравнить обязательно —
 	// связь, снесённая по файловой зависимости и не восстановленная
 	// атрибуцией этого же прогона, иначе исчезла бы с карты молча.
-	// Входящие указатели на узлы сносимых файлов из строк НЕТРОНУТЫХ файлов
-	// снимаются до удаления и возвращаются после прохода 1 (ADR-037): узел
-	// с неизменной identity получает прежний id, а ссылка на него остаётся
-	// верной, хотя её файл в переопубликование не попал.
-	inbound, err := tx.InboundPointers(staleIDs...)
-	if err != nil {
-		return out, fmt.Errorf("входящие указатели: %w", err)
-	}
-
 	staleEdges, err := tx.ObjectDataEdgesDependingOnFiles(staleIDs...)
 	if err != nil {
 		return out, fmt.Errorf("состав сносимых объектных рёбер: %w", err)
@@ -221,12 +212,6 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	if err := tx.DeleteObjectEdgesForFiles(staleIDs...); err != nil {
 		return out, fmt.Errorf("удаление объектных рёбер: %w", err)
 	}
-	for _, id := range staleIDs {
-		if err := tx.DeleteSourceFiles(id); err != nil {
-			return out, fmt.Errorf("удаление фактов файла %d: %w", id, err)
-		}
-	}
-
 	// roleRightFileID — fileID файлов Rights.xml, republish-нутых проходом 1,
 	// нужен проходу 2 (publishRoleRights туда переехал, см. ниже) — без него
 	// пришлось бы повторно бить SourceFileID SELECT-ом за id, который уже
@@ -242,84 +227,84 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	pc := planContextOf(in)
 	modState := make(map[string]modulePublishState, len(in.republish))
 	methodKeys := make(map[string][]string, len(in.republish))
-	err = runOrdered(in.workers, len(in.republish), func(i int) (*filePlan, error) {
-		rel := in.republish[i]
-		rec := in.corpus.files[rel]
-		if rec == nil {
-			return nil, nil
-		}
-		return planFile(pc, rel, rec)
-	}, func(i int, p *filePlan) error {
-		if p == nil {
-			return nil
-		}
-		rel := p.rel
-		// Образ разобранного файла уже записан пулом разбора, его хэш и есть
-		// contentHash записи. В карте лежат только перечитанные файлы.
-		hash := p.contentHash
-		if b, ok := in.blobs[rel]; ok {
-			var err error
-			if hash, err = tx.PutPreparedBlob(b); err != nil {
-				return fmt.Errorf("blob %s: %w", rel, err)
+	//
+	// Проход 1 идёт внутри ReplaceSourceFiles: он удаляет факты сносимых
+	// файлов и после прохода 1 возвращает указатели НЕТРОНУТЫХ файлов на
+	// узлы с неизменной identity (ADR-037). Проход 2, ссылки и производные
+	// факты, видит уже согласованную базу.
+	err = tx.ReplaceSourceFiles(staleIDs, func() error {
+		return runOrdered(in.workers, len(in.republish), func(i int) (*filePlan, error) {
+			rel := in.republish[i]
+			rec := in.corpus.files[rel]
+			if rec == nil {
+				return nil, nil
 			}
-			delete(in.blobs, rel)
-		}
-		fileID, err := tx.InsertSourceFile(store.SourceFile{
-			ComponentID: string(in.component), RelPath: rel,
-			Size: p.size, MtimeNS: p.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,
-		})
-		if err != nil {
-			return fmt.Errorf("source_file %s: %w", rel, err)
-		}
-		out.fileCount++
-		ts.fileID[rel] = fileID
-
-		for _, d := range p.diagnostics {
-			if err := tx.InsertDiagnostic(toStoreDiagnostic(d, fileID, string(in.component))); err != nil {
-				return fmt.Errorf("diagnostic %s: %w", rel, err)
+			return planFile(pc, rel, rec)
+		}, func(i int, p *filePlan) error {
+			if p == nil {
+				return nil
 			}
-			out.diagnostics = append(out.diagnostics, d)
-		}
-
-		if p.object != nil {
-			if err := publishMetadataObject(tx, ts, rel, fileID, p.object); err != nil {
-				return err
+			rel := p.rel
+			// Образ разобранного файла уже записан пулом разбора, его хэш и есть
+			// contentHash записи. В карте лежат только перечитанные файлы.
+			hash := p.contentHash
+			if b, ok := in.blobs[rel]; ok {
+				var err error
+				if hash, err = tx.PutPreparedBlob(b); err != nil {
+					return fmt.Errorf("blob %s: %w", rel, err)
+				}
+				delete(in.blobs, rel)
 			}
-		}
-		if p.module != nil {
-			st, n, err := publishModuleSymbols(tx, in, ts, rel, fileID, p.module)
+			fileID, err := tx.InsertSourceFile(store.SourceFile{
+				ComponentID: string(in.component), RelPath: rel,
+				Size: p.size, MtimeNS: p.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,
+			})
 			if err != nil {
-				return fmt.Errorf("symbols %s: %w", rel, err)
+				return fmt.Errorf("source_file %s: %w", rel, err)
 			}
-			modState[rel] = st
-			methodKeys[rel] = p.module.methodKeys
-			out.symbolCount += n
-			out.diagnostics = append(out.diagnostics, p.module.dupDiagnostics...)
-		}
-		if p.form != nil {
-			if err := publishFormStructure(tx, ts, rel, fileID, p.form); err != nil {
-				return fmt.Errorf("form_structure %s: %w", rel, err)
+			out.fileCount++
+			ts.fileID[rel] = fileID
+
+			for _, d := range p.diagnostics {
+				if err := tx.InsertDiagnostic(toStoreDiagnostic(d, fileID, string(in.component))); err != nil {
+					return fmt.Errorf("diagnostic %s: %w", rel, err)
+				}
+				out.diagnostics = append(out.diagnostics, d)
 			}
-		}
-		if p.subscription != nil {
-			if err := publishEventSubscription(tx, ts, rel, fileID, p.subscription); err != nil {
-				return fmt.Errorf("event_subscription %s: %w", rel, err)
+
+			if p.object != nil {
+				if err := publishMetadataObject(tx, ts, rel, fileID, p.object); err != nil {
+					return err
+				}
 			}
-		}
-		if p.roleRights {
-			roleRightFileID[rel] = fileID
-		}
-		return nil
+			if p.module != nil {
+				st, n, err := publishModuleSymbols(tx, in, ts, rel, fileID, p.module)
+				if err != nil {
+					return fmt.Errorf("symbols %s: %w", rel, err)
+				}
+				modState[rel] = st
+				methodKeys[rel] = p.module.methodKeys
+				out.symbolCount += n
+				out.diagnostics = append(out.diagnostics, p.module.dupDiagnostics...)
+			}
+			if p.form != nil {
+				if err := publishFormStructure(tx, ts, rel, fileID, p.form); err != nil {
+					return fmt.Errorf("form_structure %s: %w", rel, err)
+				}
+			}
+			if p.subscription != nil {
+				if err := publishEventSubscription(tx, ts, rel, fileID, p.subscription); err != nil {
+					return fmt.Errorf("event_subscription %s: %w", rel, err)
+				}
+			}
+			if p.roleRights {
+				roleRightFileID[rel] = fileID
+			}
+			return nil
+		})
 	})
 	if err != nil {
 		return out, err
-	}
-
-	// Все строки-узлы этой транзакции вставлены: указатели нетронутых файлов
-	// на узлы, пережившие правку, возвращаются до прохода 2, чтобы и он, и
-	// публикация производных фактов видели согласованную базу (ADR-037).
-	if _, err := tx.RestoreInboundPointers(inbound); err != nil {
-		return out, fmt.Errorf("возврат входящих указателей: %w", err)
 	}
 
 	// Проход 2: ссылки и derive-факты — цели уже существуют (свои и чужие
@@ -335,7 +320,7 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	// ссылается его право, например "Roles/..." раньше "Subsystems/...").
 	// На инкременте поверх УЖЕ существующего store (в отличие от чистого
 	// full-рибилда в пустую эпоху) этот объект в момент прохода 1 может быть
-	// удалён (шаг (2) выше, DeleteSourceFiles) и ЕЩЁ не переопубликован —
+	// удалён (шаг (2), ReplaceSourceFiles) и ЕЩЁ не переопубликован:
 	// его node сохраняет стабильный id (identity переживает файл), но
 	// metadata_object-строка, на которую в реальности ссылается
 	// role_right.object_id, временно отсутствует: INSERT падает на FOREIGN

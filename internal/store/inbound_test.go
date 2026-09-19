@@ -9,7 +9,7 @@ import (
 // TestInboundKindsCoverSetNullColumns: каждый столбец схемы с ON DELETE SET
 // NULL на строку-узел, которую удаление файла пересоздаёт (symbol,
 // metadata_object, metadata_member), обязан быть в inboundKinds. Пропущенный
-// столбец — тот же дефект issue #10 для нового вида указателя: правка файла
+// столбец означает тот же дефект issue #10 для нового вида указателя: правка файла
 // цели молча обнулит его в нетронутых файлах (ADR-037).
 func TestInboundKindsCoverSetNullColumns(t *testing.T) {
 	s := openTestStore(t, Options{})
@@ -41,7 +41,7 @@ func TestInboundKindsCoverSetNullColumns(t *testing.T) {
 	}
 	have := map[string]bool{}
 	for _, k := range inboundKinds {
-		have[k.name] = true
+		have[k.name()] = true
 	}
 	sort.Strings(want)
 	for _, col := range want {

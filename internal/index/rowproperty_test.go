@@ -10,6 +10,7 @@ import (
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store/storetest"
+	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
 // epochRows снимает построчный слепок текущей эпохи хранилища.
@@ -55,15 +56,166 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// файлы нетронуты (ADR-037).
 		checkIncrementRows(t, 30, nodeEdits)
 	})
+	t.Run("все указатели", func(t *testing.T) {
+		// Остальные виды мягких указателей ADR-037: обработчик формы,
+		// регламентное задание, доступ к регистру, роль и её права, реквизит
+		// в запросе. Правятся только файлы-цели (модуль формы, общий модуль,
+		// XML регистра, справочника и роли), указывающие файлы нетронуты.
+		checkIncrementRows(t, 30, allPointerEdits)
+	})
+	t.Run("переименование", func(t *testing.T) {
+		// Символ общего модуля переименован: узел с прежней identity не
+		// вернулся, указатель остаётся пустым, ссылка unresolved, а её файл
+		// переопубликуется дельтой имён. Итог тот же, что у чистой пересборки.
+		checkIncrementRows(t, 30, renameEdits)
+	})
 }
 
-// incrementScenario — исходные файлы сверх базовой фикстуры и правки перед
+const allPointersCatalog = `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="2.20">
+  <Catalog uuid="22222222-2222-2222-2222-222222222222">
+    <Properties>
+      <Name>Товары</Name>
+      <Comment>%s</Comment>
+    </Properties>
+    <ChildObjects>
+      <Attribute uuid="22222222-2222-2222-2222-2222222222a1">
+        <Properties>
+          <Name>Артикул</Name>
+          <Type>
+            <v8:Type>xs:string</v8:Type>
+          </Type>
+        </Properties>
+      </Attribute>
+      <Form>ФормаЭлемента</Form>
+    </ChildObjects>
+  </Catalog>
+</MetaDataObject>`
+
+const allPointersRegister = `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+  <AccumulationRegister uuid="55555555-5555-5555-5555-555555555555">
+    <Properties>
+      <Name>ТоварыНаСкладах</Name>
+      <Comment>%s</Comment>
+    </Properties>
+  </AccumulationRegister>
+</MetaDataObject>`
+
+const allPointersRole = `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+  <Role uuid="66666666-6666-6666-6666-666666666666">
+    <Properties>
+      <Name>ЧтениеТоваров</Name>
+      <Comment>%s</Comment>
+    </Properties>
+  </Role>
+</MetaDataObject>`
+
+var allPointerEdits = incrementScenario{
+	seed: map[string]string{
+		"Catalogs/Товары.xml": fmt.Sprintf(allPointersCatalog, "исходный"),
+		"Catalogs/Товары/Forms/ФормаЭлемента/Ext/Form.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<Form xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+	<Events>
+		<Event name="OnOpen">ПриОткрытии</Event>
+	</Events>
+</Form>`,
+		workspace.DumpFormModulePath("Catalog", "Товары", "ФормаЭлемента"): `
+&НаКлиенте
+Процедура ПриОткрытии(Отказ)
+КонецПроцедуры
+`,
+		"ScheduledJobs/ОбновлениеТоваров.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.20">
+	<ScheduledJob uuid="77777777-7777-7777-7777-777777777777">
+		<Properties>
+			<Name>ОбновлениеТоваров</Name>
+			<MethodName>CommonModule.УтилитыОбщие.Помощь</MethodName>
+			<Use>true</Use>
+			<Predefined>true</Predefined>
+		</Properties>
+	</ScheduledJob>
+</MetaDataObject>`,
+		workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"): fmt.Sprintf(allPointersRegister, "исходный"),
+		// Запись в регистр из общего модуля без вызывающих: register_access
+		// с object_id есть, а ребра объектного графа нет. Ребро документа
+		// потерялось бы при правке XML регистра по другой причине (каскад
+		// object_data_edge.to_object_id, не SET NULL, ADR-037 «Граница»).
+		"CommonModules/Движения/Ext/Module.bsl": `
+Процедура Записать(Движения) Экспорт
+	Движения.ТоварыНаСкладах.Записать();
+КонецПроцедуры
+`,
+		workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"): fmt.Sprintf(allPointersRole, "исходный"),
+		"Roles/ЧтениеТоваров/Ext/Rights.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<setForNewObjects>false</setForNewObjects>
+	<setForAttributesByDefault>true</setForAttributesByDefault>
+	<independentRightsOfChildObjects>false</independentRightsOfChildObjects>
+	<object>
+		<name>Catalog.Товары</name>
+		<right>
+			<name>Read</name>
+			<value>true</value>
+		</right>
+	</object>
+</Rights>`,
+		"CommonModules/Отчеты/Ext/Module.bsl": `
+Функция Артикулы() Экспорт
+	Запрос = Новый Запрос;
+	Запрос.Текст = "ВЫБРАТЬ Товары.Артикул ИЗ Справочник.Товары КАК Товары";
+	Возврат Запрос.Выполнить();
+КонецФункции
+`,
+	},
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write("Catalogs/Товары.xml", fmt.Sprintf(allPointersCatalog, "правка свойства"))
+		write(workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"), fmt.Sprintf(allPointersRegister, "правка свойства"))
+		write(workspace.DumpFormModulePath("Catalog", "Товары", "ФормаЭлемента"), `
+&НаКлиенте
+Процедура ПриОткрытии(Отказ)
+	// правка тела
+КонецПроцедуры
+`)
+		write("CommonModules/УтилитыОбщие/Ext/Module.bsl", `
+Функция Помощь() Экспорт
+	Возврат "ok, но иначе";
+КонецФункции
+`)
+	},
+	// XML роли не правится: её переопубликование сносит права Rights.xml
+	// каскадом role_right.role_id (не SET NULL, ADR-037 «Граница»). Указатель
+	// role.object_id на практике пуст (строку роли переписывает публикация
+	// Rights.xml), поэтому таблица role сверяется построчно, но её указатель
+	// сценарием не проверяется.
+	mustHave: []string{
+		"handler_name_norm=приоткрытии|handler_symbol_id=node:",
+		"method_name_norm=commonmodule.утилитыобщие.помощь|handler_symbol_id=node:",
+		"member_id=node:",
+		"object_id=node:" + metadataObjectIdentityKey("cfg", "AccumulationRegister", "товарынаскладах"),
+		"object_id=node:" + metadataObjectIdentityKey("cfg", "Catalog", "товары") + "|object_name_norm", // role_right
+	},
+}
+
+var renameEdits = incrementScenario{
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write("CommonModules/УтилитыОбщие/Ext/Module.bsl", `
+Функция ПомощьИная() Экспорт
+	Возврат "ok";
+КонецФункции
+`)
+	},
+	mustHave: []string{"name_norm=помощь|resolution=unresolved"},
+}
+
+// incrementScenario: исходные файлы сверх базовой фикстуры и правки перед
 // инкрементом.
 type incrementScenario struct {
 	seed map[string]string
 	// edit применяет правки: write пишет файл со сдвигом mtime, remove удаляет.
 	edit func(write func(rel, content string), remove func(rel string))
-	// mustHave — подстроки, каждая из которых обязана встретиться в строках
+	// mustHave: подстроки, каждая из которых обязана встретиться в строках
 	// чистой пересборки: иначе сценарий не создал то, что проверяет.
 	mustHave []string
 }

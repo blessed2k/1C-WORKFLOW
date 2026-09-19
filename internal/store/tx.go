@@ -290,13 +290,11 @@ func (tx *WriteTx) DeleteSourceFiles(ids ...int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	in := inClause(len(ids))
-	args := make([]any, 0, len(ids)*3)
-	for _, id := range ids {
-		args = append(args, id)
-	}
+	// Один JSON-параметр вместо плейсхолдера на файл: список бывает длиной в
+	// весь компонент (fallback), а у SQLite лимит на число переменных.
+	files := int64ListJSON(ids)
 	// Хэши снимаются ДО удаления: после каскада их уже не прочитать.
-	rows, err := tx.c.query(tx.ctx, `SELECT content_hash FROM source_file WHERE id IN `+in, args...)
+	rows, err := tx.c.query(tx.ctx, `SELECT content_hash FROM source_file WHERE id IN `+staleFiles, files)
 	if err != nil {
 		return err
 	}
@@ -317,17 +315,15 @@ func (tx *WriteTx) DeleteSourceFiles(ids ...int64) error {
 	if err := tx.c.exec(tx.ctx, `UPDATE reference SET resolution='unresolved', target_class=NULL,
 		 target_symbol_id=NULL, target_object_id=NULL, platform_key=NULL
 		 WHERE resolution='resolved' AND (
-		   target_symbol_id IN (SELECT id FROM symbol WHERE origin_file_id IN `+in+`)
-		   OR target_object_id IN (SELECT id FROM metadata_object WHERE file_id IN `+in+`))`,
-		append(append([]any{}, args...), args...)...); err != nil {
+		   target_symbol_id IN `+staleNodes[nodeSymbol]+`
+		   OR target_object_id IN `+staleNodes[nodeObject]+`)`, files); err != nil {
 		return err
 	}
 	// FTS5 живёт без FK: строки удаляются явно, по rowid = symbol.id.
-	if err := tx.c.exec(tx.ctx, `DELETE FROM fts_symbols WHERE rowid IN
-		(SELECT id FROM symbol WHERE origin_file_id IN `+in+`)`, args...); err != nil {
+	if err := tx.c.exec(tx.ctx, `DELETE FROM fts_symbols WHERE rowid IN `+staleNodes[nodeSymbol], files); err != nil {
 		return err
 	}
-	return tx.c.exec(tx.ctx, `DELETE FROM source_file WHERE id IN `+in, args...)
+	return tx.c.exec(tx.ctx, `DELETE FROM source_file WHERE id IN `+staleFiles, files)
 }
 
 // SetReferencesUnresolved — шаг (1b) для affected set, посчитанного вызывающим
