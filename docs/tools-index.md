@@ -591,7 +591,7 @@ tokens * 3`), `view` (`effective` частично реализован, см. �
 **Выход** — `retrieve.Result` (items[0]): `intent, anchors[], facts[],
 signatures[], snippets[], metadataSummaries[], relations[],
 requiredCoverage[] (category, status: complete_inline\|
-complete_via_resource\|partial\|missing, returnedCount, totalCount),
+complete_via_resource\|complete_empty\|partial\|missing, returnedCount, totalCount),
 sufficiencyStatus (sufficient_inline\|requires_resource_fetch\|
 insufficient), missingRequired[], ambiguities[], budget
 (usedChars<=normalizedBudgetChars — инвариант), excludedHighScoring[],
@@ -606,15 +606,32 @@ suggestedNextTools[]`.
 {"task": "поменять сигнатуру ПолучитьОстаток — добавить параметр ДатаНаКоторуюСчитать", "budgetChars": 12000}
 ```
 
-**Известные ограничения**: `view=effective` частично реализован.
+**Известные ограничения**: `view=effective` накладывает расширения,
+применяющиеся к компоненту анкера (`internal/effective`, порядок по
+`applyOrder`), каждый факт несёт свой слой (`component`).
 `bugfix`/`unknown` и `signature-change` получают категорию `interceptors`
 (перехватчики базового символа) как точный факт из `resolve.DeriveIntercepts`
 (не эвристику по имени), `form` получает `handler_intercepts` на обработчике
-формы; конфликт двух `&Вместо` от разных расширений — warning
-`instead_conflict` с обоими слоями. `register`/`query`/`rights`/`posting`/
-`add-attribute` остаются построены как `raw` под `view=effective` тоже — не
-забытый случай, честно назван `effective_view_partial_coverage`-warning'ом
-(и `effectiveAwareIntent` в коде). Опечатка в `view` — ошибка, не молчаливый
+формы, `posting` получает `posting_handler_intercepts` и движения самих
+перехватчиков (ADR-029, ADR-034). По ADR-035: `register` получает
+необязательную `writer_intercepts` (перехваченные писатели регистра и записи,
+сделанные самими перехватчиками; запись перехватчика в `writes_movements`
+называет перехватываемый метод), `query` получает необязательную
+`query_intercepts` (перехватчики самого символа-анкера) и тексты запросов
+этих перехватчиков в `query_text`/`schema`/`tables_fields` со слоем
+расширения; прочие запросы модулей расширений не собираются. Для
+`&ИзменениеИКонтроль` исполняется текст расширения, и базовый текст помечен
+как изменённый перехватчиком; `add-attribute` и `rights` получают заимствования
+объекта-анкера в расширениях: структуру с реквизитами расширения, формы,
+роли расширения с правами и RLS. Под `effective` категория `forms`
+(`add-attribute`) и `rls` (`rights`) заявляются собранными и при честной
+пустоте дают `complete_empty`. Конфликт двух `&Вместо` от разных расширений
+даёт warning `instead_conflict` с обоими слоями. `raw` для всех intent прежний.
+`exchange`/`extension` делят builder с `bugfix` и получают те же
+`interceptors`. `effective_view_partial_coverage` классификатор сегодня не
+вызывает: предупреждение остаётся для intent вне `effectiveAwareIntent`.
+Сбой чтения, из-за которого категория не собрана, не даёт `complete_empty`, как
+и анкер, который builder не развернул. Опечатка в `view` даёт ошибку, а не молчаливый
 откат на raw. Задержка на крупной конфигурации: см.
 `docs/benchmarks.md`, после исправления `precheckChangedCount` p50 921 мс и p95 1.73 с при
 бюджете 1 с и 2.5 с. Причина найдена точно, не гипотеза: не сам `retrieve.Build`

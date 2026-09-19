@@ -118,3 +118,62 @@ func (m *Memory) ModuleText(ext, modulePath string) ([]byte, bool, error) {
 	text, ok := m.Modules[k]
 	return text, ok, nil
 }
+
+// ObjectSource: то, что нужно отбору заимствований объекта: отбор
+// расширений тот же, что у модулей (ExtensionsApplyingTo), плюс строки
+// объекта по виду и имени. *store.ReadTx напрямую не подходит; адаптер
+// StoreObjectSource.
+type ObjectSource interface {
+	ExtensionsApplyingTo(base string) ([]Extension, error)
+	MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error)
+}
+
+// StoreObjectSource: продакшн-источник заимствований поверх открытой
+// read-транзакции, тот же адаптер, что StoreSource.
+func StoreObjectSource(tx *store.ReadTx) ObjectSource { return storeSource{tx: tx} }
+
+func (s storeSource) MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error) {
+	return s.tx.MetadataObjectsByName(mtype, nameNorm)
+}
+
+// StoreExtensions: все расширения проекта из store той же транзакции, одним
+// чтением. Нужен Overlay (NewOverlay).
+func StoreExtensions(tx *store.ReadTx) ([]Extension, error) {
+	comps, err := tx.Components()
+	if err != nil {
+		return nil, fmt.Errorf("состав компонентов: %w", err)
+	}
+	return ExtensionsFromStore(comps), nil
+}
+
+// BorrowedObjects: строки объекта obj в расширениях, применяющихся к его
+// компоненту, в порядке наложения (ExtensionsApplyingTo). Это объектный
+// аналог Module: заимствованный объект расширения (его реквизиты, формы,
+// права ролей расширения) живёт отдельной строкой metadata_object своего
+// компонента, и effective-вид объекта есть строка базы плюс эти строки.
+// Строка самого obj в ответ не входит. Объект из компонента-расширения
+// заимствований не имеет: расширения применяются к базе, а не друг к другу.
+func BorrowedObjects(src ObjectSource, obj store.MetadataObjectRow) ([]store.MetadataObjectRow, error) {
+	exts, err := src.ExtensionsApplyingTo(obj.ComponentID)
+	if err != nil {
+		return nil, err
+	}
+	if len(exts) == 0 {
+		return nil, nil
+	}
+	rows, err := src.MetadataObjectsByName(obj.MType, obj.NameNorm)
+	if err != nil {
+		return nil, fmt.Errorf("строки объекта %s.%s: %w", obj.MType, obj.NameDisplay, err)
+	}
+	byComponent := make(map[string]store.MetadataObjectRow, len(rows))
+	for _, r := range rows {
+		byComponent[r.ComponentID] = r
+	}
+	var out []store.MetadataObjectRow
+	for _, e := range exts {
+		if r, ok := byComponent[e.ID]; ok {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}

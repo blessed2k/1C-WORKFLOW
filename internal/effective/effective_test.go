@@ -273,3 +273,122 @@ func TestExtensionsFromStore(t *testing.T) {
 		t.Fatalf("ExtensionsFromStore = %+v", got)
 	}
 }
+
+type fakeObjectSource struct {
+	comps   []store.Component
+	rows    []store.MetadataObjectRow
+	compErr error
+	rowsErr error
+}
+
+func (f fakeObjectSource) ExtensionsApplyingTo(base string) ([]Extension, error) {
+	if f.compErr != nil {
+		return nil, f.compErr
+	}
+	return ApplyingTo(ExtensionsFromStore(f.comps), base), nil
+}
+
+func (f fakeObjectSource) MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error) {
+	if f.rowsErr != nil {
+		return nil, f.rowsErr
+	}
+	var out []store.MetadataObjectRow
+	for _, r := range f.rows {
+		if r.MType == mtype && r.NameNorm == nameNorm {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// TestBorrowedObjects: в effective-вид объекта входят строки ТОЛЬКО тех
+// расширений, что применяются к его компоненту, в порядке наложения; строка
+// самого объекта, чужая база и чужой вид объекта не входят.
+func TestBorrowedObjects(t *testing.T) {
+	obj := store.MetadataObjectRow{ID: 1, ComponentID: "cfg", MType: "Document", NameNorm: "заказ", NameDisplay: "Заказ"}
+	src := fakeObjectSource{
+		comps: []store.Component{
+			{ID: "cfg", Kind: string(domain.KindConfiguration)},
+			{ID: "ext-b", Kind: string(domain.KindExtension), AppliesTo: "cfg", ApplyOrder: 2},
+			{ID: "ext-a", Kind: string(domain.KindExtension), AppliesTo: "cfg", ApplyOrder: 1},
+			{ID: "ext-other", Kind: string(domain.KindExtension), AppliesTo: "cfg2", ApplyOrder: 1},
+		},
+		rows: []store.MetadataObjectRow{
+			obj,
+			{ID: 2, ComponentID: "ext-b", MType: "Document", NameNorm: "заказ"},
+			{ID: 3, ComponentID: "ext-a", MType: "Document", NameNorm: "заказ"},
+			{ID: 4, ComponentID: "ext-other", MType: "Document", NameNorm: "заказ"},
+			{ID: 5, ComponentID: "ext-a", MType: "Catalog", NameNorm: "заказ"},
+		},
+	}
+	got, err := BorrowedObjects(src, obj)
+	if err != nil {
+		t.Fatalf("BorrowedObjects: %v", err)
+	}
+	var ids []int64
+	for _, r := range got {
+		ids = append(ids, r.ID)
+	}
+	if len(ids) != 2 || ids[0] != 3 || ids[1] != 2 {
+		t.Fatalf("BorrowedObjects = %v, want [3 2] (ext-a, затем ext-b; без самой строки, чужой базы и чужого вида)", ids)
+	}
+
+	t.Run("отказ чтения не выглядит пустотой", func(t *testing.T) {
+		for _, bad := range []fakeObjectSource{
+			{compErr: errors.New("boom")},
+			{comps: src.comps, rowsErr: errors.New("boom")},
+		} {
+			if _, err := BorrowedObjects(bad, obj); err == nil {
+				t.Fatal("ожидалась ошибка чтения, получена тишина")
+			}
+		}
+	})
+}
+
+// countingSource считает обращения к исходникам модулей: кэш Overlay
+// проверяется числом разборов, а не временем.
+type countingSource struct {
+	*Memory
+	moduleReads int
+}
+
+func (c *countingSource) ModuleText(ext, modulePath string) ([]byte, bool, error) {
+	c.moduleReads++
+	return c.Memory.ModuleText(ext, modulePath)
+}
+
+// TestOverlay: модуль расширения читается один раз на пару (база, путь),
+// сколько бы символов этого модуля ни спросили; обратный запрос InterceptOf
+// находит факт перехвата по слою и имени перехватчика и не делает
+// перехватчиком обычный метод расширения.
+func TestOverlay(t *testing.T) {
+	src := &countingSource{Memory: &Memory{
+		Extensions: []Extension{extComp("ext-b", testBase, 1)},
+		Modules: map[ModuleKey][]byte{{Component: "ext-b", Path: testModule}: []byte(moduleThreeKinds +
+			"\nПроцедура РасшБ_Служебная()\nКонецПроцедуры\n")},
+	}}
+	o := NewOverlay(src, src.Extensions)
+	for i := 0; i < 3; i++ {
+		r, err := o.Module(testBase, testModule)
+		if err != nil || len(r.Intercepts) != 3 {
+			t.Fatalf("Module: err=%v intercepts=%d, want 3", err, len(r.Intercepts))
+		}
+	}
+	if src.moduleReads != 1 {
+		t.Fatalf("исходник модуля прочитан %d раз, want 1 (кэш по базе и пути)", src.moduleReads)
+	}
+
+	ic, found, _, err := o.InterceptOf("ext-b", testModule, "расшб_обработкапроведения")
+	if err != nil || !found || ic.Kind != resolve.InterceptInstead || ic.TargetNameNorm != "обработкапроведения" {
+		t.Fatalf("InterceptOf(перехватчик) = %+v found=%v err=%v", ic, found, err)
+	}
+	if _, found, _, _ := o.InterceptOf("ext-b", testModule, "расшб_служебная"); found {
+		t.Fatal("метод без аннотации перехватчиком не является")
+	}
+	if _, found, _, _ := o.InterceptOf("cfg-unknown", testModule, "расшб_обработкапроведения"); found {
+		t.Fatal("компонент не из состава расширений ответа не имеет")
+	}
+	if src.moduleReads != 1 {
+		t.Fatalf("обратный запрос перечитал модуль: %d чтений, want 1", src.moduleReads)
+	}
+}

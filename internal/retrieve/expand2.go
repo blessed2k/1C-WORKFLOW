@@ -32,6 +32,12 @@ func resolveMetadataAnchor(tx *store.ReadTx, a Anchor) (store.MetadataObjectRow,
 // (register_access mode IN write/movement/clear) + owning_symbols (символы,
 // делающие эти доступы). reads — контекст-счётчик, НЕ обязательная категория
 // (spec: «не попадёт: reads (упомянуты счётчиком)»).
+//
+// view=effective (ADR-035) добавляет необязательную writer_intercepts: факты
+// перехвата писателей (effective.go:registerWriterIntercepts), а запись,
+// сделанная перехватчиком расширения, называет в объяснении, какой метод
+// базового слоя она дополняет. raw не меняется: список записей тот же, фактов
+// перехвата в нём нет.
 func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
 		return nil, nil
@@ -48,9 +54,27 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	writeRows, werr := tx.RegisterAccesses(store.RegisterAccessFilter{
 		RegisterNameNorm: obj.NameNorm, Modes: []string{"write", "movement", "clear"}, Limit: 300,
 	})
+	// overlay: одно наложение на весь вызов (ADR-035 п.8): состав расширений
+	// читается один раз, модуль расширения разбирается один раз на пару
+	// (база, путь), сколько бы писателей в нём ни было.
+	var overlay *effective.Overlay
+	if bctx.view == domain.ViewEffective && werr == nil {
+		exts, eerr := effective.StoreExtensions(tx)
+		if eerr != nil {
+			warnings = append(warnings, readFailedWarning("register_writer_intercepts_read_failed",
+				fmt.Sprintf("не удалось прочитать состав компонентов для наложения расширений на писателей %s: %v", obj.NameDisplay, eerr)))
+		} else {
+			overlay = effective.NewOverlay(effective.StoreSource(tx), exts)
+		}
+	}
+	var baseWriters []store.SymbolRow
+	var writerInterceptFacts []effective.Intercept
 	if werr == nil {
 		symbolCache := map[int64]store.SymbolRow{}
 		ownersDone := map[int64]bool{}
+		// interceptOfWriter: факт перехвата у символа расширения, посчитанный
+		// один раз на символ (effective): им подписывается каждая его запись.
+		interceptOfWriter := map[int64]*effective.Intercept{}
 		var sawDynamic bool
 		for i, r := range writeRows {
 			if !r.Static {
@@ -67,14 +91,32 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				}
 				if sym.ID != 0 {
 					ownerDisplay = sym.ModulePath + "." + sym.NameDisplay
+					if overlay != nil && !cached {
+						if bctx.extensionComponents[sym.ComponentID] {
+							ic, found, notes, ierr := overlay.InterceptOf(sym.ComponentID, sym.ModulePath, sym.NameNorm)
+							warnings = append(warnings, warningsOf(notes)...)
+							if ierr != nil {
+								warnings = append(warnings, registerInterceptReadFailed(sym, ierr))
+							} else if found {
+								interceptOfWriter[sym.ID] = &ic
+								writerInterceptFacts = append(writerInterceptFacts, ic)
+							}
+						} else {
+							baseWriters = append(baseWriters, sym)
+						}
+					}
 				}
 			}
 			label := fmt.Sprintf("%s: %s", r.Mode, ownerDisplay)
+			why := fmt.Sprintf("register_access mode=%s на %s из %s", r.Mode, obj.NameDisplay, ownerDisplay)
+			if ic := interceptOfWriter[r.SymbolID]; ic != nil {
+				why += "; " + interceptWhy(*ic)
+			}
 			rc := &candidate{
 				id: fmt.Sprintf("regw:%s:%d", obj.NameNorm, r.ID), bucket: bucketRelation, category: "writes_movements",
 				kindLabel: "register_access", fromDisplay: ownerDisplay, display: obj.NameDisplay, detail: label,
 				component: r.ComponentID, confidence: domain.Confidence(r.Confidence), span: r.Span,
-				whyIncluded: fmt.Sprintf("register_access mode=%s на %s из %s", r.Mode, obj.NameDisplay, ownerDisplay),
+				whyIncluded: why,
 				charCost:    runeLen(label) + runeLen(obj.NameDisplay) + 4,
 			}
 			out = append(out, bctx.apply(sc, rc))
@@ -97,6 +139,12 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				Hint:    "проверьте вручную места, где регистр адресуется через переменную/параметр",
 			})
 		}
+	}
+
+	if overlay != nil {
+		icCands, icWarnings := registerWriterIntercepts(bctx, obj, overlay, baseWriters, writerInterceptFacts)
+		out = append(out, icCands...)
+		warnings = append(warnings, icWarnings...)
 	}
 
 	readRows, rerr := tx.RegisterAccesses(store.RegisterAccessFilter{
@@ -276,18 +324,91 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // expandAddAttribute — «добавь реквизит X в Документ.Y и оцени impact» (§25
 // №5): structure + usages + forms + rights + exchanges. Тела модулей не
 // затрагиваются.
+//
+// view=effective (ADR-035): объект анкера базового слоя дополняется своими
+// заимствованиями в применяющихся расширениях (effective.BorrowedObjects):
+// структура заимствования с реквизитами расширения, формы, права ролей
+// расширения и использования в запросах, каждый факт со своим слоем.
+// Категория forms заявляется собранной (declareCollected, ADR-030), когда
+// формы всех слоёв прочитаны: пустота тогда честная. raw не меняется.
 func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
+		// Анкер, который этот builder не разворачивает, ничего не собрал:
+		// заявление другого анкера не имеет права превратить категорию в
+		// complete_empty (ADR-035 п.5, пограничный случай ADR-030).
+		bctx.anchorNotCollected("forms")
 		return nil, nil
 	}
 	tx := bctx.tx
 	obj, ok, err := resolveMetadataAnchor(tx, a)
 	if err != nil || !ok {
+		bctx.anchorNotCollected("forms")
 		return nil, nil
 	}
+	out, formsOK := addAttributeFacts(bctx, a, obj, "")
+	borrowed, merges, readOK, warnings := borrowedLayers(bctx, obj)
+	formsOK = formsOK && readOK
+	for _, b := range borrowed {
+		cands, bFormsOK := addAttributeFacts(bctx, a, b, b.ComponentID)
+		out = append(out, cands...)
+		formsOK = formsOK && bFormsOK
+	}
+	if merges {
+		bctx.declareCollectedIf(formsOK, "forms")
+	} else if !formsOK {
+		bctx.declareCollectionFailed("forms")
+	}
+
+	warnings = append(warnings, Warning{
+		Code:    "exchange_edges_not_built",
+		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) не публикуется индексом (interfaces.md, долг тасков 08/09) — категория exchanges всегда missing",
+		Hint:    "проверьте состав плана обмена вручную через get_object ExchangePlan или find_metadata_usages",
+	})
+	return out, warnings
+}
+
+// borrowedObjectsReadFailed: заимствования объекта прочитать не удалось.
+// Ответ тогда построен по одному базовому слою, и это обязано быть сказано:
+// иначе он неотличим от ответа по объекту, который никто не заимствовал.
+func borrowedObjectsReadFailed(obj store.MetadataObjectRow, err error) Warning {
+	return readFailedWarning("effective_borrowed_objects_read_failed",
+		fmt.Sprintf("не удалось прочитать заимствования %s.%s в расширениях: %v; ответ построен только по базовому слою",
+			obj.MType, obj.NameDisplay, err))
+}
+
+// borrowedLayers: условие effective-заимствования в ОДНОМ месте для
+// add-attribute и rights. merges=true, когда объект анкера дополняется
+// заимствованиями: view=effective и сам анкер из базы, а не из расширения
+// (расширения применяются к базе, заимствований у заимствования нет).
+// readOK=false: заимствования прочитать не удалось, предупреждение в
+// warnings; пустота категорий тогда ничего не доказывает.
+func borrowedLayers(bctx *buildCtx, obj store.MetadataObjectRow) (borrowed []store.MetadataObjectRow, merges, readOK bool, warnings []Warning) {
+	if bctx.view != domain.ViewEffective || bctx.extensionComponents[obj.ComponentID] {
+		return nil, false, true, nil
+	}
+	borrowed, err := bctx.objects.BorrowedObjects(obj)
+	if err != nil {
+		return nil, true, false, []Warning{borrowedObjectsReadFailed(obj, err)}
+	}
+	return borrowed, true, true, nil
+}
+
+// addAttributeFacts собирает факты add-attribute по ОДНОЙ строке объекта.
+// borrowedBy пуст у строки анкера: тогда ключи и тексты кандидатов те же, что
+// до effective-вида (raw не меняется). Непустой borrowedBy (компонент
+// расширения, effective) метит факты как заимствование и разводит ключ
+// структуры: он строится по имени объекта и у двух слоёв иначе совпал бы.
+// Второе значение: формы этой строки прочитаны без ошибки.
+func addAttributeFacts(bctx *buildCtx, a Anchor, obj store.MetadataObjectRow, borrowedBy string) ([]*candidate, bool) {
+	tx := bctx.tx
 	sc := scoreCtx{depth: 0, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}
+	structureID := "structure:" + obj.NameNorm
+	whyTail := ""
+	if borrowedBy != "" {
+		structureID += "@" + borrowedBy
+		whyTail = fmt.Sprintf(" (заимствован расширением %s, effective)", borrowedBy)
+	}
 	var out []*candidate
-	var warnings []Warning
 
 	members, merr := tx.MetadataMembers(obj.ID)
 	if merr == nil {
@@ -299,10 +420,10 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 		}
 		text := fmt.Sprintf("%d членов", len(members))
 		sm := &candidate{
-			id: "structure:" + obj.NameNorm, bucket: bucketMetadataSummary, category: "structure",
+			id: structureID, bucket: bucketMetadataSummary, category: "structure",
 			display: obj.NameDisplay, kindLabel: obj.MType, component: obj.ComponentID, memberCount: len(members),
 			members: summary, confidence: 1,
-			whyIncluded: fmt.Sprintf("структура объекта %s — точка добавления реквизита", obj.NameDisplay),
+			whyIncluded: fmt.Sprintf("структура объекта %s — точка добавления реквизита", obj.NameDisplay) + whyTail,
 			charCost:    runeLen(text) + len(summary)*12,
 		}
 		out = append(out, bctx.apply(sc, sm))
@@ -316,7 +437,7 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				id: fmt.Sprintf("usage:%d:%d", obj.ID, i), bucket: bucketRelation, category: "usages",
 				kindLabel: "query_reference", fromDisplay: obj.NameDisplay, display: label,
 				component: obj.ComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("объект %s использован в запросе (query_reference, %s)", obj.NameDisplay, r.Kind),
+				whyIncluded: fmt.Sprintf("объект %s использован в запросе (query_reference, %s)", obj.NameDisplay, r.Kind) + whyTail,
 				charCost:    runeLen(label) + 8,
 			}
 			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}, uc))
@@ -329,7 +450,7 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			fc := &candidate{
 				id: "form:" + itoaInt64(f.ID), bucket: bucketFact, category: "forms",
 				display: f.NameDisplay, component: obj.ComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("форма объекта %s — потенциально требует новый элемент реквизита", obj.NameDisplay),
+				whyIncluded: fmt.Sprintf("форма объекта %s — потенциально требует новый элемент реквизита", obj.NameDisplay) + whyTail,
 				charCost:    runeLen(f.NameDisplay) + 10,
 			}
 			out = append(out, bctx.apply(sc, fc))
@@ -347,19 +468,13 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			rc := &candidate{
 				id: fmt.Sprintf("addattr-role:%d", rr.RoleID), bucket: bucketFact, category: "rights",
 				display: rr.RoleNameDisplay, detail: rr.RightName, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("роль %s уже имеет права на %s — новый реквизит может требовать пересмотра прав", rr.RoleNameDisplay, obj.NameDisplay),
+				whyIncluded: fmt.Sprintf("роль %s уже имеет права на %s — новый реквизит может требовать пересмотра прав", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
 				charCost:    runeLen(rr.RoleNameDisplay) + 10,
 			}
 			out = append(out, bctx.apply(sc, rc))
 		}
 	}
-
-	warnings = append(warnings, Warning{
-		Code:    "exchange_edges_not_built",
-		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) не публикуется индексом (interfaces.md, долг тасков 08/09) — категория exchanges всегда missing",
-		Hint:    "проверьте состав плана обмена вручную через get_object ExchangePlan или find_metadata_usages",
-	})
-	return out, warnings
+	return out, fferr == nil
 }
 
 func itoaInt64(n int64) string { return fmt.Sprintf("%d", n) }
@@ -372,6 +487,13 @@ func itoaInt64(n int64) string { return fmt.Sprintf("%d", n) }
 // find_queries_using (без owner_symbol/query_text одного конкретного текста
 // — их несколько, «схема» в этом случае per-usage через find_queries_using,
 // не через get_context_for_task).
+//
+// view=effective (ADR-035) добавляет перехватчики символа-анкера
+// (необязательная query_intercepts) и тексты запросов из самих перехватчиков в
+// те же query_text/schema/tables_fields, со слоем расширения
+// (effective.go:queryInterceptCandidates). Для &ИзменениеИКонтроль исполняется
+// именно текст расширения. Запрос, который есть только в перехватчике, не
+// даёт effective-ответу сказать no_query_in_symbol. raw не меняется.
 func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	tx := bctx.tx
 	if a.Kind != "symbol" {
@@ -381,18 +503,64 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if err != nil || !ok {
 		return nil, nil
 	}
-	queries, qerr := tx.QueriesBySymbolID(row.ID)
-	if qerr != nil || len(queries) == 0 {
-		return nil, []Warning{{Code: "no_query_in_symbol", Message: fmt.Sprintf("в %s не найдено текстов запросов", row.NameDisplay)}}
+	queries, qerr := bctx.queries.QueriesBySymbolID(row.ID)
+	if qerr != nil {
+		queries = nil
+	}
+	var icCands []*candidate
+	var icWarnings []Warning
+	var replacedBy []effective.Intercept
+	icQueries := 0
+	if bctx.view == domain.ViewEffective {
+		icCands, icQueries, replacedBy, icWarnings = queryInterceptCandidates(bctx, row)
+		if qerr != nil {
+			// Запросы перехватчиков нашлись, а запросы самого анкера не
+			// прочитались: без предупреждения ответ выглядел бы так, будто
+			// в базовом методе запросов нет (ADR-035). raw здесь прежний.
+			icWarnings = append(icWarnings, readFailedWarning("query_anchor_read_failed",
+				fmt.Sprintf("не удалось прочитать тексты запросов %s.%s: %v; в ответе только запросы перехватчиков расширений",
+					row.ModulePath, row.NameDisplay, qerr)))
+		}
+	}
+	if len(queries) == 0 && icQueries == 0 {
+		return icCands, append(icWarnings, Warning{Code: "no_query_in_symbol", Message: fmt.Sprintf("в %s не найдено текстов запросов", row.NameDisplay)})
 	}
 	sc := scoreCtx{depth: 0, anchorStrength: a.Strength, direction: 1.0, anchorComp: row.ComponentID}
 	var out []*candidate
-	var warnings []Warning
 
 	params, _ := tx.SymbolParameters(row.ID)
 	out = append(out, makeSignature(bctx, sc, row, params, "owner_symbol",
 		fmt.Sprintf("символ-владелец текста запроса %s", row.NameDisplay)))
 
+	qCands, warnings := queryCandidates(bctx, row, queries, sc, replacedWhy(replacedBy))
+	out = append(out, qCands...)
+	out = append(out, icCands...)
+	return out, append(warnings, icWarnings...)
+}
+
+// replacedWhy: пометка базового текста запроса, который в effective-виде
+// заменён перехватчиком &ИзменениеИКонтроль: исполняется текст расширения,
+// а базовый остаётся в ответе как исходник правки.
+func replacedWhy(replacedBy []effective.Intercept) string {
+	if len(replacedBy) == 0 {
+		return ""
+	}
+	var names []string
+	for _, ic := range replacedBy {
+		names = append(names, fmt.Sprintf("%s: &%s %s", ic.Layer.Component, ic.Kind, ic.InterceptorNameNorm))
+	}
+	return fmt.Sprintf(" (в effective-виде метод изменён перехватчиком %s: исполняется текст расширения)", strings.Join(names, ", "))
+}
+
+// queryCandidates строит query_text/schema/tables_fields по текстам запросов
+// символа owner. Общий для запросов анкера и запросов его перехватчиков
+// (effective): у перехватчика component и модуль его собственные, whyTail
+// называет факт перехвата. sc: оценка текстов; ссылки схемы идут на шаг
+// глубже от того же sc.anchorComp.
+func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.QueryRow, sc scoreCtx, whyTail string) ([]*candidate, []Warning) {
+	tx := bctx.tx
+	var out []*candidate
+	var warnings []Warning
 	for i, q := range queries {
 		text := q.Text
 		truncated := false
@@ -401,16 +569,16 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			truncated = true
 		}
 		qc := &candidate{
-			id: fmt.Sprintf("qtext:%s:%d", row.UID, i), bucket: bucketSnippet, category: "query_text",
-			refUID: row.UID, component: row.ComponentID, module: row.ModulePath, kindLabel: "query_text",
+			id: fmt.Sprintf("qtext:%s:%d", owner.UID, i), bucket: bucketSnippet, category: "query_text",
+			refUID: owner.UID, component: owner.ComponentID, module: owner.ModulePath, kindLabel: "query_text",
 			text: text, truncated: truncated, span: q.Span, confidence: domain.Confidence(q.Confidence),
-			whyIncluded: fmt.Sprintf("текст запроса внутри %s", row.NameDisplay), charCost: runeLen(text),
+			whyIncluded: fmt.Sprintf("текст запроса внутри %s", owner.NameDisplay) + whyTail, charCost: runeLen(text),
 		}
 		out = append(out, bctx.apply(sc, qc))
 
 		if q.Staticity != "static" {
 			warnings = append(warnings, Warning{
-				Code: "query_not_static", Message: fmt.Sprintf("запрос %d в %s собран динамически (staticity=%s)", i, row.NameDisplay, q.Staticity),
+				Code: "query_not_static", Message: fmt.Sprintf("запрос %d в %s собран динамически (staticity=%s)", i, owner.NameDisplay, q.Staticity),
 			})
 			continue
 		}
@@ -432,13 +600,13 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				}
 			}
 			rc := &candidate{
-				id: fmt.Sprintf("qs:%s:%d:%d", row.UID, i, j), bucket: bucketRelation, category: cat,
-				kindLabel: "query_reference", fromDisplay: row.NameDisplay, display: label, detail: r.Kind,
-				component: row.ComponentID, confidence: domain.Confidence(q.Confidence),
-				whyIncluded: fmt.Sprintf("%s %q в схеме запроса %s", r.Kind, r.NameNorm, row.NameDisplay),
+				id: fmt.Sprintf("qs:%s:%d:%d", owner.UID, i, j), bucket: bucketRelation, category: cat,
+				kindLabel: "query_reference", fromDisplay: owner.NameDisplay, display: label, detail: r.Kind,
+				component: owner.ComponentID, confidence: domain.Confidence(q.Confidence),
+				whyIncluded: fmt.Sprintf("%s %q в схеме запроса %s", r.Kind, r.NameNorm, owner.NameDisplay) + whyTail,
 				charCost:    runeLen(label) + 8,
 			}
-			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: row.ComponentID}, rc))
+			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: sc.anchorComp}, rc))
 		}
 	}
 	return out, warnings
@@ -449,56 +617,100 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // expandRights — intent "rights": roles + rights + rls + profiles.
 // Профили групп доступа (AccessGroupProfile XML) не разбираются НИ ОДНИМ
 // пакетом parse/* в этой волне — profiles всегда missing, честно.
+//
+// view=effective (ADR-035): права ролей расширения индекс связывает со
+// строкой объекта в компоненте роли, то есть с заимствованием, а не с
+// базовой строкой (resolveRoleObjectNode). Поэтому базовый анкер
+// дополняется правами на заимствования в применяющихся расширениях
+// (effective.BorrowedObjects), каждая роль со своим слоем. RLS без строки
+// права не бывает, и когда права всех слоёв прочитаны, категория rls
+// заявляется собранной (declareCollected, ADR-030). roles/rights не
+// заявляются: отсутствие строки role_right не означает отсутствия доступа
+// (дефолты и setForNewObjects). raw не меняется.
 func expandRights(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
+		bctx.anchorNotCollected("rls")
 		return nil, nil
 	}
 	tx := bctx.tx
 	obj, ok, err := resolveMetadataAnchor(tx, a)
 	if err != nil || !ok {
+		bctx.anchorNotCollected("rls")
 		return nil, nil
 	}
+	type layerRights struct {
+		obj        store.MetadataObjectRow
+		rows       []store.RoleRightRow
+		borrowedBy string
+	}
 	rows, rerr := tx.RoleRightsByObjectID(obj.ID)
-	if rerr != nil || len(rows) == 0 {
-		return nil, []Warning{{Code: "no_role_rights", Message: fmt.Sprintf("для %s нет строк role_right в индексе", obj.NameDisplay)}}
+	layers := []layerRights{{obj: obj, rows: rows}}
+	total := len(rows)
+	borrowed, merges, readOK, warnings := borrowedLayers(bctx, obj)
+	readOK = readOK && rerr == nil
+	for _, b := range borrowed {
+		bRows, bErr := tx.RoleRightsByObjectID(b.ID)
+		if bErr != nil {
+			readOK = false
+			warnings = append(warnings, readFailedWarning("effective_borrowed_rights_read_failed",
+				fmt.Sprintf("не удалось прочитать права ролей расширения %s на %s: %v; права этого слоя в ответ не вошли",
+					b.ComponentID, obj.NameDisplay, bErr)))
+			continue
+		}
+		layers = append(layers, layerRights{obj: b, rows: bRows, borrowedBy: b.ComponentID})
+		total += len(bRows)
+	}
+	if merges {
+		bctx.declareCollectedIf(readOK, "rls")
+	} else if !readOK {
+		bctx.declareCollectionFailed("rls")
+	}
+	if total == 0 {
+		return nil, append(warnings, Warning{Code: "no_role_rights", Message: fmt.Sprintf("для %s нет строк role_right в индексе", obj.NameDisplay)})
 	}
 	sc := scoreCtx{depth: 1, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}
 	var out []*candidate
 	seenRole := map[int64]bool{}
-	for _, rr := range rows {
-		if !seenRole[rr.RoleID] {
-			seenRole[rr.RoleID] = true
+	for _, l := range layers {
+		whyTail := ""
+		if l.borrowedBy != "" {
+			whyTail = fmt.Sprintf(" (на заимствование объекта расширением %s, effective)", l.borrowedBy)
+		}
+		for _, rr := range l.rows {
+			if !seenRole[rr.RoleID] {
+				seenRole[rr.RoleID] = true
+				rc := &candidate{
+					id: fmt.Sprintf("role:%d", rr.RoleID), bucket: bucketFact, category: "roles",
+					display: rr.RoleNameDisplay, component: rr.RoleComponentID, confidence: 1,
+					whyIncluded: fmt.Sprintf("роль %s имеет право на %s", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
+					charCost:    runeLen(rr.RoleNameDisplay) + 8,
+				}
+				out = append(out, bctx.apply(sc, rc))
+			}
+			rightLabel := fmt.Sprintf("%s.%s=%v", rr.RoleNameDisplay, rr.RightName, rr.Value)
 			rc := &candidate{
-				id: fmt.Sprintf("role:%d", rr.RoleID), bucket: bucketFact, category: "roles",
-				display: rr.RoleNameDisplay, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("роль %s имеет право на %s", rr.RoleNameDisplay, obj.NameDisplay),
-				charCost:    runeLen(rr.RoleNameDisplay) + 8,
+				id: fmt.Sprintf("right:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rights",
+				display: rightLabel, component: rr.RoleComponentID, confidence: 1,
+				whyIncluded: fmt.Sprintf("право %s роли %s на %s (value=%v, setForNewObjects=%v)", rr.RightName, rr.RoleNameDisplay, obj.NameDisplay, rr.Value, rr.SetForNewObjects) + whyTail,
+				charCost:    runeLen(rightLabel) + 8,
 			}
 			out = append(out, bctx.apply(sc, rc))
-		}
-		rightLabel := fmt.Sprintf("%s.%s=%v", rr.RoleNameDisplay, rr.RightName, rr.Value)
-		rc := &candidate{
-			id: fmt.Sprintf("right:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rights",
-			display: rightLabel, component: rr.RoleComponentID, confidence: 1,
-			whyIncluded: fmt.Sprintf("право %s роли %s на %s (value=%v, setForNewObjects=%v)", rr.RightName, rr.RoleNameDisplay, obj.NameDisplay, rr.Value, rr.SetForNewObjects),
-			charCost:    runeLen(rightLabel) + 8,
-		}
-		out = append(out, bctx.apply(sc, rc))
-		if rr.RLS != "" {
-			rlsC := &candidate{
-				id: fmt.Sprintf("rls:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rls",
-				display: rr.RoleNameDisplay + "." + rr.RightName, detail: rr.RLS, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("RLS роли %s на %s", rr.RoleNameDisplay, obj.NameDisplay),
-				charCost:    runeLen(rr.RLS) + 12,
+			if rr.RLS != "" {
+				rlsC := &candidate{
+					id: fmt.Sprintf("rls:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rls",
+					display: rr.RoleNameDisplay + "." + rr.RightName, detail: rr.RLS, component: rr.RoleComponentID, confidence: 1,
+					whyIncluded: fmt.Sprintf("RLS роли %s на %s", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
+					charCost:    runeLen(rr.RLS) + 12,
+				}
+				out = append(out, bctx.apply(sc, rlsC))
 			}
-			out = append(out, bctx.apply(sc, rlsC))
 		}
 	}
-	warnings := []Warning{{
+	warnings = append(warnings, Warning{
 		Code:    "profiles_not_indexed",
 		Message: "профили групп доступа (AccessGroupProfile) не разбираются индексом — категория profiles всегда missing",
 		Hint:    "проверьте профили вручную через rights_audit",
-	}}
+	})
 	return out, warnings
 }
 

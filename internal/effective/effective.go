@@ -107,6 +107,12 @@ func Module(src Source, base, modulePath string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	return moduleWith(src, exts, modulePath)
+}
+
+// moduleWith: наложение по уже отобранным и упорядоченным расширениям exts.
+// Общий шаг Module и Overlay: второй реализации разбора нет.
+func moduleWith(src Source, exts []Extension, modulePath string) (Result, error) {
 	var r Result
 	for _, ext := range exts {
 		text, found, err := src.ModuleText(ext.ID, modulePath)
@@ -174,4 +180,69 @@ func InsteadConflict(c resolve.InterceptConflict) Notice {
 			c.TargetNameNorm, strings.Join(names, ", "), float64(c.Confidence)),
 		Hint: "фактический порядок расширений смотрите в конфигураторе (Configuration -> Extensions): индекс его не знает (ADR-4, docs/tools-index.md)",
 	}
+}
+
+// Overlay: наложение на время одного вызова инструмента по составу
+// расширений, прочитанному ОДИН раз. Результат модуля кэшируется по паре
+// (база, путь модуля): вызывающий, которому нужен effective-вид многих
+// символов одного модуля (писатели регистра, ADR-035), разбирает модуль
+// расширения один раз, а не на каждый символ. Кэш живёт столько же, сколько
+// Overlay, и через вызовы не переносится: снапшот данных у каждого вызова свой.
+type Overlay struct {
+	src   Source
+	exts  []Extension
+	cache map[overlayKey]overlayEntry
+}
+
+type overlayKey struct{ base, path string }
+
+type overlayEntry struct {
+	r   Result
+	err error
+}
+
+// NewOverlay: all: ВСЕ расширения проекта (ExtensionsFromStore); отбор под
+// базу и порядок делает ApplyingTo, как и у Module.
+func NewOverlay(src Source, all []Extension) *Overlay {
+	return &Overlay{src: src, exts: all, cache: map[overlayKey]overlayEntry{}}
+}
+
+// Module: то же, что пакетная Module, с кэшем по (base, modulePath).
+func (o *Overlay) Module(base, modulePath string) (Result, error) {
+	k := overlayKey{base: base, path: domain.NormalizeModulePath(modulePath)}
+	if e, ok := o.cache[k]; ok {
+		return e.r, e.err
+	}
+	r, err := moduleWith(o.src, ApplyingTo(o.exts, base), modulePath)
+	o.cache[k] = overlayEntry{r: r, err: err}
+	return r, err
+}
+
+// InterceptOf: обратный запрос наложения. Является ли метод
+// interceptorNameNorm модуля modulePath расширения extID перехватчиком
+// метода базы, и каким. База берётся из AppliesTo расширения; компонент не
+// из состава расширений ответа не имеет (found=false). Факт строится по
+// аннотации, поэтому обычная процедура расширения перехватчиком не
+// становится. Диагностики модуля отдаются вместе с ответом.
+func (o *Overlay) InterceptOf(extID, modulePath, interceptorNameNorm string) (Intercept, bool, []Notice, error) {
+	base := ""
+	for _, e := range o.exts {
+		if e.ID == extID {
+			base = e.AppliesTo
+			break
+		}
+	}
+	if base == "" {
+		return Intercept{}, false, nil, nil
+	}
+	r, err := o.Module(base, modulePath)
+	if err != nil {
+		return Intercept{}, false, nil, err
+	}
+	for _, ic := range r.Intercepts {
+		if string(ic.Layer.Component) == extID && ic.InterceptorNameNorm == interceptorNameNorm {
+			return ic, true, r.Diagnostics, nil
+		}
+	}
+	return Intercept{}, false, r.Diagnostics, nil
 }

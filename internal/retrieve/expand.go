@@ -29,8 +29,14 @@ type buildCtx struct {
 	// имеет. Два поля, заполняемые вызывающим по отдельности, значили бы, что
 	// инвариант «symbols — это tx» держится соглашением: новый вызывающий
 	// выставит одно, забудет второе, и молча разъедется ровно путь
-	// перехватчиков. Подмена — привилегия теста (buildWithSymbols).
-	symbols             symbolFinder
+	// перехватчиков. Подмена: привилегия теста (readSeams, build.go).
+	symbols symbolFinder
+	// objects/queries: те же швы, что symbols (ADR-035): отказ чтения
+	// заимствований и запросов анкера на живой транзакции не
+	// воспроизводится, а предупреждение и отзыв заявления на этом пути
+	// обязаны быть проверены. Выводятся из tx в newBuildCtx.
+	objects             borrowedObjectsFinder
+	queries             queryReader
 	req                 Request
 	gen                 domain.Generation
 	maxDepth            int
@@ -54,7 +60,7 @@ type buildCtx struct {
 func newBuildCtx(tx *store.ReadTx, req Request, gen domain.Generation, maxDepth int,
 	includeCode string, extensionComponents map[string]bool, view domain.View) *buildCtx {
 	return &buildCtx{
-		tx: tx, symbols: tx, req: req, gen: gen, maxDepth: maxDepth,
+		tx: tx, symbols: tx, objects: storeBorrowedObjects{tx: tx}, queries: tx, req: req, gen: gen, maxDepth: maxDepth,
 		includeCode: includeCode, extensionComponents: extensionComponents, view: view,
 	}
 }
@@ -81,6 +87,23 @@ func (bctx *buildCtx) declareCollectionFailed(categories ...string) {
 	for _, c := range categories {
 		bctx.collectionFailed[c] = true
 	}
+}
+
+// declareCollectedIf: заявление при удачном чтении, отзыв при сбое. Одна
+// точка для сборщиков, у которых исход чтения известен целиком.
+func (bctx *buildCtx) declareCollectedIf(ok bool, categories ...string) {
+	if ok {
+		bctx.declareCollected(categories...)
+		return
+	}
+	bctx.declareCollectionFailed(categories...)
+}
+
+// anchorNotCollected: анкер, который builder не развернул (не тот вид или
+// не разрешился), категорию не собирал. Для полноты это то же, что сбой
+// чтения: заявление другого анкера не делает её честно пустой.
+func (bctx *buildCtx) anchorNotCollected(categories ...string) {
+	bctx.declareCollectionFailed(categories...)
 }
 
 // collectedEmptyCategories — итоговое множество категорий, чья пустота честна.

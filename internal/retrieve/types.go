@@ -39,13 +39,14 @@ type Request struct {
 	// разбором текста задачи.
 	FocusHints []string
 	// View — "raw" (умолчание) | "effective" (D08 — effective.go). effective
-	// частично реализован: bugfix/unknown и signature-change получают
-	// precise-факты перехватчиков (категория "interceptors" на
-	// definition-анкере, через internal/resolve.DeriveIntercepts — не
-	// эвристику по имени), form получает "handler_intercepts" на обработчике.
-	// register/query/rights/posting/add-attribute остаются построены как raw
-	// — честный предел этой волны, см. Warning effective_view_partial_coverage
-	// в build.go:Build и effectiveAwareIntent. Неизвестное значение (не
+	// накладывает слои расширений: bugfix/unknown и signature-change получают
+	// precise-факты перехватчиков ("interceptors", через
+	// internal/resolve.DeriveIntercepts, не эвристику по имени), form:
+	// "handler_intercepts", posting: "posting_handler_intercepts" с движениями
+	// перехватчиков, register: "writer_intercepts", query: "query_intercepts"
+	// и запросы перехватчиков, add-attribute и rights: заимствования объекта
+	// в расширениях (ADR-035). Intent вне effectiveAwareIntent получают
+	// Warning effective_view_partial_coverage. Неизвестное значение (не
 	// "raw"/"effective"/пусто) — ошибка, не молчаливый откат.
 	View string
 	// MaxDepth — потолок глубины typed expansion (BFS callers/callees и т.п.).

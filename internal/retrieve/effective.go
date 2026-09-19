@@ -73,8 +73,13 @@ func makeInterceptCandidate(bctx *buildCtx, sc scoreCtx, ic effective.Intercept,
 	if text == "" {
 		text = fmt.Sprintf("&%s(%q)", ic.Kind, ic.TargetNameNorm)
 	}
+	// Ключ различает модуль и сам перехватчик, а не только слой и имя цели:
+	// у writer_intercepts (register) одно расширение перехватывает одно и то же
+	// имя ОбработкаПроведения в модулях РАЗНЫХ документов, и без модуля в
+	// ключе второй факт молча терялся бы при дедупликации кандидатов.
 	c := &candidate{
-		id:          fmt.Sprintf("intercept-eff:%s:%s:%s:%d", category, ic.Layer.Component, ic.TargetNameNorm, ic.Layer.ApplyOrder),
+		id: fmt.Sprintf("intercept-eff:%s:%s:%d:%s:%s:%s", category, ic.Layer.Component, ic.Layer.ApplyOrder,
+			domain.NormalizeModulePath(ic.ModulePath), ic.TargetNameNorm, ic.InterceptorNameNorm),
 		bucket:      bucketSignature,
 		category:    category,
 		component:   string(ic.Layer.Component),
@@ -223,7 +228,7 @@ func postingInterceptsWithoutBaseHandler(bctx *buildCtx, obj store.MetadataObjec
 			Message: fmt.Sprintf(
 				"не удалось прочитать %s для %s: %v — у объекта нет собственного обработчика проведения, и есть ли перехватчик расширения, ответ не знает",
 				what, obj.NameDisplay, err),
-			Hint: "повторите вызов после reindex",
+			Hint: hintRetryAfterReindex,
 		}}
 	}
 	modulePath, ok, err := postingObjectModulePath(bctx.tx, obj)
@@ -300,7 +305,7 @@ func interceptorSymbol(finder symbolFinder, ic effective.Intercept) (store.Symbo
 			Message: fmt.Sprintf(
 				"не удалось найти символ перехватчика %s (расширение %s, модуль %s): %v — его обращения к регистрам в ответ не вошли",
 				ic.InterceptorNameNorm, ic.Layer.Component, ic.ModulePath, err),
-			Hint: "повторите вызов после reindex",
+			Hint: hintRetryAfterReindex,
 		}}, false
 	}
 	want := domain.NormalizeModulePath(ic.ModulePath)
@@ -329,4 +334,174 @@ func interceptorSymbol(finder symbolFinder, ic effective.Intercept) (store.Symbo
 		}}, true
 	}
 	return matched[0], nil, true
+}
+
+// --- register (ADR-035) --------------------------------------------------
+
+// registerInterceptReadFailed: отказ чтения наложения для писателя регистра.
+// Сбой не имеет права выглядеть как «перехватчиков нет» (ADR-030): факт
+// перехвата писателя меняет ответ на вопрос «кто пишет», и молчание о том, что
+// его не удалось проверить, было бы той же немотой.
+func registerInterceptReadFailed(writer store.SymbolRow, err error) Warning {
+	return readFailedWarning("register_writer_intercepts_read_failed",
+		fmt.Sprintf("не удалось наложить расширения на писателя регистра %s.%s: %v; перехватчики этого писателя в ответ не вошли",
+			writer.ModulePath, writer.NameDisplay, err))
+}
+
+// hintRetryAfterReindex: общая подсказка предупреждений об отказе чтения.
+// Сбой чтения посреди вызова лечится повтором после reindex, и текст этой
+// подсказки обязан быть один у всех *_read_failed.
+const hintRetryAfterReindex = "повторите вызов после reindex"
+
+// readFailedWarning: конструктор предупреждения *_read_failed с общей
+// подсказкой.
+func readFailedWarning(code, message string) Warning {
+	return Warning{Code: code, Message: message, Hint: hintRetryAfterReindex}
+}
+
+// interceptsOfSymbol: перехватчики символа row по наложению вызова (кэш
+// Overlay), тот же отбор по имени цели, что effectiveInterceptsForSymbol.
+func interceptsOfSymbol(o *effective.Overlay, row store.SymbolRow) ([]effective.Intercept, []Warning, error) {
+	r, err := o.Module(row.ComponentID, row.ModulePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	var mine []effective.Intercept
+	for _, ic := range r.Intercepts {
+		if ic.TargetNameNorm == row.NameNorm {
+			mine = append(mine, ic)
+		}
+	}
+	return mine, warningsOf(r.Diagnostics), nil
+}
+
+func warningsOf(notes []effective.Notice) []Warning {
+	var out []Warning
+	for _, n := range notes {
+		out = append(out, warningOf(n))
+	}
+	return out
+}
+
+// interceptWhy: общий текст о факте перехвата для объяснений кандидатов
+// register/query: вид аннотации, слой и цель в базовом модуле.
+func interceptWhy(ic effective.Intercept) string {
+	return fmt.Sprintf("перехватчик расширения %s: &%s(%q) метода базового модуля %s",
+		ic.Layer.Component, ic.Kind, ic.TargetNameNorm, ic.ModulePath)
+}
+
+// registerWriterIntercepts: "writer_intercepts" под view=effective
+// (ADR-035): факты перехвата писателей регистра в обе стороны.
+//
+//   - Писатель базового слоя перехвачен расширением. &Вместо заменяет его, и
+//     запись базового слоя исполняется только через ПродолжитьВызов; без
+//     факта перехвата агент читает её как безусловную.
+//   - Запись сделана самим перехватчиком (register_access со слоем
+//     расширения). raw видит её как запись процедуры расширения, не связанной
+//     ни с каким базовым методом; факт перехвата называет, какое событие
+//     базового объекта её исполняет.
+//
+// Механика перехвата общая с form/posting (effectiveInterceptsForSymbol,
+// makeInterceptCandidate, interceptConflictWarnings): второй реализации нет.
+// Категория необязательная: обязательная объявила бы недостаточным любой
+// ответ по регистру без расширений.
+func registerWriterIntercepts(bctx *buildCtx, obj store.MetadataObjectRow, overlay *effective.Overlay,
+	baseWriters []store.SymbolRow, writerInterceptFacts []effective.Intercept) ([]*candidate, []Warning) {
+	sc := scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: obj.ComponentID}
+	var out []*candidate
+	var warnings []Warning
+	for _, w := range baseWriters {
+		mine, ws, err := interceptsOfSymbol(overlay, w)
+		if err != nil {
+			warnings = append(warnings, registerInterceptReadFailed(w, err))
+			continue
+		}
+		warnings = append(warnings, ws...)
+		for _, ic := range mine {
+			why := fmt.Sprintf("%s: пишет в %s (register_access), в effective-виде перехвачен", w.NameDisplay, obj.NameDisplay)
+			if ic.Kind == resolve.InterceptInstead {
+				why += " и заменён: запись базового слоя исполняется только через ПродолжитьВызов"
+			}
+			out = append(out, makeInterceptCandidate(bctx, sc, ic, "writer_intercepts", why+"; "+interceptWhy(ic)))
+		}
+		warnings = append(warnings, interceptConflictWarnings(mine)...)
+	}
+	for _, ic := range writerInterceptFacts {
+		out = append(out, makeInterceptCandidate(bctx, sc, ic, "writer_intercepts",
+			fmt.Sprintf("запись в %s сделана самим перехватчиком; %s", obj.NameDisplay, interceptWhy(ic))))
+	}
+	return out, warnings
+}
+
+// --- query (ADR-035) -----------------------------------------------------
+
+// queryInterceptCandidates: "query_intercepts" под view=effective и тексты
+// запросов самих перехватчиков символа-анкера row. Второе значение: сколько
+// текстов запросов нашлось у перехватчиков, чтобы вызывающий не объявил
+// no_query_in_symbol, когда запрос живёт только в расширении. Третье:
+// перехватчики &ИзменениеИКонтроль, чей текст заменяет базовый.
+//
+// Символ перехватчика ищется по факту перехвата (interceptorSymbol: слой +
+// путь модуля + имя), а не по подстроке имени; его запросы ложатся в те же
+// query_text/schema/tables_fields, что запросы анкера, но с component слоя
+// расширения, поэтому в ответе отличимы от базовых. Собираются ТОЛЬКО
+// перехватчики самого анкера, а не все запросы модулей расширений.
+func queryInterceptCandidates(bctx *buildCtx, row store.SymbolRow) ([]*candidate, int, []effective.Intercept, []Warning) {
+	mine, _, warnings, err := effectiveInterceptsForSymbol(bctx.tx, row)
+	if err != nil {
+		return nil, 0, nil, []Warning{readFailedWarning("query_intercepts_read_failed",
+			fmt.Sprintf("не удалось наложить расширения на %s.%s: %v; перехватчики и их запросы в ответ не вошли",
+				row.ModulePath, row.NameDisplay, err))}
+	}
+	sc := scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: row.ComponentID}
+	var out []*candidate
+	var replacing []effective.Intercept
+	count := 0
+	for _, ic := range mine {
+		if ic.Kind == resolve.InterceptChangeAndValidate {
+			replacing = append(replacing, ic)
+		}
+		out = append(out, makeInterceptCandidate(bctx, sc, ic, "query_intercepts",
+			fmt.Sprintf("владелец запроса %s перехвачен; %s", row.NameDisplay, interceptWhy(ic))))
+		sym, symWarnings, ok := interceptorSymbol(bctx.symbols, ic)
+		warnings = append(warnings, symWarnings...)
+		if !ok {
+			continue
+		}
+		queries, qerr := bctx.queries.QueriesBySymbolID(sym.ID)
+		if qerr != nil {
+			warnings = append(warnings, readFailedWarning("query_intercepts_read_failed",
+				fmt.Sprintf("не удалось прочитать запросы перехватчика %s расширения %s: %v; его тексты запросов в ответ не вошли",
+					sym.NameDisplay, ic.Layer.Component, qerr)))
+			continue
+		}
+		count += len(queries)
+		qCands, qWarnings := queryCandidates(bctx, sym, queries, sc, " ("+interceptWhy(ic)+")")
+		out = append(out, qCands...)
+		warnings = append(warnings, qWarnings...)
+	}
+	warnings = append(warnings, interceptConflictWarnings(mine)...)
+	return out, count, replacing, warnings
+}
+
+// borrowedObjectsFinder: единственная выборка заимствований, которой
+// пользуются add-attribute и rights. Объявлена потребителем (тот же приём,
+// что symbolFinder): без неё отказ чтения и отзыв заявления forms/rls
+// недостижимы тестом.
+type borrowedObjectsFinder interface {
+	BorrowedObjects(obj store.MetadataObjectRow) ([]store.MetadataObjectRow, error)
+}
+
+// storeBorrowedObjects: продакшн-вариант поверх транзакции вызова, наложение
+// объекта из internal/effective.
+type storeBorrowedObjects struct{ tx *store.ReadTx }
+
+func (s storeBorrowedObjects) BorrowedObjects(obj store.MetadataObjectRow) ([]store.MetadataObjectRow, error) {
+	return effective.BorrowedObjects(effective.StoreObjectSource(s.tx), obj)
+}
+
+// queryReader: чтение текстов запросов символа (query). Шов ради отказа
+// чтения запросов анкера, который не должен теряться (ADR-035).
+type queryReader interface {
+	QueriesBySymbolID(symbolID int64) ([]store.QueryRow, error)
 }

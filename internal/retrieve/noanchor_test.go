@@ -54,25 +54,6 @@ func TestViewEffectiveBugfixNoInterceptorNoise(t *testing.T) {
 	requireCoverageStatus(t, res, "definition", CompleteInline)
 }
 
-// TestViewEffectivePartialCoverageWarningForRawOnlyIntent — D08: intent, для
-// которого typed expansion пока не консультируется с internal/resolve
-// (register — RAW-only в этой волне), обязан честно нести
-// effective_view_partial_coverage при view=effective, а не молчать.
-func TestViewEffectivePartialCoverageWarningForRawOnlyIntent(t *testing.T) {
-	st := openFixtureStore(t)
-	seedScenarioFixture(t, st)
-	res := buildFor(t, st, Request{Task: "Кто пишет в регистр ТоварыНаСкладах", ProjectID: "p", View: "effective"})
-	found := false
-	for _, w := range res.Warnings {
-		if w.Code == "effective_view_partial_coverage" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("нет warning effective_view_partial_coverage для intent=register: %+v", res.Warnings)
-	}
-}
-
 // TestViewInvalidIsError — D08: опечатка в view — ошибка, не молчаливый
 // откат на raw (тот же принцип, что internal/app/effective.go:parseView уже
 // применяет к get_symbol/get_object/get_module_structure, тикет 14).
