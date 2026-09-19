@@ -210,9 +210,8 @@ func matchEndpoints(call HTTPCallFact, eps []HTTPEndpointFact) ([]HTTPEndpointFa
 		}
 	}
 	if hs < 0 {
-		if isPrefix {
-			return nil, ReasonPrefixBeforeRoot
-		}
+		// Без сегмента hs это не адрес HTTP-сервиса 1С (сторонний API,
+		// веб-сервис, OData): сервиса по такому пути нет ни в одной базе.
 		return nil, ReasonNoEndpoint
 	}
 	rest := segs[hs+1:]

@@ -62,7 +62,8 @@
     Subsystem: ["Подсистема", "Подсистема", "#8b929c"],
     FilterCriterion: ["Критерий отбора", "Критерий", "#8b929c"],
     SettingsStorage: ["Хранилище настроек", "Хранилище", "#8b929c"],
-    IntegrationService: ["Сервис интеграции", "Интеграция", "#7dcfff"]
+    IntegrationService: ["Сервис интеграции", "Интеграция", "#7dcfff"],
+    ExternalHTTP: ["Внешний HTTP-адресат", "внешний HTTP", "#8b929c"]
   };
   var MTYPE_DEFAULT_COLOR = "#8b929c";
 
@@ -905,7 +906,7 @@
     var el = cy.getElementById(id);
     if (el.nonempty()) return el;
     el = cy.add({ group: "nodes", classes: "external",
-      data: { id: id, objectId: null, external: true, mtype: "",
+      data: { id: id, objectId: null, external: true, mtype: "ExternalHTTP",
         nameDisplay: host ? "внешний HTTP: " + host : "внешний HTTP (адресат не найден)", color: "#8b929c", label: "" },
       position: near && near.nonempty() ? { x: near.position("x") - 40, y: near.position("y") + 40 } : { x: 0, y: 0 } });
     el.data("label", el.data("nameDisplay"));
@@ -929,13 +930,18 @@
             provenance: "code", layer: "", layers: [], diff: "", http: l,
             color: l.external ? "#8b929c" : KIND_INFO["http-call"].color, opacity: edgeOpacity(l.confidence || 0.3) } });
       });
+      // Бейдж ставится только узлам, уже стоящим на карте: вызов с
+      // вычисляемым адресом в общем модуле-хабе приписан сотням объектов, и
+      // добавлять их все на карту значило бы утопить в них связи.
       (item.badges || []).forEach(function (b) {
-        var el = httpNode(b.node);
+        var id = b.node.project === state.project ? String(b.node.id) : "p:" + b.node.project + ":" + b.node.id;
+        var el = cy.getElementById(id);
+        if (el.empty()) return;
         el.data("httpDynamic", b.count);
-        el.data("httpBadge", b);
         refreshLabel(el);
       });
       applyFilters();
+      updateEmpty();
       runLayout();
       var ext = (item.links || []).filter(function (l) { return l.external; }).length;
       setStatus("HTTP-связей " + (item.links || []).length + " (внешних " + ext + "), объектов с вычисляемым адресом " +
@@ -948,7 +954,7 @@
     return (calls || []).map(function (c) {
       return "<div class='evidence-chain-step'>" + escapeHTML(c.file + ":" + c.line) + (c.symbol ? " " + escapeHTML(c.symbol) : "") +
         (c.verb ? " " + escapeHTML(c.verb) : "") + (c.host ? " " + escapeHTML(c.host) : "") +
-        (c.path ? " " + escapeHTML(c.path) : "") + " <span class='muted'>(" + escapeHTML(c.pathKind) + (c.attributed ? "" : ", вызов в модуле без вызывающих объектов") + ")</span></div>";
+        (c.path ? " " + escapeHTML(c.path) : "") + (c.pathSuffix ? " … " + escapeHTML(c.pathSuffix) : "") + " <span class='muted'>(" + escapeHTML(c.pathKind) + (c.attributed ? "" : ", вызов в модуле без вызывающих объектов") + ")</span></div>";
     }).join("");
   }
 
