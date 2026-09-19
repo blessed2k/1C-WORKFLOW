@@ -43,12 +43,23 @@ type migration struct {
 // строкам подряд, а таблицы графа создаются пустыми. Поэтому шаг помечен
 // needsFullRebuild — признак ложится в meta и снимается только завершённой
 // полной переиндексацией.
+//
+// Шаг до 3 DDL не меняет вовсе: он объявляет СОДЕРЖИМОЕ индексов версии 2
+// ненадёжным. До ADR-037 инкремент после правки файла-цели (тело общего
+// модуля, XML объекта) обрывал указатели нетронутых файлов на пересозданные
+// узлы: ссылки оставались unresolved, call_edge resolved без callee,
+// обработчики подписок и объекты запросов пустыми. Какие строки задеты,
+// по базе не восстановить (unresolved неотличим от честного), и починить их
+// может только полная пересборка, её шаг и требует.
 var migrations = []migration{{
 	to:               2,
 	needsFullRebuild: true,
 	statements: append([]string{
 		`ALTER TABLE register_access ADD COLUMN layer TEXT NOT NULL DEFAULT 'base'`,
 	}, append(splitStatements(objectGraphTables), splitStatements(objectGraphIndexes)...)...),
+}, {
+	to:               3,
+	needsFullRebuild: true,
 }}
 
 // errSchemaFromFuture — БД собрана более новой версией пакета. По разделу 15

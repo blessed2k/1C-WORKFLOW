@@ -224,9 +224,9 @@ func TestMigrationToSchema2(t *testing.T) {
 	}
 	downgradeToV1(t, s)
 
-	applied, err := migrate(ctx, s.writer, migrations, SchemaVersion)
+	applied, err := migrate(ctx, s.writer, migrations[:1], 2)
 	if err != nil {
-		t.Fatalf("миграция до %d: %v", SchemaVersion, err)
+		t.Fatalf("миграция до 2: %v", err)
 	}
 	if applied != 1 {
 		t.Fatalf("применено шагов %d, ожидался 1", applied)
@@ -267,9 +267,61 @@ func TestMigrationToSchema2(t *testing.T) {
 	}
 	assertValid(t, s, "после миграции до схемы 2")
 
-	applied, err = migrate(ctx, s.writer, migrations, SchemaVersion)
+	applied, err = migrate(ctx, s.writer, migrations[:1], 2)
 	if err != nil || applied != 0 {
 		t.Errorf("повторная миграция: applied=%d err=%v", applied, err)
+	}
+}
+
+// Индекс, собранный и полностью переиндексированный версией схемы 2, мог
+// накопить оборванные инкрементом указатели (ADR-037). Открытие новой версией
+// обязано затребовать полную пересборку, не трогая данные и эпоху: DDL у шага
+// нет, ненадёжно только содержимое.
+func TestMigrationTo3RequiresFullRebuild(t *testing.T) {
+	root := t.TempDir()
+	opts := Options{ProjectID: "project", StateDirName: testStateDir}
+	ctx := context.Background()
+	fill := func(tx *WriteTx) error {
+		var f fixture
+		return seedFixture(tx, &f)
+	}
+	s, err := Open(root, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Rebuild(ctx, fill); err != nil {
+		t.Fatalf("полная переиндексация: %v", err)
+	}
+	if err := s.Write(ctx, func(tx *WriteTx) error { return tx.SetMeta(metaSchemaVersion, "2") }); err != nil {
+		t.Fatalf("сведение версии схемы к 2: %v", err)
+	}
+	st := statusOf(t, s)
+	if st.NeedsFullRebuild {
+		t.Fatal("до миграции индекс уже требует пересборки: проверка ничего не докажет")
+	}
+	symbols := countRows(t, s, "symbol", "")
+	epochBefore := st.Epoch
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s1, err := Open(root, opts)
+	if err != nil {
+		t.Fatalf("открытие индекса версии 2: %v", err)
+	}
+	defer s1.Close()
+	st = statusOf(t, s1)
+	if !st.NeedsFullRebuild {
+		t.Error("индекс версии 2 открыт без требования полной пересборки: оборванные указатели остались бы под видом свежих")
+	}
+	if st.SchemaVersion != 3 || SchemaVersion != 3 {
+		t.Errorf("schema_version=%d (пакет %d), ожидалась 3", st.SchemaVersion, SchemaVersion)
+	}
+	if st.Epoch != epochBefore {
+		t.Errorf("эпоха %d, ожидалась прежняя %d", st.Epoch, epochBefore)
+	}
+	if n := countRows(t, s1, "symbol", ""); n != symbols {
+		t.Errorf("после миграции символов %d, было %d", n, symbols)
 	}
 }
 
