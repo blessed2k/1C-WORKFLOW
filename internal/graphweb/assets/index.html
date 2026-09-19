@@ -8,6 +8,7 @@
   :root {
     --bg: #1b1e23;
     --panel: #22262c;
+    --panel-2: #2a2f36;
     --border: #363c44;
     --text: #d7dbe0;
     --muted: #8b929c;
@@ -15,108 +16,195 @@
     --warn: #e0a72e;
     --danger: #e05a4e;
     --stale: #b085f5;
+    --radius: 6px;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: var(--text);
     background: var(--bg);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
+    display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border);
   }
-  header h1 { font-size: 14px; margin: 0; font-weight: 600; white-space: nowrap; }
-  header label { color: var(--muted); font-size: 12px; }
-  header input[type=number], header input[type=text], header select {
+  header h1 { font-size: 14px; margin: 0 6px 0 0; font-weight: 600; white-space: nowrap; }
+  select, input[type=text] {
     background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    border-radius: 4px; padding: 3px 6px; font: inherit;
+    border-radius: var(--radius); padding: 5px 8px; font: inherit;
   }
+  select:focus, input[type=text]:focus { outline: none; border-color: var(--accent); }
   button {
     background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer;
+    border-radius: var(--radius); padding: 5px 10px; font: inherit; cursor: pointer; white-space: nowrap;
   }
   button:hover { border-color: var(--accent); }
   button.active { border-color: var(--accent); color: var(--accent); }
-  #filters {
-    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
-    background: var(--panel); border-bottom: 1px solid var(--border);
-    flex-wrap: wrap; font-size: 12px;
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0d1117; font-weight: 600; }
+  .spacer { flex: 1; }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* поиск */
+  #searchBox { position: relative; flex: 0 1 380px; min-width: 200px; }
+  #search { width: 100%; }
+  #results {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+    max-height: 60vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.45);
   }
-  #filters .kind { display: flex; align-items: center; gap: 4px; }
-  #filters .kind .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  #results[hidden] { display: none; }
+  .result { padding: 6px 10px; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; }
+  .result + .result { border-top: 1px solid var(--border); }
+  .result.active, .result:hover { background: rgba(77,163,255,.14); }
+  .result .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex: none; }
+  .result .name { font-weight: 600; word-break: break-word; }
+  .result .meta { color: var(--muted); font-size: 12px; }
+  .result .deg { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .result.empty { color: var(--muted); cursor: default; }
+
+  /* фильтры рёбер */
+  #filters {
+    display: flex; align-items: center; gap: 6px 14px; padding: 6px 12px; flex-wrap: wrap;
+    background: var(--panel); border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  #filters .kind { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  #filters .kind code { color: var(--muted); font-size: 11px; }
+  .swatch { width: 18px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
+  .swatch.dashed { background: none !important; border-top: 3px dashed; height: 0; }
+  #filters input[type=range] { width: 110px; vertical-align: middle; }
+  #filters .conf { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+
+  #status { font-size: 12px; color: var(--muted); padding: 3px 12px; min-height: 22px; }
+  #status.error { color: var(--danger); }
+
   #main { flex: 1; display: flex; min-height: 0; }
-  #cy { flex: 1; min-width: 0; background: var(--bg); }
+  #cyWrap { flex: 1; min-width: 0; position: relative; }
+  #cy { position: absolute; inset: 0; background: var(--bg); }
+  #empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); text-align: center; padding: 24px; pointer-events: none;
+  }
+  #empty[hidden] { display: none; }
+  #empty strong { color: var(--text); }
+  #tip {
+    position: absolute; z-index: 10; pointer-events: none; max-width: 340px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 6px 9px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  }
+  #tip[hidden] { display: none; }
+  #tip .t-title { font-weight: 600; word-break: break-word; }
+  #tip .t-meta { color: var(--muted); }
+
   #side {
     width: 340px; flex: none; border-left: 1px solid var(--border);
-    background: var(--panel); overflow-y: auto; padding: 10px;
+    background: var(--panel); overflow-y: auto; padding: 12px;
     display: flex; flex-direction: column; gap: 14px;
   }
-  #side h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
-  #side section { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  #side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  #side section { border-bottom: 1px solid var(--border); padding-bottom: 14px; }
   #side section:last-child { border-bottom: none; }
+  .card-name { font-size: 15px; font-weight: 600; word-break: break-word; }
+  .card-sub { color: var(--muted); margin-top: 2px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin-top: 8px; font-size: 12px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .badge-row { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; font-size: 12px; }
-  .badge-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
-  .badge-dot.has-dynamic { background: var(--warn); }
-  .badge-dot.attribution-truncated { background: var(--danger); }
-  .badge-dot.attribution-stale { background: var(--stale); }
-  table.godnodes { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.godnodes th, table.godnodes td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--border); }
+  .muted { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .evidence-chain-step { border-left: 2px solid var(--border); padding-left: 8px; margin: 6px 0; font-size: 12px; word-break: break-word; }
+  table.godnodes { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  table.godnodes th, table.godnodes td { text-align: left; padding: 4px; border-bottom: 1px solid var(--border); }
+  table.godnodes td.num, table.godnodes th.num { text-align: right; font-variant-numeric: tabular-nums; }
   table.godnodes tr.clickable { cursor: pointer; }
   table.godnodes tr.clickable:hover { background: rgba(77,163,255,.12); }
-  .muted { color: var(--muted); }
-  .evidence-chain-step { border-left: 2px solid var(--border); padding-left: 8px; margin: 6px 0; font-size: 12px; }
-  #status { font-size: 12px; color: var(--muted); padding: 4px 12px; }
-  #status.error { color: var(--danger); }
-  .more-btn { margin-top: 6px; }
+  table.godnodes .name { word-break: break-word; }
+  .legend-list { display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .legend-item .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .legend-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-notes { margin-top: 10px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+
+  @media (max-width: 1000px) {
+    #side { width: 270px; padding: 10px; }
+    #filters code { display: none; }
+  }
+  @media (max-width: 700px) {
+    #main { flex-direction: column; }
+    #side { width: auto; height: 38vh; border-left: none; border-top: 1px solid var(--border); }
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>Объектный граф</h1>
-  <label>Проект <select id="project"></select></label>
-  <label>Узел <input id="nodeId" type="number" min="1" placeholder="id объекта"></label>
-  <button id="openBtn">Открыть</button>
-  <button id="godBtn">God-node</button>
-  <button id="resetBtn">Очистить карту</button>
+  <select id="project" title="Проект"></select>
+  <div id="searchBox">
+    <input id="search" type="text" autocomplete="off" spellcheck="false"
+      placeholder="Объект по имени, например ПрочиеРасходы"
+      title="Поиск по части имени без учёта регистра; #123 открывает узел по id; / ставит курсор сюда">
+    <div id="results" hidden></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="btn-group">
+    <button id="fitBtn" title="Вписать карту в экран">Вписать</button>
+    <button id="layoutBtn" title="Разложить заново вокруг фокусного узла">Раскладка заново</button>
+    <button id="resetBtn" title="Убрать всё с карты">Очистить</button>
+    <button id="godBtn" title="Самые связанные объекты">God-node</button>
+  </div>
 </header>
 <div id="filters">
   <span class="muted">Рёбра:</span>
-  <label class="kind"><span class="swatch" style="background:#4da3ff"></span><input type="checkbox" data-kind="writes-register" checked> writes-register</label>
-  <label class="kind"><span class="swatch" style="background:#5bd67d"></span><input type="checkbox" data-kind="reads-register" checked> reads-register</label>
-  <label class="kind"><span class="swatch" style="background:#e0a72e"></span><input type="checkbox" data-kind="writes-declared" checked> writes-declared</label>
-  <label class="kind"><span class="swatch" style="background:#b085f5"></span><input type="checkbox" data-kind="reads-query" checked> reads-query</label>
-  <span class="muted" style="margin-left:12px;">confidence &ge;</span>
+  <label class="kind"><input type="checkbox" data-kind="writes-register" checked><span class="swatch" style="background:#4da3ff"></span>пишет в регистр <code>writes-register</code></label>
+  <label class="kind"><input type="checkbox" data-kind="writes-declared" checked><span class="swatch" style="background:#e0a72e"></span>движения <code>writes-declared</code></label>
+  <label class="kind"><input type="checkbox" data-kind="reads-register" checked><span class="swatch dashed" style="border-color:#5bd67d"></span>читает регистр <code>reads-register</code></label>
+  <label class="kind"><input type="checkbox" data-kind="reads-query" checked><span class="swatch dashed" style="border-color:#b085f5"></span>читает запросом <code>reads-query</code></label>
+  <span class="conf"><span class="muted">confidence &ge;</span>
   <input id="minConfidence" type="range" min="0" max="1" step="0.05" value="0">
-  <span id="minConfidenceLabel">0.00</span>
+  <span id="minConfidenceLabel">0.00</span></span>
 </div>
 <div id="status"></div>
 <div id="main">
-  <div id="cy"></div>
+  <div id="cyWrap">
+    <div id="cy"></div>
+    <div id="empty">
+      <div>
+        <div><strong>Найдите объект по имени</strong> в поле сверху или откройте God-node.</div>
+        <div style="margin-top:6px;">Двойной клик по узлу раскрывает соседей, клик показывает карточку.</div>
+      </div>
+    </div>
+    <div id="tip" hidden></div>
+  </div>
   <div id="side">
     <section id="nodePanel">
       <h2>Узел</h2>
-      <div class="muted">Кликните узел, чтобы увидеть карточку и раскрыть соседей.</div>
+      <div class="hint">Кликните узел, чтобы увидеть карточку. Двойной клик раскрывает соседей.</div>
     </section>
     <section id="edgePanel" hidden>
-      <h2>Evidence ребра</h2>
+      <h2>Ребро</h2>
       <div id="edgeContent"></div>
     </section>
     <section id="godPanel" hidden>
       <h2>God-node</h2>
-      <div>
+      <div class="btn-group">
         <button id="godFanIn" class="active">fan-in</button>
         <button id="godFanOut">fan-out</button>
       </div>
-      <table class="godnodes"><thead><tr><th>Объект</th><th>fan-in</th><th>fan-out</th></tr></thead><tbody id="godBody"></tbody></table>
+      <table class="godnodes"><thead><tr><th>Объект</th><th class="num">вх.</th><th class="num">исх.</th></tr></thead><tbody id="godBody"></tbody></table>
+    </section>
+    <section id="legendPanel">
+      <h2>Легенда</h2>
+      <div id="legendTypes" class="legend-list"></div>
+      <div class="legend-notes">
+        <div>Стрелка показывает, куда идут данные: документ пишет в регистр (стрелка к регистру), читатель получает данные из регистра (стрелка к читателю).</div>
+        <div>Сплошная линия: запись, пунктир: чтение. Бледнее: ниже confidence.</div>
+        <div><b>12/85</b> на узле: на карте 12 связей из 85.</div>
+        <div>⚡ динамика не даёт рёбер, ✂ атрибуция упёрлась в потолок, ⏳ связь могла устареть.</div>
+      </div>
     </section>
   </div>
 </div>
