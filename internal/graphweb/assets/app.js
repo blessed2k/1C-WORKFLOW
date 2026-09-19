@@ -5,6 +5,11 @@
 // двойной клик догружает соседей (GET /api/neighbors/{id}) страницами.
 // GET /api/radius не вызывается никогда: это инструмент MCP, не SPA (spec §7).
 //
+// Режим слоёв (веха В3): карточки, соседи и god-node запрашиваются с
+// view=raw|effective|diff. Узлы в режимах канонические (строка базы у
+// заимствованного объекта), поэтому смена режима перерисовывает те же узлы:
+// карта очищается и заново раскрывает то, что было раскрыто.
+//
 // Раскладка: кольца вокруг фокусного узла (последний раскрытый) по
 // BFS-расстоянию от него, подробности у runLayout. cose на тех же данных
 // давал перекрытия длинных подписей и каждый раз новую картинку.
@@ -76,8 +81,16 @@
     "attribution-stale": "связь могла устареть (снимается полной пересборкой)"
   };
 
+  var VIEWS = ["raw", "effective", "diff"];
+  var VIEW_EMPTY = {
+    raw: "",
+    effective: "",
+    diff: "расширения не добавили этому узлу связей"
+  };
+
   var state = {
     project: "",
+    view: "effective", // raw|effective|diff, см. setView
     kinds: Object.keys(KIND_INFO).reduce(function (acc, k) { acc[k] = true; return acc; }, {}),
     minConfidence: 0,
     cards: {},        // objectId -> полная карточка /api/node (badges, fanIn, fanOut)
@@ -130,6 +143,7 @@
   var css = getComputedStyle(document.documentElement);
   var COLOR_BG = css.getPropertyValue("--bg").trim() || "#1b1e23";
   var COLOR_TEXT = css.getPropertyValue("--text").trim() || "#d7dbe0";
+  var COLOR_EXT = css.getPropertyValue("--ext").trim() || "#2ee6c5";
 
   var cy = cytoscape({
     container: document.getElementById("cy"),
@@ -195,6 +209,13 @@
         selector: "edge.read",
         style: { "line-style": "dashed", "line-dash-pattern": [6, 4], "target-arrow-shape": "none", "source-arrow-shape": "triangle" }
       },
+      {
+        // Ребро расширения: цвет линии остаётся цветом вида связи, слой
+        // показан подсветкой вокруг линии. Ярче: связь, которой нет в raw.
+        selector: "edge.ext",
+        style: { "underlay-color": COLOR_EXT, "underlay-padding": 3, "underlay-opacity": 0.22 }
+      },
+      { selector: "edge.added", style: { "underlay-opacity": 0.6, "width": 2.4 } },
       { selector: "edge.hl", style: { "width": 3, "opacity": 1, "z-index": 10 } },
       { selector: "node.hl", style: { "font-weight": "bold", "z-index": 10 } },
       { selector: ".faded", style: { "opacity": 0.12 } },
@@ -263,10 +284,19 @@
       data: {
         id: id, edgeId: item.id, source: String(item.fromObjectId), target: String(item.toObjectId),
         kind: item.kind, confidence: item.confidence, provenance: item.provenance, mode: item.mode,
+        layer: item.layer || "", diff: item.diff || "",
         color: info ? info.color : "#888", opacity: edgeOpacity(item.confidence)
       },
-      classes: info && info.read ? "read" : ""
+      classes: [info && info.read ? "read" : "", isExtLayer(item.layer) ? "ext" : "", item.diff === "added" ? "added" : ""].join(" ").trim()
     });
+  }
+
+  function isExtLayer(layer) { return !!layer && layer !== "base"; }
+
+  // Слой ребра словами: для подсказки и панели evidence.
+  function layerText(d) {
+    if (!isExtLayer(d.layer)) return "слой base";
+    return "расширение " + d.layer + (d.diff === "added" ? ", новая связь (в raw её нет)" : ", такая связь есть и в базе");
   }
 
   function applyFilters() {
@@ -294,7 +324,7 @@
   }
 
   function fetchCard(objectId, attempt) {
-    return fetchJSON("/api/node/" + objectId).catch(function (err) {
+    return fetchJSON("/api/node/" + objectId, { view: state.view }).catch(function (err) {
       if (attempt > 0) throw err;
       return new Promise(function (r) { setTimeout(r, 400); }).then(function () { return fetchCard(objectId, 1); });
     });
@@ -338,7 +368,10 @@
       html += "<dt>Исходящих</dt><dd>" + card.fanOut + "</dd>";
     }
     html += "<dt>На карте</dt><dd>" + node.connectedEdges().length + " связей</dd>";
-    if (card) html += "<dt>Компонент</dt><dd>" + escapeHTML(card.component) + ", слой " + escapeHTML(card.layer) + "</dd>";
+    if (card) {
+      var comps = card.components && card.components.length ? card.components.join(", ") : card.component;
+      html += "<dt>Компонент</dt><dd>" + escapeHTML(comps) + "</dd>";
+    }
     html += "<dt>id</dt><dd>" + objectId + "</dd>";
     html += "</dl>";
 
@@ -354,6 +387,19 @@
     actions += "<button data-act='focus'>В центр</button></div>";
     html += actions;
 
+    if (card && card.extensionEdges && card.extensionEdges.length) {
+      html += "<div class='ext-list'><div class='muted'>Связи от расширений" + (state.view === "diff" ? " (новые)" : "") + ":</div>";
+      card.extensionEdges.forEach(function (x, i) {
+        var info = KIND_INFO[x.kind];
+        var verb = info ? info.verb : x.kind;
+        var text = x.direction === "out"
+          ? verb + " " + mtypeShort(x.otherMType) + " " + x.otherDisplay
+          : mtypeShort(x.otherMType) + " " + x.otherDisplay + " " + verb + " этот объект";
+        html += "<div class='ext-row' data-ext='" + i + "' title='открыть " + escapeHTML(x.otherDisplay) + "'><span class='tag'>" +
+          escapeHTML(x.layer) + "</span><span>" + escapeHTML(text) + (x.diff === "added" ? " <b>+</b>" : "") + "</span></div>";
+      });
+      html += "</div>";
+    }
     if (card && card.badges && card.badges.length) {
       html += "<div style='margin-top:10px;'>";
       card.badges.forEach(function (b) {
@@ -363,6 +409,12 @@
       html += "</div>";
     }
     el.innerHTML = html;
+    el.querySelectorAll("[data-ext]").forEach(function (row) {
+      row.onclick = function () {
+        var x = card.extensionEdges[Number(row.getAttribute("data-ext"))];
+        if (x) openAndExpand(x.otherObjectId);
+      };
+    });
     var btnExpand = el.querySelector("[data-act=expand]");
     if (btnExpand) btnExpand.onclick = function () { expand(objectId); };
     el.querySelector("[data-act=focus]").onclick = function () { state.focus = objectId; markFocus(); runLayout(); };
@@ -399,7 +451,7 @@
     // limit закреплён за узлом с первой страницы: курсор API привязан к нему,
     // а neighborPage() меняется вместе с размером окна.
     ex = state.expanded[objectId] = ex || { nextCursor: "", total: 0, loaded: 0, limit: neighborPage() };
-    var params = { dir: "both", limit: String(ex.limit) };
+    var params = { dir: "both", limit: String(ex.limit), view: state.view };
     if (ex.nextCursor) params.cursor = ex.nextCursor;
     ex.busy = true;
     setStatus("загружаю соседей…");
@@ -421,7 +473,7 @@
       Object.keys(touched).forEach(function (id) { refreshLabel(cy.getElementById(id)); });
       updateEmpty();
       runLayout();
-      setStatus(ex.nextCursor ? "показано " + ex.loaded + " из " + ex.total + " связей узла, остальные: «Догрузить ещё» в карточке" : "");
+      setStatus(ex.nextCursor ? "показано " + ex.loaded + " из " + ex.total + " связей узла, остальные: «Догрузить ещё» в карточке" : viewNote(resp, ex.total));
       if (state.selected === objectId) renderNodePanel(objectId);
       // Карточки новых узлов (бейджи и степени) догружаются по одной на узел
       // и только один раз за сессию карты.
@@ -431,6 +483,17 @@
     }).then(function () {
       ex.busy = false;
     });
+  }
+
+  // Строка статуса о режиме: без расширений effective и diff честно
+  // совпадают с raw или пусты, это надо сказать, а не показать пустоту.
+  function viewNote(resp, total) {
+    var codes = (resp.warnings || []).map(function (w) { return w.code; });
+    if (state.view !== "raw" && codes.indexOf("no_extensions") >= 0) {
+      return "в проекте нет расширений: effective совпадает с raw, diff пуст";
+    }
+    if (!total && VIEW_EMPTY[state.view]) return VIEW_EMPTY[state.view];
+    return "";
   }
 
   // Открыть объект по id: карточка, узел на карте и сразу соседи.
@@ -776,7 +839,8 @@
     var info = KIND_INFO[d.kind];
     showTip("<div>" + edgeSentence(d) + "</div><div class='t-meta'>" + escapeHTML(d.kind) + (info ? ": " + escapeHTML(info.title) : "") +
       "</div><div class='t-meta'>confidence " + Number(d.confidence).toFixed(2) + " · " + escapeHTML(d.provenance) +
-      (d.mode ? " · " + escapeHTML(d.mode) : "") + "</div><div class='t-meta'>клик: evidence</div>", evt);
+      (d.mode ? " · " + escapeHTML(d.mode) : "") + "</div><div class='t-meta'>" + escapeHTML(layerText(d)) +
+      "</div><div class='t-meta'>клик: evidence</div>", evt);
   });
   cy.on("mouseout", "edge", function (evt) {
     evt.target.removeClass("hl");
@@ -916,6 +980,47 @@
   }
   document.getElementById("resetBtn").addEventListener("click", resetMap);
 
+  // ---- режим слоёв ---------------------------------------------------
+  // Смена режима: карточки и соседи других режимов не годятся (степени и
+  // набор рёбер другие), поэтому карта очищается и заново раскрывает фокус,
+  // затем остальные раскрытые узлы в прежнем порядке.
+  var viewButtons = document.querySelectorAll(".view-switch [data-view]");
+  function markView() {
+    viewButtons.forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === state.view); });
+  }
+  function setView(v) {
+    if (VIEWS.indexOf(v) < 0 || v === state.view) return;
+    var reopen = Object.keys(state.expanded).map(Number);
+    var focus = state.focus;
+    state.view = v;
+    markView();
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set("view", v);
+      window.history.replaceState(null, "", u.toString());
+    } catch (e) { /* адрес не обязателен для работы карты */ }
+    resetMap();
+    if (!godPanel.hidden) loadGodNodes();
+    if (focus != null) reopen = [focus].concat(reopen.filter(function (id) { return id !== focus; }));
+    var chain = Promise.resolve();
+    reopen.forEach(function (id, i) {
+      chain = chain.then(function () {
+        if (i === 0) return openAndExpand(id);
+        if (cy.getElementById(String(id)).nonempty()) return expand(id);
+      });
+    });
+    chain.then(function () {
+      if (focus != null && cy.getElementById(String(focus)).nonempty()) {
+        state.focus = focus;
+        markFocus();
+        runLayout();
+      }
+    });
+  }
+  viewButtons.forEach(function (b) {
+    b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
+  });
+
   // ---- фильтры -------------------------------------------------------
   document.querySelectorAll("#filters input[type=checkbox]").forEach(function (cb) {
     cb.addEventListener("change", function () {
@@ -968,9 +1073,12 @@
   }
 
   function loadGodNodes() {
-    fetchJSON("/api/godnodes", { metric: state.godMetric, top: "20" }).then(function (resp) {
+    fetchJSON("/api/godnodes", { metric: state.godMetric, top: "20", view: state.view }).then(function (resp) {
       var body = document.getElementById("godBody");
       body.innerHTML = "";
+      if (!(resp.items || []).length) {
+        body.innerHTML = "<tr><td colspan='3' class='muted'>" + escapeHTML(viewNote(resp, 0) || "нет узлов") + "</td></tr>";
+      }
       (resp.items || []).forEach(function (it) {
         var tr = document.createElement("tr");
         tr.className = "clickable";
@@ -991,7 +1099,8 @@
     var content = document.getElementById("edgeContent");
     var info = KIND_INFO[d.kind];
     var head = "<div>" + edgeSentence(d) + "</div><div class='muted' style='margin-top:4px;'>" + escapeHTML(d.kind) +
-      (info ? ": " + escapeHTML(info.title) : "") + " · confidence " + Number(d.confidence).toFixed(2) + "</div>";
+      (info ? ": " + escapeHTML(info.title) : "") + " · confidence " + Number(d.confidence).toFixed(2) + "</div>" +
+      "<div class='muted'>" + escapeHTML(layerText(d)) + "</div>";
     content.innerHTML = head + "<div class='hint' style='margin-top:8px;'>загружаю evidence…</div>";
     panel.hidden = false;
     fetchJSON("/api/edge/" + d.edgeId + "/evidence").then(function (resp) {
@@ -1053,6 +1162,8 @@
   renderLegend();
   updateEmpty();
   var params = new URLSearchParams(window.location.search);
+  if (VIEWS.indexOf(params.get("view")) >= 0) state.view = params.get("view");
+  markView();
   loadProjects().then(function () {
     if (params.get("project")) {
       state.project = params.get("project");
