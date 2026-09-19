@@ -38,8 +38,32 @@ type objectGraphInput struct {
 	MinConfidence float64  `json:"minConfidence,omitempty" jsonschema:"minimum confidence (0..1]"`
 	View          string   `json:"view,omitempty" jsonschema:"raw (base only), effective (with extensions, borrowed objects merged) or diff (edges added by extensions); default: layers as stored"`
 	Project       string   `json:"project,omitempty" jsonschema:"root of another registered project, for this call only"`
+	CrossProjects []string `json:"crossProjects,omitempty" jsonschema:"roots of other registered projects to stitch HTTP calls with (http-call edges)"`
 	Limit         int      `json:"limit,omitempty" jsonschema:"page size, default 50, max 200"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"nextCursor of the previous page"`
+}
+
+// objectGraphOutput is the Radius envelope plus the optional HTTP links of
+// the object (milestone V2, ADR-039): http-call edges cross project
+// boundaries and live outside object_data_edge, so they come as their own
+// block instead of mixing foreign ids into items.
+type objectGraphOutput struct {
+	app.Response[app.RadiusEdgeItem]
+	HTTPLinks *app.CrossLinksItem `json:"httpLinks,omitempty"`
+}
+
+// wantsHTTPLinks: http-call edges are read when asked by kind or when other
+// projects are given to stitch with.
+func wantsHTTPLinks(in objectGraphInput) bool {
+	if len(in.CrossProjects) > 0 {
+		return true
+	}
+	for _, k := range in.Kinds {
+		if k == app.EdgeHTTPCall {
+			return true
+		}
+	}
+	return false
 }
 
 // registerObjectGraphTool регистрирует object_graph поверх
@@ -57,16 +81,16 @@ func registerObjectGraphTool(server *mcp.Server, deps indexToolDeps) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "object_graph",
-		Description: "The data map around one metadata object in one call: edges writes-register (from code) and writes-declared (from RegisterRecords) out to depth 2, each with both ends' type and name. Call it when you need the object's whole data neighbourhood instead of chaining find_register_writes and find_references; it complements the symbol-level tools. project= reads another registered project for this call only; view=diff shows only the edges extensions add.",
+		Description: "The data map around one metadata object in one call: edges writes-register (from code) and writes-declared (from RegisterRecords) out to depth 2, each with both ends' type and name. Call it when you need the object's whole data neighbourhood instead of chaining find_register_writes and find_references; it complements the symbol-level tools. project= reads another registered project for this call only; view=diff shows only the edges extensions add. kinds=http-call or crossProjects=[roots] adds httpLinks: HTTP calls of the object stitched to HTTP services of those projects by path and the workspace host mapping, unmapped hosts as external, dynamic URLs as a has-dynamic-http badge.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    true,
 			IdempotentHint:  true,
 			OpenWorldHint:   &falseHint,
 			DestructiveHint: &falseHint,
 		},
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in objectGraphInput) (*mcp.CallToolResult, app.Response[app.RadiusEdgeItem], error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in objectGraphInput) (*mcp.CallToolResult, objectGraphOutput, error) {
 		if in.Depth > objectGraphMaxDepth {
-			return nil, app.Response[app.RadiusEdgeItem]{}, fmt.Errorf(
+			return nil, objectGraphOutput{}, fmt.Errorf(
 				"object_graph: depth=%d превышает потолок %d — понизьте depth явно, тихого обрезания здесь нет",
 				in.Depth, objectGraphMaxDepth)
 		}
@@ -87,8 +111,43 @@ func registerObjectGraphTool(server *mcp.Server, deps indexToolDeps) {
 			ProjectRoot:   in.Project,
 		})
 		if err != nil {
-			return nil, app.Response[app.RadiusEdgeItem]{}, err
+			return nil, objectGraphOutput{}, err
 		}
-		return nil, resp, nil
+		out := objectGraphOutput{Response: resp}
+		if wantsHTTPLinks(in) {
+			links, err := svc.ObjectHTTPLinks(ctx, app.ObjectHTTPLinksInput{
+				Target: app.ObjectTarget{
+					ObjectID:   in.ObjectID,
+					ObjectType: in.ObjectType,
+					ObjectName: in.ObjectName,
+					Component:  in.Component,
+				},
+				ProjectRoot:       in.Project,
+				CrossProjectRoots: in.CrossProjects,
+			})
+			if err != nil {
+				return nil, objectGraphOutput{}, err
+			}
+			if len(links.Items) > 0 {
+				out.HTTPLinks = &links.Items[0]
+			}
+			out.Stale = out.Stale || links.Stale
+			for _, w := range links.Warnings {
+				if !hasWarning(out.Warnings, w) {
+					out.Warnings = append(out.Warnings, w)
+				}
+			}
+		}
+		return nil, out, nil
 	})
+}
+
+// hasWarning: the same freshness warning comes from both reads of one call.
+func hasWarning(ws []app.Warning, w app.Warning) bool {
+	for _, x := range ws {
+		if x == w {
+			return true
+		}
+	}
+	return false
 }
