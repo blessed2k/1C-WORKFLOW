@@ -82,15 +82,15 @@
   };
 
   var VIEWS = ["raw", "effective", "diff"];
-  var VIEW_EMPTY = {
-    raw: "",
-    effective: "",
-    diff: "расширения не добавили этому узлу связей"
-  };
 
   var state = {
     project: "",
     view: "effective", // raw|effective|diff, см. setView
+    // gen: поколение карты. resetMap его увеличивает, и ответ, запрошенный
+    // в прошлом поколении (до смены режима или проекта), отбрасывается:
+    // иначе запоздавшие соседи и карточки старого режима дописывались бы
+    // в новую карту.
+    gen: 0,
     kinds: Object.keys(KIND_INFO).reduce(function (acc, k) { acc[k] = true; return acc; }, {}),
     minConfidence: 0,
     cards: {},        // objectId -> полная карточка /api/node (badges, fanIn, fanOut)
@@ -284,10 +284,10 @@
       data: {
         id: id, edgeId: item.id, source: String(item.fromObjectId), target: String(item.toObjectId),
         kind: item.kind, confidence: item.confidence, provenance: item.provenance, mode: item.mode,
-        layer: item.layer || "", diff: item.diff || "",
+        layer: item.layer || "", layers: item.layers || [], diff: item.diff || "",
         color: info ? info.color : "#888", opacity: edgeOpacity(item.confidence)
       },
-      classes: [info && info.read ? "read" : "", isExtLayer(item.layer) ? "ext" : "", item.diff === "added" ? "added" : ""].join(" ").trim()
+      classes: [info && info.read ? "read" : "", (item.layers || [item.layer]).some(isExtLayer) ? "ext" : "", item.diff === "added" ? "added" : ""].join(" ").trim()
     });
   }
 
@@ -295,8 +295,11 @@
 
   // Слой ребра словами: для подсказки и панели evidence.
   function layerText(d) {
-    if (!isExtLayer(d.layer)) return "слой base";
-    return "расширение " + d.layer + (d.diff === "added" ? ", новая связь (в raw её нет)" : ", такая связь есть и в базе");
+    var layers = d.layers && d.layers.length ? d.layers : [d.layer || "base"];
+    var ext = layers.filter(isExtLayer);
+    if (!ext.length) return "слой base";
+    if (d.diff === "added") return "расширение " + ext.join(", ") + ": новая связь (в raw её нет)";
+    return "слои " + layers.join(", ") + ": связь есть в базе, расширение её повторяет";
   }
 
   function applyFilters() {
@@ -333,18 +336,23 @@
   function loadCard(objectId, quiet) {
     if (state.cards[objectId]) return Promise.resolve(state.cards[objectId]);
     if (state.cardPending[objectId]) return state.cardPending[objectId];
+    var gen = state.gen;
     var p = new Promise(function (resolve) {
       // Карточка, которую ждёт человек (клик, поиск), встаёт в начало очереди.
       cardQueue[quiet ? "push" : "unshift"](function () {
+        if (gen !== state.gen) { resolve(undefined); return Promise.resolve(); }
         return fetchCard(objectId, 0).then(function (resp) {
           var item = resp.items && resp.items[0];
+          if (gen !== state.gen) { resolve(undefined); return; }
           if (item) applyCard(item);
           resolve(item);
         }).catch(function (err) {
-          if (quiet) console.warn("карточка узла " + objectId + ": " + err.message);
-          else setStatus("узел " + objectId + ": " + err.message, true);
+          if (gen === state.gen) {
+            if (quiet) console.warn("карточка узла " + objectId + ": " + err.message);
+            else setStatus("узел " + objectId + ": " + err.message, true);
+          }
           resolve(undefined);
-        }).then(function () { delete state.cardPending[objectId]; });
+        }).then(function () { if (gen === state.gen) delete state.cardPending[objectId]; });
       });
       pumpCards();
     });
@@ -455,7 +463,9 @@
     if (ex.nextCursor) params.cursor = ex.nextCursor;
     ex.busy = true;
     setStatus("загружаю соседей…");
+    var gen = state.gen;
     return fetchJSON("/api/neighbors/" + objectId, params).then(function (resp) {
+      if (gen !== state.gen) return;
       var center = cy.getElementById(String(objectId));
       var touched = {};
       (resp.items || []).forEach(function (e) {
@@ -479,7 +489,7 @@
       // и только один раз за сессию карты.
       Object.keys(touched).forEach(function (id) { loadCard(Number(id), true); });
     }).catch(function (err) {
-      setStatus("соседи узла " + objectId + ": " + err.message, true);
+      if (gen === state.gen) setStatus("соседи узла " + objectId + ": " + err.message, true);
     }).then(function () {
       ex.busy = false;
     });
@@ -488,19 +498,18 @@
   // Строка статуса о режиме: без расширений effective и diff честно
   // совпадают с raw или пусты, это надо сказать, а не показать пустоту.
   function viewNote(resp, total) {
-    var codes = (resp.warnings || []).map(function (w) { return w.code; });
-    if (state.view !== "raw" && codes.indexOf("no_extensions") >= 0) {
-      return "в проекте нет расширений: effective совпадает с raw, diff пуст";
-    }
-    if (!total && VIEW_EMPTY[state.view]) return VIEW_EMPTY[state.view];
+    var noExt = (resp.warnings || []).filter(function (w) { return w.code === "no_extensions"; })[0];
+    if (noExt) return noExt.message;
+    if (!total && state.view === "diff") return "расширения не добавили этому узлу связей";
     return "";
   }
 
   // Открыть объект по id: карточка, узел на карте и сразу соседи.
   function openAndExpand(objectId) {
     setStatus("");
+    var gen = state.gen;
     return loadCard(objectId).then(function (item) {
-      if (!item) return;
+      if (!item || gen !== state.gen) return;
       ensureNode(item.objectId, item.mtype, item.nameDisplay);
       applyCard(item);
       updateEmpty();
@@ -964,6 +973,8 @@
   document.getElementById("layoutBtn").addEventListener("click", runLayout);
 
   function resetMap() {
+    state.gen++;
+    state.reopenPlan = null;
     cy.elements().remove();
     state.cards = {};
     state.cardPending = {};
@@ -992,6 +1003,12 @@
     if (VIEWS.indexOf(v) < 0 || v === state.view) return;
     var reopen = Object.keys(state.expanded).map(Number);
     var focus = state.focus;
+    // Прошлое переключение ещё не успело раскрыть карту заново (быстрый
+    // двойной клик по режимам): берём его план, иначе узлы потерялись бы.
+    if (!reopen.length && focus == null && state.reopenPlan) {
+      reopen = state.reopenPlan.ids;
+      focus = state.reopenPlan.focus;
+    }
     state.view = v;
     markView();
     try {
@@ -1002,14 +1019,19 @@
     resetMap();
     if (!godPanel.hidden) loadGodNodes();
     if (focus != null) reopen = [focus].concat(reopen.filter(function (id) { return id !== focus; }));
+    var gen = state.gen;
+    state.reopenPlan = { ids: reopen, focus: focus };
     var chain = Promise.resolve();
     reopen.forEach(function (id, i) {
       chain = chain.then(function () {
+        if (gen !== state.gen) return;
         if (i === 0) return openAndExpand(id);
         if (cy.getElementById(String(id)).nonempty()) return expand(id);
       });
     });
     chain.then(function () {
+      if (gen !== state.gen) return;
+      state.reopenPlan = null;
       if (focus != null && cy.getElementById(String(focus)).nonempty()) {
         state.focus = focus;
         markFocus();
@@ -1073,7 +1095,9 @@
   }
 
   function loadGodNodes() {
+    var gen = state.gen;
     fetchJSON("/api/godnodes", { metric: state.godMetric, top: "20", view: state.view }).then(function (resp) {
+      if (gen !== state.gen) return;
       var body = document.getElementById("godBody");
       body.innerHTML = "";
       if (!(resp.items || []).length) {

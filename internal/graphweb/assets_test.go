@@ -109,7 +109,7 @@ func TestAssetsViewSwitchAndLegend(t *testing.T) {
 	html := doRawGET(t, h, "/").Body.String()
 	for _, want := range []string{
 		`data-view="raw"`, `data-view="effective"`, `data-view="diff"`,
-		`id="legendLayers"`, `swatch ext-added`, `swatch ext-same`,
+		`id="legendLayers"`, `swatch ext-added`, `swatch ext-same`, `var(--ext)`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("index.html без %s", want)
@@ -119,6 +119,8 @@ func TestAssetsViewSwitchAndLegend(t *testing.T) {
 	for _, want := range []string{
 		`view: state.view`, `selector: "edge.ext"`, `selector: "edge.added"`,
 		`"ext" : ""`, `"added" : ""`, `extensionEdges`,
+		// поколение карты: ответы, запрошенные до смены режима, отбрасываются
+		`state.gen++`, `if (gen !== state.gen) return;`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js без %s", want)

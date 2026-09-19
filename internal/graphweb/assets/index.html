@@ -82,8 +82,8 @@
   .view-switch button { padding: 2px 9px; font-size: 12px; }
   .view-switch .sep { width: 1px; height: 16px; background: var(--border); margin: 0 6px 0 8px; }
   /* рёбра расширений: линия того же цвета вида, вокруг неё подсветка слоя */
-  .swatch.ext-added { background: #4da3ff; box-shadow: 0 0 0 3px rgba(46,230,197,.6); }
-  .swatch.ext-same { background: #4da3ff; box-shadow: 0 0 0 3px rgba(46,230,197,.22); }
+  .swatch.ext-added { background: #4da3ff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ext) 60%, transparent); }
+  .swatch.ext-same { background: #4da3ff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ext) 22%, transparent); }
   .ext-list { margin-top: 10px; display: grid; gap: 4px; font-size: 12px; }
   .ext-row { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
   .ext-row:hover { color: var(--accent); }
@@ -227,7 +227,7 @@
       <div id="legendLayers" class="legend-notes">
         <div><b>raw</b>: только базовая конфигурация. <b>effective</b>: с расширениями, заимствованный объект показан одним узлом. <b>diff</b>: только связи, которые добавили расширения.</div>
         <div class="legend-item"><span class="swatch ext-added"></span><span>связь добавило расширение, в raw её нет</span></div>
-        <div class="legend-item"><span class="swatch ext-same"></span><span>ребро расширения, такая связь есть и в базе</span></div>
+        <div class="legend-item"><span class="swatch ext-same"></span><span>связь есть в базе и повторена расширением (одно ребро, слои в подсказке)</span></div>
         <div>Какое расширение: в подсказке ребра и в карточке узла. diff не показывает связи, которые расширение гасит (&amp;Вместо без ПродолжитьВызов): индекс их не вычисляет.</div>
       </div>
     </section>
