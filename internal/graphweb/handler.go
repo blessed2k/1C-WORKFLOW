@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/app"
@@ -26,13 +27,21 @@ const projectQueryParam = "project"
 // ProjectHandle.Open (см. doc.go).
 type Handler struct {
 	projects []ProjectHandle
+	// locks[i] держится от открытия проекта projects[i] до его закрытия в
+	// рамках одного запроса. Каждый запрос открывает индекс заново (doc.go),
+	// и на реальной выгрузке десяток одновременных открытий одного проекта
+	// ловил «database is locked» на соединении писателя: карта после
+	// раскрытия нескольких узлов шлёт карточки и соседей пачкой. Запрос
+	// короткий (единицы миллисекунд на ut_demo), очередь из них для
+	// localhost-инструмента дешевле, чем 500 на части карточек.
+	locks []sync.Mutex
 }
 
 // NewHandler строит http.Handler поверх заданных проектов. Порядок в срезе
 // определяет порядок в ответе /api/projects — тот же, в котором перечислены
 // флаги --project.
 func NewHandler(projects []ProjectHandle) http.Handler {
-	h := &Handler{projects: append([]ProjectHandle(nil), projects...)}
+	h := &Handler{projects: append([]ProjectHandle(nil), projects...), locks: make([]sync.Mutex, len(projects))}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/projects", h.handleProjects)
 	mux.HandleFunc("GET /api/node/{id}", h.handleNode)
@@ -88,8 +97,10 @@ func (h *Handler) projectIDList() string {
 // и отдаёт функцию его закрытия — вызывающий обязан defer её сразу после
 // получения, до сериализации ответа.
 func (h *Handler) openGraphService(r *http.Request, ph *ProjectHandle) (*app.ObjectGraphService, func(), *app.Error) {
+	unlock := h.lock(ph)
 	p, err := ph.Open(r.Context())
 	if err != nil {
+		unlock()
 		var aerr *app.Error
 		if errors.As(err, &aerr) {
 			return nil, nil, aerr
@@ -98,7 +109,19 @@ func (h *Handler) openGraphService(r *http.Request, ph *ProjectHandle) (*app.Obj
 			fmt.Sprintf("проект %s: %v", ph.Root, err),
 			"проверьте, что каталог существует и был проиндексирован")
 	}
-	return app.NewObjectGraphService(p, ph.RadiusNodesCap), func() { p.Close() }, nil
+	return app.NewObjectGraphService(p, ph.RadiusNodesCap), func() { p.Close(); unlock() }, nil
+}
+
+// lock берёт замок проекта ph (ph указывает в h.projects, его отдаёт
+// resolveProject) и возвращает функцию снятия.
+func (h *Handler) lock(ph *ProjectHandle) func() {
+	for i := range h.projects {
+		if &h.projects[i] == ph {
+			h.locks[i].Lock()
+			return h.locks[i].Unlock
+		}
+	}
+	return func() {}
 }
 
 // parsePathID разбирает числовой id из пути ({id} в /api/node/{id} и
@@ -353,9 +376,12 @@ type ProjectListItem struct {
 func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
 	items := make([]ProjectListItem, 0, len(h.projects))
 	var warnings []app.Warning
-	for _, ph := range h.projects {
+	for i := range h.projects {
+		ph := &h.projects[i]
+		unlock := h.lock(ph)
 		p, err := ph.Open(r.Context())
 		if err != nil {
+			unlock()
 			warnings = append(warnings, app.Warning{
 				Code:    "project_unavailable",
 				Message: fmt.Sprintf("проект %s (%s) недоступен: %v", ph.ID, ph.Root, err),
@@ -364,6 +390,7 @@ func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
 		}
 		resp, err := app.NewIndexStatusService(p).Status(r.Context(), app.StatusInput{})
 		p.Close()
+		unlock()
 		if err != nil {
 			warnings = append(warnings, app.Warning{
 				Code:    "project_unavailable",
