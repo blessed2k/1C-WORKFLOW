@@ -109,7 +109,7 @@ func (s *QueryService) FindQueriesUsing(ctx context.Context, in FindQueriesUsing
 		items      []QueryUsageItem
 		nextCursor string
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -231,7 +231,7 @@ func (s *QueryService) FindQueriesUsing(ctx context.Context, in FindQueriesUsing
 		return Response[QueryUsageItem]{}, err
 	}
 
-	return Response[QueryUsageItem]{
+	return withSnapshot(Response[QueryUsageItem]{
 		Generation: res.gen, Items: res.items, TotalCount: len(res.items), NextCursor: res.nextCursor,
-	}, nil
+	}, snap), nil
 }

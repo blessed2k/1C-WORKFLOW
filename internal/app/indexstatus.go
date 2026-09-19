@@ -196,6 +196,12 @@ func (s *IndexStatusService) Status(ctx context.Context, in StatusInput) (Respon
 		return Response[StatusItem]{}, err
 	}
 
+	// Та же проверка свежести, что у остальных индексных инструментов
+	// (ADR-036): правка на диске и идущая пересборка дают stale_index.
+	// Транзакции index_status не открывает, поэтому ReadSnapshot ему не
+	// нужен, а источник свежести общий.
+	snap := snapshotFreshness(ctx, op)
+
 	st, err := op.Service.Status(ctx)
 	if err != nil {
 		return Response[StatusItem]{}, fmt.Errorf("проект %s: index_status: %w", op.Entry.ID, err)
@@ -231,6 +237,8 @@ func (s *IndexStatusService) Status(ctx context.Context, in StatusInput) (Respon
 		TotalCount: 1,
 	}
 	if st.Store.NeedsFullRebuild {
+		// Второе предупреждение рядом с общим stale_index: код
+		// needs_full_rebuild старше ADR-036, его могут читать клиенты.
 		resp.Stale = true
 		resp.Warnings = append(resp.Warnings, Warning{
 			Code:    "needs_full_rebuild",
@@ -245,7 +253,7 @@ func (s *IndexStatusService) Status(ctx context.Context, in StatusInput) (Respon
 			Hint:    "повторите вызов",
 		})
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // Reindex отвечает на reindex: ручной форс инкремента или полной пересборки

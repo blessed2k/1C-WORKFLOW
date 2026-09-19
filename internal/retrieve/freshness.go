@@ -56,7 +56,7 @@ func Run(ctx context.Context, svc *index.Service, st *store.Store, req Request) 
 
 	req.Freshness = mode
 	req.Stale = !fresh.Fresh
-	req.StaleReason = fresh.Reason
+	req.StaleReason = string(fresh.Reason)
 	req.StaleAgeSeconds = fresh.AgeSeconds
 
 	var out Result

@@ -87,6 +87,13 @@ type extensionSpec struct {
 // произвольным числом компонентов-расширений, применяющихся к cfg.
 func newExtensionFixtureProject(t *testing.T, id domain.ProjectID, exts []extensionSpec) (*Projects, *openProject) {
 	t.Helper()
+	return newExtensionFixtureProjectCfg(t, id, exts, index.Config{})
+}
+
+// newExtensionFixtureProjectCfg: то же с явными tunables index.Service
+// (часы и TTL свежести для тестов снимка, snapshot_test.go).
+func newExtensionFixtureProjectCfg(t *testing.T, id domain.ProjectID, exts []extensionSpec, cfg index.Config) (*Projects, *openProject) {
+	t.Helper()
 	workspaceRoot := t.TempDir()
 	projectRoot := t.TempDir()
 
@@ -132,7 +139,7 @@ func newExtensionFixtureProject(t *testing.T, id domain.ProjectID, exts []extens
 		t.Fatalf("SetActiveProject: %v", err)
 	}
 
-	p, err := NewProjects(workspaceRoot, nil, index.Config{})
+	p, err := NewProjects(workspaceRoot, nil, cfg)
 	if err != nil {
 		t.Fatalf("NewProjects: %v", err)
 	}

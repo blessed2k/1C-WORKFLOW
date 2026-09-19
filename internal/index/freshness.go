@@ -25,7 +25,7 @@ func (s *Service) EnsureFresh(ctx context.Context, policy Policy) (Freshness, er
 	for {
 		if s.isRebuilding() {
 			if !requireFresh {
-				return s.staleFreshness(ctx, "full-rebuild-in-progress"), nil
+				return s.staleFreshness(ctx, ReasonRebuildInProgress), nil
 			}
 		} else if needsFull, err := s.needsFullRebuild(ctx); err != nil {
 			return Freshness{}, err
@@ -38,7 +38,7 @@ func (s *Service) EnsureFresh(ctx context.Context, policy Policy) (Freshness, er
 			// только полная пересборка, инкремент его не снимает.
 			s.scheduleBackgroundFull("индекс не наполнен после смены версии схемы")
 			if !requireFresh {
-				return s.staleFreshness(ctx, "full-rebuild-required"), nil
+				return s.staleFreshness(ctx, ReasonRebuildRequired), nil
 			}
 		} else {
 			work, err := s.precheckWorkload(ctx)
@@ -67,7 +67,7 @@ func (s *Service) EnsureFresh(ctx context.Context, policy Policy) (Freshness, er
 			s.scheduleBackgroundFull(fmt.Sprintf(
 				"изменённых файлов: %d, предстоит разобрать: %d", work.changed, work.pending))
 			if !requireFresh {
-				return s.staleFreshness(ctx, "background-rebuild-scheduled"), nil
+				return s.staleFreshness(ctx, ReasonRebuildScheduled), nil
 			}
 		}
 
@@ -186,6 +186,17 @@ func (s *Service) precheckChangedCount(ctx context.Context) (int, error) {
 func (s *Service) precheckWorkload(ctx context.Context) (precheckWork, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	start := s.now()
+	work, err := s.precheckWorkloadLocked(ctx)
+	if err == nil {
+		// Любой полный обход, откуда бы его ни позвали (EnsureFresh или
+		// CachedFreshness), и есть самый свежий исход для признака stale.
+		s.recordDiskCheck(start, work.changed)
+	}
+	return work, err
+}
+
+func (s *Service) precheckWorkloadLocked(ctx context.Context) (precheckWork, error) {
 	var work precheckWork
 	for _, id := range s.sortedComponentIDs() {
 		if ctx.Err() != nil {
@@ -195,7 +206,7 @@ func (s *Service) precheckWorkload(ctx context.Context) (precheckWork, error) {
 		if err != nil {
 			return precheckWork{}, err
 		}
-		discovered, err := discoverComponentMeta(c.AbsRoot, c.Include, c.Exclude)
+		discovered, err := discoverComponentMeta(ctx, c.AbsRoot, c.Include, c.Exclude)
 		if err != nil {
 			return precheckWork{}, err
 		}
@@ -240,7 +251,7 @@ func (s *Service) currentFreshness(ctx context.Context) (Freshness, error) {
 	return Freshness{Fresh: true, Generation: st.Generation}, nil
 }
 
-func (s *Service) staleFreshness(ctx context.Context, reason string) Freshness {
+func (s *Service) staleFreshness(ctx context.Context, reason StaleReason) Freshness {
 	st, err := s.st.Status(ctx)
 	f := Freshness{Fresh: false, Reason: reason}
 	if err == nil {

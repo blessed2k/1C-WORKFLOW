@@ -90,7 +90,12 @@ type Freshness struct {
 	Fresh      bool
 	Generation domain.Generation
 	AgeSeconds float64
-	Reason     string
+	Reason     StaleReason
+	// ChangedFiles и CheckAgeSeconds заполняет только CachedFreshness:
+	// сколько файлов на диске разошлись с индексом и сколько секунд назад
+	// снят этот исход обхода (ADR-036).
+	ChangedFiles    int
+	CheckAgeSeconds float64
 }
 
 // ErrIndexNotFresh — require-fresh не дождался публикации в пределах deadline
@@ -136,6 +141,23 @@ type Service struct {
 	reindexedHere bool
 
 	deb *debouncer
+
+	// diskMu охраняет исход последнего обхода диска и идущий обход
+	// (ADR-036): источник признака stale у индексных инструментов. Отдельный
+	// мьютекс, а не stateMu и не opMu: под ним только чтение и запись полей.
+	// Ждать приходится синхронному пути без годного исхода, и ждёт он общий
+	// обход (diskFlight), а не мьютекс.
+	diskMu     sync.Mutex
+	disk       diskCheck
+	flight     *diskFlight
+	diskClosed bool
+	diskWG     sync.WaitGroup
+	// diskCtx живёт, пока сервис открыт: Close отменяет им идущий обход.
+	diskCtx    context.Context
+	diskCancel context.CancelFunc
+	// walk: сам обход диска под opMu; подменяется только тестами пакета
+	// (число обходов и Close посреди обхода снаружи не наблюдаемы).
+	walk func(context.Context) (precheckWork, error)
 }
 
 // NewService создаёт пайплайн поверх уже открытого store.Store.
@@ -149,12 +171,15 @@ func NewService(st *store.Store, project domain.ProjectID, manifest workspace.Ma
 		corpora: make(map[domain.ComponentID]*componentCorpus),
 	}
 	s.deb = newDebouncer(cfg.DebounceQuiet, s.runBackgroundFull)
+	s.diskCtx, s.diskCancel = context.WithCancel(context.Background())
+	s.walk = s.precheckWorkloadLocked
 	return s
 }
 
 // Close останавливает ещё не начавшуюся отложенную пересборку и ждёт
 // завершения уже начавшейся. Store не закрывает — им владеет вызывающий.
 func (s *Service) Close() error {
+	s.stopDiskRefresh()
 	s.deb.stop()
 	s.deb.wait()
 	return nil
@@ -197,8 +222,24 @@ func (s *Service) Reindex(ctx context.Context, mode Mode, comp domain.ComponentI
 	return s.reindexLocked(ctx, mode, comp)
 }
 
-func (s *Service) reindexLocked(ctx context.Context, mode Mode, comp domain.ComponentID) (Result, error) {
+func (s *Service) reindexLocked(ctx context.Context, mode Mode, comp domain.ComponentID) (res Result, err error) {
 	start := s.now()
+	defer func() {
+		switch {
+		case err != nil:
+			// Упавший прогон мог опубликовать часть или ничего: прошлый
+			// исход обхода больше ничего не говорит о диске.
+			s.invalidateDiskCheck()
+		case comp == "":
+			// Прогон по всем компонентам сам сверил корпус с диском: на
+			// момент его старта расхождений нет. Время старта, а не конца:
+			// правка во время прогона могла в него не попасть.
+			s.recordDiskCheck(start, 0)
+		default:
+			// Прогон по одному компоненту про остальные ничего не знает.
+			s.invalidateDiskCheck()
+		}
+	}()
 	var ids []domain.ComponentID
 	if comp != "" {
 		if _, err := s.componentByID(comp); err != nil {
@@ -249,7 +290,6 @@ func (s *Service) reindexLocked(ctx context.Context, mode Mode, comp domain.Comp
 		return nil
 	}
 
-	var err error
 	if full {
 		err = s.st.Rebuild(ctx, runAll)
 	} else {

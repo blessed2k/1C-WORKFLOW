@@ -63,6 +63,13 @@ func bslFixtureFiles() map[string]string {
 // store, реальный резолвер, без стабов.
 func newBSLFixtureProject(t *testing.T, id domain.ProjectID) (*Projects, *openProject) {
 	t.Helper()
+	return newBSLFixtureProjectCfg(t, id, index.Config{})
+}
+
+// newBSLFixtureProjectCfg: то же с явными tunables index.Service (часы и
+// TTL свежести для тестов снимка, snapshot_test.go).
+func newBSLFixtureProjectCfg(t *testing.T, id domain.ProjectID, cfg index.Config) (*Projects, *openProject) {
+	t.Helper()
 	workspaceRoot := t.TempDir()
 	projectRoot := t.TempDir()
 	for rel, content := range bslFixtureFiles() {
@@ -84,7 +91,7 @@ func newBSLFixtureProject(t *testing.T, id domain.ProjectID) (*Projects, *openPr
 		t.Fatalf("SetActiveProject: %v", err)
 	}
 
-	p, err := NewProjects(workspaceRoot, nil, index.Config{})
+	p, err := NewProjects(workspaceRoot, nil, cfg)
 	if err != nil {
 		t.Fatalf("NewProjects: %v", err)
 	}

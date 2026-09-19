@@ -226,7 +226,7 @@ func (s *SymbolService) FindSymbol(ctx context.Context, in FindSymbolInput) (Res
 		rows []store.SymbolRow
 		gen  domain.Generation
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -278,7 +278,7 @@ func (s *SymbolService) FindSymbol(ctx context.Context, in FindSymbolInput) (Res
 		last := res.rows[len(res.rows)-1]
 		resp.NextCursor = EncodeCursor(res.gen, symbolCursorKey(last.NameNorm, last.ID), paramsKey)
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // GetSymbol читает один символ точно — по uid, либо по паре module+name
@@ -317,7 +317,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 		intercepts    []resolve.Intercept
 		warn          []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -445,7 +445,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 			Hint:    "вызовите reindex, если нужна свежая версия",
 		})
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // fileDiffersOnDisk сравнивает hash последней индексированной версии файла с
@@ -501,7 +501,7 @@ func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStru
 		intercepts []resolve.Intercept
 		warn       []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -572,7 +572,7 @@ func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStru
 		Message: "регионы модуля не хранятся индексом (symbol.region публикацией не заполняется — упрощение пайплайна таска 09)",
 		Hint:    "поле regions в ответе всегда пусто; для точного региона метода читайте doc/architecture-index.md §14 либо сам исходник",
 	})
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // --- resource URI: onec://symbol/... и onec://src/... ---
@@ -693,7 +693,7 @@ func (s *SymbolService) ResourceSymbolBody(ctx context.Context, projectArg, uid,
 			"активный проект: "+string(op.Entry.ID)).WithProject(op.Entry.ID)
 	}
 	uri := fmt.Sprintf("onec://symbol/%s/%s", projectArg, uid)
-	text, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (string, error) {
+	text, err := readTx(ctx, op.Store, func(tx *store.ReadTx) (string, error) {
 		gen, gerr := tx.Generation()
 		if gerr != nil {
 			return "", gerr
@@ -753,7 +753,7 @@ func (s *SymbolService) ResourceSrcFragment(ctx context.Context, projectArg, has
 		return "", NewError(CodeNotFound, "некорректные параметры ресурса onec://src",
 			"нужны hash, start>=0, end>=start").WithProject(op.Entry.ID)
 	}
-	return ReadTx(ctx, op.Store, func(tx *store.ReadTx) (string, error) {
+	return readTx(ctx, op.Store, func(tx *store.ReadTx) (string, error) {
 		gen, gerr := tx.Generation()
 		if gerr != nil {
 			return "", gerr

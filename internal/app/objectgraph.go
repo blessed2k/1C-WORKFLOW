@@ -348,7 +348,7 @@ func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[N
 		ok       bool
 		warnings []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -395,7 +395,7 @@ func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[N
 		return Response[NodeItem]{}, NotFoundError("объект метаданных", targetDisplay(target), nil).
 			WithProject(op.Entry.ID).WithGeneration(res.gen)
 	}
-	return Response[NodeItem]{Generation: res.gen, Warnings: res.warnings, Items: []NodeItem{res.item}, TotalCount: 1}, nil
+	return withSnapshot(Response[NodeItem]{Generation: res.gen, Warnings: res.warnings, Items: []NodeItem{res.item}, TotalCount: 1}, snap), nil
 }
 
 func nodeItemFrom(row store.MetadataObjectRow, badges []store.ObjectBadge) NodeItem {
@@ -452,7 +452,7 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 		found    bool
 		warnings []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -528,7 +528,7 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 	if hasMore {
 		resp.NextCursor = EncodeCursor(res.gen, strconv.FormatInt(res.rows[len(res.rows)-1].row.ID, 10), paramsKey)
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // resolveEdgeObjects резолвит оба конца каждого ребра одним проходом,
@@ -658,7 +658,7 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 		afterIdx   int
 		warnings   []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -743,7 +743,7 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 		resp.NextCursor = EncodeCursor(res.gen, strconv.Itoa(res.afterIdx+limit), paramsKey)
 	}
 	resp.Warnings = append(resp.Warnings, radiusTruncationWarnings(g.radiusNodesCap, g.radiusFetchLimit, res.truncation)...)
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // radiusTruncationWarnings строит предупреждения об обрезании радиуса.
@@ -922,7 +922,7 @@ func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Re
 		gen      domain.Generation
 		warnings []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -980,7 +980,7 @@ func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Re
 		items = append(items, GodNodeItem{ObjectID: r.ObjectID, MType: r.MType, NameDisplay: r.NameDisplay,
 			FanIn: r.FanIn, FanOut: r.FanOut})
 	}
-	return Response[GodNodeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: len(items)}, nil
+	return withSnapshot(Response[GodNodeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: len(items)}, snap), nil
 }
 
 // normalizeGodNodeMetric разбирает ось сортировки god-node — тем же способом,
@@ -1039,7 +1039,7 @@ func (g *ObjectGraphService) EdgeEvidence(ctx context.Context, in EdgeEvidenceIn
 		gen  domain.Generation
 		ok   bool
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -1092,7 +1092,7 @@ func (g *ObjectGraphService) EdgeEvidence(ctx context.Context, in EdgeEvidenceIn
 		return Response[EdgeEvidenceItem]{}, NotFoundError("ребро объектного графа", strconv.FormatInt(in.EdgeID, 10), nil).
 			WithProject(op.Entry.ID).WithGeneration(res.gen)
 	}
-	return Response[EdgeEvidenceItem]{Generation: res.gen, Items: []EdgeEvidenceItem{res.item}, TotalCount: 1}, nil
+	return withSnapshot(Response[EdgeEvidenceItem]{Generation: res.gen, Items: []EdgeEvidenceItem{res.item}, TotalCount: 1}, snap), nil
 }
 
 // SearchItem: объект метаданных, найденный по части имени: точка входа на
@@ -1142,7 +1142,7 @@ func (g *ObjectGraphService) Search(ctx context.Context, in SearchInput) (Respon
 		rows []store.ObjectSearchRow
 		gen  domain.Generation
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -1176,5 +1176,5 @@ func (g *ObjectGraphService) Search(ctx context.Context, in SearchInput) (Respon
 			Synonym: r.Synonym, Layer: r.Layer, Match: searchMatchNames[r.Tier], FanIn: r.FanIn, FanOut: r.FanOut,
 		})
 	}
-	return Response[SearchItem]{Generation: res.gen, Warnings: warnings, Items: items, TotalCount: len(items)}, nil
+	return withSnapshot(Response[SearchItem]{Generation: res.gen, Warnings: warnings, Items: items, TotalCount: len(items)}, snap), nil
 }

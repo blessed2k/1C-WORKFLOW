@@ -148,7 +148,7 @@ func (s *ImpactService) Impact(ctx context.Context, in ImpactInput) (Response[Im
 		warn       []Warning
 	}
 
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (bfsResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (bfsResult, error) {
 		gen, gerr := tx.Generation()
 		if gerr != nil {
 			return bfsResult{}, gerr
@@ -234,7 +234,7 @@ func (s *ImpactService) Impact(ctx context.Context, in ImpactInput) (Response[Im
 			Hint: "увеличьте budget или сузьте kinds/depth",
 		})
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // normalizeImpactTarget проверяет вход инструмента: ровно один из (символ

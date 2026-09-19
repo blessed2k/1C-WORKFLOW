@@ -150,7 +150,7 @@ func manifestHasLayers(m workspace.Manifest, ids ...domain.ComponentID) bool {
 func baseModuleIndexed(t *testing.T, p *Projects, project domain.ProjectID, base domain.ComponentID, modulePath string) bool {
 	t.Helper()
 	op := p.opened[project]
-	found, err := ReadTx(context.Background(), op.Store, func(tx *store.ReadTx) (bool, error) {
+	found, err := readTx(context.Background(), op.Store, func(tx *store.ReadTx) (bool, error) {
 		_, ok, err := tx.SourceFileID(string(base), modulePath)
 		return ok, err
 	})
