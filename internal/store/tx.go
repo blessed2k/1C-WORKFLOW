@@ -321,10 +321,7 @@ func (tx *WriteTx) DeleteSourceFiles(ids ...int64) error {
 	}
 	// Мягкие указатели без REFERENCES обнуляются явно, как это сделал бы
 	// ON DELETE SET NULL (issue #14).
-	for _, k := range inboundKinds {
-		if !k.noFK {
-			continue
-		}
+	for _, k := range softKinds {
 		if err := tx.c.exec(tx.ctx, k.softNullSQL(), files); err != nil {
 			return fmt.Errorf("обнуление указателей %s: %w", k.name(), err)
 		}

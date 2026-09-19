@@ -38,10 +38,9 @@ func publishFormDecls(tx *store.WriteTx, ts *txState, rel string, fileID, ownerO
 func publishFormStructure(tx *store.WriteTx, ts *txState, rel string, fileID int64, fp *formStructurePlan) error {
 	var ownerID int64
 	if fp.ownerKey != "" {
-		// По строке metadata_object, не по узлу: узел объекта, чей XML удалён
-		// в этом же инкременте, живёт до reconciliation (issue #14). XML
-		// объекта сортируется раньше своего каталога ("X.xml" < "X/..."),
-		// поэтому переопубликуемый объект к этому моменту уже вставлен.
+		// Почему не по узлу: store.MetadataObjectID. XML объекта сортируется
+		// раньше своего каталога ("X.xml" < "X/..."), поэтому
+		// переопубликуемый объект к этому моменту уже вставлен.
 		if id, found, err := tx.MetadataObjectID(fp.ownerKey); err != nil {
 			return fmt.Errorf("владелец формы %s: %w", rel, err)
 		} else if found {

@@ -377,26 +377,34 @@ func incrementalRepublishSet(comp domain.ComponentID, layer domain.Layer, env re
 // Исчезновение объекта сюда не входит: указатели на него обнуляет
 // DeleteSourceFiles, рёбра и бейджи уходят каскадом.
 func filesOfAppearedObjects(corpus *componentCorpus, changedSet map[string]bool, oldSnapshots map[string]*fileRecord) []string {
-	var dirs []string
+	dirs := map[string]bool{}
 	for rel := range changedSet {
 		rec := corpus.files[rel]
 		if oldSnapshots[rel] != nil || rec == nil || rec.metaFacts.Object == nil || !strings.HasSuffix(rel, ".xml") {
 			continue
 		}
-		dirs = append(dirs, strings.TrimSuffix(rel, ".xml")+"/")
+		dirs[strings.TrimSuffix(rel, ".xml")+"/"] = true
 	}
 	if len(dirs) == 0 {
 		return nil
 	}
+	// Каталоги ищутся по префиксам пути файла до каждого "/": проход линеен
+	// по корпусу (глубина пути мала), а не корпус на число новых объектов.
 	var out []string
 	for rel := range corpus.files {
-		for _, dir := range dirs {
-			if strings.HasPrefix(rel, dir) {
+		for i := strings.IndexByte(rel, '/'); i >= 0; {
+			if dirs[rel[:i+1]] {
 				out = append(out, rel)
 				break
 			}
+			next := strings.IndexByte(rel[i+1:], '/')
+			if next < 0 {
+				break
+			}
+			i += next + 1
 		}
 	}
+	sort.Strings(out)
 	return out
 }
 

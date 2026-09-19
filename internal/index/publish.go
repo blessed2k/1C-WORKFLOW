@@ -470,8 +470,7 @@ func moduleRecord(component domain.ComponentID, rel string, info bsl.ModuleInfo,
 //     объекта-владельца у него нет, NULL это правильный ответ;
 //   - коллекция известна, а объекта в индексе нет — NULL молча: висячий id
 //     хуже пустого, и это неполнота выгрузки, а не наша. «Нет» значит нет
-//     строки metadata_object, а не узла: узел удалённого объекта доживает до
-//     reconciliation (issue #14);
+//     строки metadata_object, а не узла (store.MetadataObjectID);
 //   - коллекция НЕ известна словарю ownerTypeToMType — диагностика:
 //     словарь ведётся руками, и его пробел обязан быть виден в обычном
 //     прогоне, а не только на реальной выгрузке.
@@ -497,8 +496,7 @@ func publishModuleOwner(tx *store.WriteTx, in publishInput, rel string, lp *link
 	if lp.ownerKey == "" {
 		return nil, nil
 	}
-	// Не ts.nodes.lookup: узел объекта, чей XML удалён в этом же инкременте,
-	// живёт до reconciliation, а строки metadata_object у него уже нет.
+	// Не ts.nodes.lookup, почему: store.MetadataObjectID.
 	ownerID, found, err := tx.MetadataObjectID(lp.ownerKey)
 	if err != nil {
 		return nil, fmt.Errorf("владелец модуля %s: %w", rel, err)

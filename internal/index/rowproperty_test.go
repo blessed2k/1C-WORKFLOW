@@ -135,6 +135,12 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 	t.Run("XML объекта добавлен к живой форме", func(t *testing.T) {
 		checkIncrementRows(t, 30, formObjectXMLAddEdits)
 	})
+	t.Run("правка XML справочника при живой форме", func(t *testing.T) {
+		// Строка справочника пересоздаётся, указатель формы снимается,
+		// обнуляется и возвращается узлу с прежним id; Form.xml нетронут
+		// (issue #14, ADR-037).
+		checkIncrementRows(t, 30, formObjectXMLEdits)
+	})
 	t.Run("удаление XML объекта и правка формы", func(t *testing.T) {
 		// Form.xml и модуль формы переопубликуются в том же инкременте, где
 		// удалён XML объекта: владелец формы по узлу висел бы (issue #14).
@@ -265,6 +271,15 @@ var formObjectXMLAddEdits = incrementScenario{
 	seed: formSeed(false),
 	edit: func(write func(rel, content string), remove func(rel string)) {
 		write(workspace.DumpDeclarationPath("Catalog", "Номенклатура"), formCatalog)
+	},
+	mustHave: []string{formOwnerMustHave},
+}
+
+var formObjectXMLEdits = incrementScenario{
+	seed: formSeed(true),
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Catalog", "Номенклатура"),
+			strings.Replace(formCatalog, "<Name>Номенклатура</Name>", "<Name>Номенклатура</Name>\n      <Comment>правка свойства</Comment>", 1))
 	},
 	mustHave: []string{formOwnerMustHave},
 }

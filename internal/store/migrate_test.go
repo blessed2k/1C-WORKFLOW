@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -305,7 +306,7 @@ func checkMigrationRequiresFullRebuild(t *testing.T, from string) {
 	}
 	if err := s.Write(ctx, func(tx *WriteTx) error {
 		// Таблиц шага до 5 у индекса версии 2...4 ещё нет.
-		if from < "5" {
+		if v, _ := strconv.Atoi(from); v < 5 {
 			for _, q := range storetest.DowngradeToSchema4Statements {
 				if err := tx.c.exec(tx.ctx, q); err != nil {
 					return err
