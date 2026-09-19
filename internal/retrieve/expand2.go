@@ -324,6 +324,13 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // expandAddAttribute — «добавь реквизит X в Документ.Y и оцени impact» (§25
 // №5): structure + usages + forms + rights + exchanges. Тела модулей не
 // затрагиваются.
+//
+// view=effective (ADR-035): объект анкера базового слоя дополняется своими
+// заимствованиями в применяющихся расширениях (effective.BorrowedObjects):
+// структура заимствования с реквизитами расширения, формы, права ролей
+// расширения и использования в запросах, каждый факт со своим слоем.
+// Категория forms заявляется собранной (declareCollected, ADR-030), когда
+// формы всех слоёв прочитаны: пустота тогда честная. raw не меняется.
 func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
 		return nil, nil
@@ -333,9 +340,62 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if err != nil || !ok {
 		return nil, nil
 	}
-	sc := scoreCtx{depth: 0, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}
-	var out []*candidate
+	out, formsOK := addAttributeFacts(bctx, a, obj, "")
 	var warnings []Warning
+	if bctx.view == domain.ViewEffective && !bctx.extensionComponents[obj.ComponentID] {
+		borrowed, berr := effective.BorrowedObjects(tx, obj)
+		if berr != nil {
+			formsOK = false
+			warnings = append(warnings, borrowedObjectsReadFailed(obj, berr))
+		}
+		for _, b := range borrowed {
+			cands, bFormsOK := addAttributeFacts(bctx, a, b, b.ComponentID)
+			out = append(out, cands...)
+			formsOK = formsOK && bFormsOK
+		}
+		if formsOK {
+			bctx.declareCollected("forms")
+		} else {
+			bctx.declareCollectionFailed("forms")
+		}
+	}
+
+	warnings = append(warnings, Warning{
+		Code:    "exchange_edges_not_built",
+		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) не публикуется индексом (interfaces.md, долг тасков 08/09) — категория exchanges всегда missing",
+		Hint:    "проверьте состав плана обмена вручную через get_object ExchangePlan или find_metadata_usages",
+	})
+	return out, warnings
+}
+
+// borrowedObjectsReadFailed: заимствования объекта прочитать не удалось.
+// Ответ тогда построен по одному базовому слою, и это обязано быть сказано:
+// иначе он неотличим от ответа по объекту, который никто не заимствовал.
+func borrowedObjectsReadFailed(obj store.MetadataObjectRow, err error) Warning {
+	return Warning{
+		Code: "effective_borrowed_objects_read_failed",
+		Message: fmt.Sprintf("не удалось прочитать заимствования %s.%s в расширениях: %v; ответ построен только по базовому слою",
+			obj.MType, obj.NameDisplay, err),
+		Hint: "повторите вызов после reindex",
+	}
+}
+
+// addAttributeFacts собирает факты add-attribute по ОДНОЙ строке объекта.
+// borrowedBy пуст у строки анкера: тогда ключи и тексты кандидатов те же, что
+// до effective-вида (raw не меняется). Непустой borrowedBy (компонент
+// расширения, effective) метит факты как заимствование и разводит ключ
+// структуры: он строится по имени объекта и у двух слоёв иначе совпал бы.
+// Второе значение: формы этой строки прочитаны без ошибки.
+func addAttributeFacts(bctx *buildCtx, a Anchor, obj store.MetadataObjectRow, borrowedBy string) ([]*candidate, bool) {
+	tx := bctx.tx
+	sc := scoreCtx{depth: 0, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}
+	structureID := "structure:" + obj.NameNorm
+	whyTail := ""
+	if borrowedBy != "" {
+		structureID += "@" + borrowedBy
+		whyTail = fmt.Sprintf(" (заимствован расширением %s, effective)", borrowedBy)
+	}
+	var out []*candidate
 
 	members, merr := tx.MetadataMembers(obj.ID)
 	if merr == nil {
@@ -347,10 +407,10 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 		}
 		text := fmt.Sprintf("%d членов", len(members))
 		sm := &candidate{
-			id: "structure:" + obj.NameNorm, bucket: bucketMetadataSummary, category: "structure",
+			id: structureID, bucket: bucketMetadataSummary, category: "structure",
 			display: obj.NameDisplay, kindLabel: obj.MType, component: obj.ComponentID, memberCount: len(members),
 			members: summary, confidence: 1,
-			whyIncluded: fmt.Sprintf("структура объекта %s — точка добавления реквизита", obj.NameDisplay),
+			whyIncluded: fmt.Sprintf("структура объекта %s — точка добавления реквизита", obj.NameDisplay) + whyTail,
 			charCost:    runeLen(text) + len(summary)*12,
 		}
 		out = append(out, bctx.apply(sc, sm))
@@ -364,7 +424,7 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				id: fmt.Sprintf("usage:%d:%d", obj.ID, i), bucket: bucketRelation, category: "usages",
 				kindLabel: "query_reference", fromDisplay: obj.NameDisplay, display: label,
 				component: obj.ComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("объект %s использован в запросе (query_reference, %s)", obj.NameDisplay, r.Kind),
+				whyIncluded: fmt.Sprintf("объект %s использован в запросе (query_reference, %s)", obj.NameDisplay, r.Kind) + whyTail,
 				charCost:    runeLen(label) + 8,
 			}
 			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}, uc))
@@ -377,7 +437,7 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			fc := &candidate{
 				id: "form:" + itoaInt64(f.ID), bucket: bucketFact, category: "forms",
 				display: f.NameDisplay, component: obj.ComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("форма объекта %s — потенциально требует новый элемент реквизита", obj.NameDisplay),
+				whyIncluded: fmt.Sprintf("форма объекта %s — потенциально требует новый элемент реквизита", obj.NameDisplay) + whyTail,
 				charCost:    runeLen(f.NameDisplay) + 10,
 			}
 			out = append(out, bctx.apply(sc, fc))
@@ -395,19 +455,13 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			rc := &candidate{
 				id: fmt.Sprintf("addattr-role:%d", rr.RoleID), bucket: bucketFact, category: "rights",
 				display: rr.RoleNameDisplay, detail: rr.RightName, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("роль %s уже имеет права на %s — новый реквизит может требовать пересмотра прав", rr.RoleNameDisplay, obj.NameDisplay),
+				whyIncluded: fmt.Sprintf("роль %s уже имеет права на %s — новый реквизит может требовать пересмотра прав", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
 				charCost:    runeLen(rr.RoleNameDisplay) + 10,
 			}
 			out = append(out, bctx.apply(sc, rc))
 		}
 	}
-
-	warnings = append(warnings, Warning{
-		Code:    "exchange_edges_not_built",
-		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) не публикуется индексом (interfaces.md, долг тасков 08/09) — категория exchanges всегда missing",
-		Hint:    "проверьте состав плана обмена вручную через get_object ExchangePlan или find_metadata_usages",
-	})
-	return out, warnings
+	return out, fferr == nil
 }
 
 func itoaInt64(n int64) string { return fmt.Sprintf("%d", n) }

@@ -364,7 +364,7 @@ func TestEffectivePartialCoverageWarningScope(t *testing.T) {
 		{IntentRegister, "Кто пишет в регистр ТоварыНаСкладах", false},
 		{IntentQuery, "Перепиши текст запроса в отчёте по остаткам", false},
 		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS", true},
-		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента", true},
+		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.intent, func(t *testing.T) {

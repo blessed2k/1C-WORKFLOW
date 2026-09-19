@@ -273,3 +273,69 @@ func TestExtensionsFromStore(t *testing.T) {
 		t.Fatalf("ExtensionsFromStore = %+v", got)
 	}
 }
+
+type fakeObjectSource struct {
+	comps   []store.Component
+	rows    []store.MetadataObjectRow
+	compErr error
+	rowsErr error
+}
+
+func (f fakeObjectSource) Components() ([]store.Component, error) { return f.comps, f.compErr }
+
+func (f fakeObjectSource) MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error) {
+	if f.rowsErr != nil {
+		return nil, f.rowsErr
+	}
+	var out []store.MetadataObjectRow
+	for _, r := range f.rows {
+		if r.MType == mtype && r.NameNorm == nameNorm {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// TestBorrowedObjects: в effective-вид объекта входят строки ТОЛЬКО тех
+// расширений, что применяются к его компоненту, в порядке наложения; строка
+// самого объекта, чужая база и чужой вид объекта не входят.
+func TestBorrowedObjects(t *testing.T) {
+	obj := store.MetadataObjectRow{ID: 1, ComponentID: "cfg", MType: "Document", NameNorm: "заказ", NameDisplay: "Заказ"}
+	src := fakeObjectSource{
+		comps: []store.Component{
+			{ID: "cfg", Kind: string(domain.KindConfiguration)},
+			{ID: "ext-b", Kind: string(domain.KindExtension), AppliesTo: "cfg", ApplyOrder: 2},
+			{ID: "ext-a", Kind: string(domain.KindExtension), AppliesTo: "cfg", ApplyOrder: 1},
+			{ID: "ext-other", Kind: string(domain.KindExtension), AppliesTo: "cfg2", ApplyOrder: 1},
+		},
+		rows: []store.MetadataObjectRow{
+			obj,
+			{ID: 2, ComponentID: "ext-b", MType: "Document", NameNorm: "заказ"},
+			{ID: 3, ComponentID: "ext-a", MType: "Document", NameNorm: "заказ"},
+			{ID: 4, ComponentID: "ext-other", MType: "Document", NameNorm: "заказ"},
+			{ID: 5, ComponentID: "ext-a", MType: "Catalog", NameNorm: "заказ"},
+		},
+	}
+	got, err := BorrowedObjects(src, obj)
+	if err != nil {
+		t.Fatalf("BorrowedObjects: %v", err)
+	}
+	var ids []int64
+	for _, r := range got {
+		ids = append(ids, r.ID)
+	}
+	if len(ids) != 2 || ids[0] != 3 || ids[1] != 2 {
+		t.Fatalf("BorrowedObjects = %v, want [3 2] (ext-a, затем ext-b; без самой строки, чужой базы и чужого вида)", ids)
+	}
+
+	t.Run("отказ чтения не выглядит пустотой", func(t *testing.T) {
+		for _, bad := range []fakeObjectSource{
+			{compErr: errors.New("boom")},
+			{comps: src.comps, rowsErr: errors.New("boom")},
+		} {
+			if _, err := BorrowedObjects(bad, obj); err == nil {
+				t.Fatal("ожидалась ошибка чтения, получена тишина")
+			}
+		}
+	})
+}

@@ -62,7 +62,7 @@ func TestViewEffectiveBugfixNoInterceptorNoise(t *testing.T) {
 func TestViewEffectivePartialCoverageWarningForRawOnlyIntent(t *testing.T) {
 	st := openFixtureStore(t)
 	seedScenarioFixture(t, st)
-	res := buildFor(t, st, Request{Task: "Добавь реквизит Комментарий в документ ЗаказКлиента", ProjectID: "p", View: "effective"})
+	res := buildFor(t, st, Request{Task: "Пользователь не видит документ ЗаказКлиента, нужен разбор прав и RLS", ProjectID: "p", View: "effective"})
 	if !hasWarning(res, "effective_view_partial_coverage") {
 		t.Fatalf("нет warning effective_view_partial_coverage для intent=%s: %+v", res.Intent.Primary, res.Warnings)
 	}

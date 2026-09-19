@@ -118,3 +118,44 @@ func (m *Memory) ModuleText(ext, modulePath string) ([]byte, bool, error) {
 	text, ok := m.Modules[k]
 	return text, ok, nil
 }
+
+// ObjectSource: то, что нужно отбору заимствований объекта. *store.ReadTx
+// удовлетворяет ему как есть; интерфейс объявлен здесь ради того же, ради
+// чего Source: отказ чтения иначе нечем воспроизвести в тесте.
+type ObjectSource interface {
+	Components() ([]store.Component, error)
+	MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error)
+}
+
+// BorrowedObjects: строки объекта obj в расширениях, применяющихся к его
+// компоненту, в порядке наложения (ApplyingTo). Это объектный аналог Module:
+// заимствованный объект расширения (его реквизиты, формы, права ролей
+// расширения) живёт отдельной строкой metadata_object своего компонента, и
+// effective-вид объекта есть строка базы плюс эти строки. Строка самого obj
+// в ответ не входит. Объект из компонента-расширения заимствований не
+// имеет: расширения применяются к базе, а не друг к другу.
+func BorrowedObjects(src ObjectSource, obj store.MetadataObjectRow) ([]store.MetadataObjectRow, error) {
+	comps, err := src.Components()
+	if err != nil {
+		return nil, fmt.Errorf("состав компонентов: %w", err)
+	}
+	exts := ApplyingTo(ExtensionsFromStore(comps), obj.ComponentID)
+	if len(exts) == 0 {
+		return nil, nil
+	}
+	rows, err := src.MetadataObjectsByName(obj.MType, obj.NameNorm)
+	if err != nil {
+		return nil, fmt.Errorf("строки объекта %s.%s: %w", obj.MType, obj.NameDisplay, err)
+	}
+	byComponent := make(map[string]store.MetadataObjectRow, len(rows))
+	for _, r := range rows {
+		byComponent[r.ComponentID] = r
+	}
+	var out []store.MetadataObjectRow
+	for _, e := range exts {
+		if r, ok := byComponent[e.ID]; ok {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
