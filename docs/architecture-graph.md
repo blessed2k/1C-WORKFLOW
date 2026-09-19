@@ -227,6 +227,8 @@ http_endpoint facts (В2)
 - `GET /api/godnodes?metric=fan-in|fan-out&type=...&top=N`: аналитика
   перегруженных узлов;
 - `GET /api/edge/{id}/evidence`: цепочка «почему ребро существует»;
+- `GET /api/search?q=...&limit=N`: объект по части имени (точные, затем префикс, затем
+  вхождение, со степенями fanIn/fanOut): точка входа на карту без знания id;
 - В2: `GET /api/crosslinks?projects=...`: HTTP-рёбра между проектами.
 
 Progressive disclosure живёт на этом API: UI не грузит весь граф никогда.

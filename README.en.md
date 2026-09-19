@@ -230,8 +230,10 @@ mcp1c graph --project /path/to/workspace [--listen 127.0.0.1:0]
 ```
 
 Serves a local web page with a map of object relations from an already built index
-(`--project` points at the `--projects-root` directory and may be repeated). It listens on
-`127.0.0.1` only and prints the address; open it in a browser yourself.
+(`--project` points at the workspace root that holds `.mcp1c`, the same directory as
+`--projects-root`, not at the dump itself; it may be repeated). It listens on `127.0.0.1` only
+and prints the address; open it in a browser yourself. Start from an object by searching part
+of its name (`ПрочиеРасходы`, `Заказ`); double-click a node to expand its neighbours.
 
 ## Live infobase connector
 
