@@ -71,3 +71,20 @@ func TestMergeHTTPHosts(t *testing.T) {
 		t.Errorf("расхождение обязано дать предупреждение: %v", warnings)
 	}
 }
+
+// TestLoadHTTPHostsRejectsOversizedFile: файл больше потолка отвергается с
+// ошибкой, а не читается в память целиком.
+func TestLoadHTTPHostsRejectsOversizedFile(t *testing.T) {
+	root := t.TempDir()
+	body := `{"version":1,"hosts":[],"pad":"` + strings.Repeat("x", HTTPHostsMaxBytes) + `"}`
+	if err := os.MkdirAll(filepath.Join(root, RegistryDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(HTTPHostsPath(root), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadHTTPHosts(root)
+	if err == nil || !strings.Contains(err.Error(), "больше") {
+		t.Fatalf("ожидалась ошибка о размере, получено %v", err)
+	}
+}

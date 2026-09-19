@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -35,6 +36,9 @@ const (
 	HTTPHostsFileName = "http-hosts.json"
 	// HTTPHostsVersion: версия формата маппинга.
 	HTTPHostsVersion = 1
+	// HTTPHostsMaxBytes: потолок чтения файла маппинга. Маппинг это
+	// десятки строк; файл больше потолка отвергается, а не читается в память.
+	HTTPHostsMaxBytes = 1 << 20
 )
 
 // HTTPHostRule: одно правило маппинга.
@@ -64,12 +68,20 @@ func LoadHTTPHosts(workspaceRoot string) (HTTPHosts, error) {
 		return HTTPHosts{Version: HTTPHostsVersion}, nil
 	}
 	path := HTTPHostsPath(workspaceRoot)
-	raw, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return HTTPHosts{Version: HTTPHostsVersion}, nil
 	}
 	if err != nil {
 		return HTTPHosts{}, fmt.Errorf("маппинг хостов %s: %w", path, err)
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, HTTPHostsMaxBytes+1))
+	if err != nil {
+		return HTTPHosts{}, fmt.Errorf("маппинг хостов %s: %w", path, err)
+	}
+	if len(raw) > HTTPHostsMaxBytes {
+		return HTTPHosts{}, fmt.Errorf("маппинг хостов %s: файл больше %d байт", path, HTTPHostsMaxBytes)
 	}
 	m, err := ParseHTTPHosts(raw)
 	if err != nil {
