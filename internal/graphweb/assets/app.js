@@ -75,7 +75,8 @@
     "has-dynamic": "⚡",              // молния: динамика не даёт ребра
     "attribution-truncated": "✂",     // ножницы: обход упёрся в потолок
     "attribution-stale": "⏳",         // песочные часы: могло устареть
-    "has-dynamic-http": "⚡H"          // HTTP-вызов с вычисляемым адресом
+    "has-dynamic-http": "⚡H",         // HTTP-вызов с вычисляемым адресом
+    "has-unresolved-http": "?H"       // адресат HTTP-вызова не определён
   };
   // Точная формулировка из interfaces.md: attribution-stale значит «связь
   // могла устареть», НЕ «связь потеряна»; подписывать этими словами.
@@ -83,7 +84,8 @@
     "has-dynamic": "есть динамические обращения, статически не отслежены",
     "attribution-truncated": "обход атрибуции упёрся в потолок глубины, ребро могло быть",
     "attribution-stale": "связь могла устареть (снимается полной пересборкой)",
-    "has-dynamic-http": "HTTP-вызовы с вычисляемым адресом: ребра нет, адресат статически не выводится"
+    "has-dynamic-http": "HTTP-вызовы с вычисляемым адресом: ребра нет, адресат статически не выводится",
+    "has-unresolved-http": "HTTP-вызовы, чей адресат не определён: путь известен частью или база не открыта"
   };
 
   var VIEWS = ["raw", "effective", "diff"];
@@ -254,7 +256,9 @@
       var b = badgeText(card.badges);
       if (b) parts.push(b);
     }
-    if (d.httpDynamic) parts.push(BADGE_SYMBOL["has-dynamic-http"] + d.httpDynamic);
+    ["has-dynamic-http", "has-unresolved-http"].forEach(function (k) {
+      if (d["hb:" + k]) parts.push(BADGE_SYMBOL[k] + d["hb:" + k]);
+    });
     el.data("label", breakCamel(d.nameDisplay || ("#" + d.objectId)) + "\n" + parts.join(" "));
   }
 
@@ -937,7 +941,7 @@
         var id = b.node.project === state.project ? String(b.node.id) : "p:" + b.node.project + ":" + b.node.id;
         var el = cy.getElementById(id);
         if (el.empty()) return;
-        el.data("httpDynamic", b.count);
+        el.data("hb:" + b.badge, b.count);
         refreshLabel(el);
       });
       applyFilters();
@@ -954,7 +958,7 @@
     return (calls || []).map(function (c) {
       return "<div class='evidence-chain-step'>" + escapeHTML(c.file + ":" + c.line) + (c.symbol ? " " + escapeHTML(c.symbol) : "") +
         (c.verb ? " " + escapeHTML(c.verb) : "") + (c.host ? " " + escapeHTML(c.host) : "") +
-        (c.path ? " " + escapeHTML(c.path) : "") + (c.pathSuffix ? " … " + escapeHTML(c.pathSuffix) : "") + " <span class='muted'>(" + escapeHTML(c.pathKind) + (c.attributed ? "" : ", вызов в модуле без вызывающих объектов") + ")</span></div>";
+        (c.path ? " " + (c.pathAnchored ? "…" : "") + escapeHTML(c.path) : "") + (c.pathSuffix ? " … " + escapeHTML(c.pathSuffix) : "") + " <span class='muted'>(" + escapeHTML(c.pathKind) + (c.dynamicReason ? ", " + escapeHTML(c.dynamicReason) : "") + (c.attributed ? "" : ", вызов в модуле без вызывающих объектов") + ")</span></div>";
     }).join("");
   }
 
@@ -1042,7 +1046,12 @@
       return;
     }
     search.ctrl = typeof AbortController === "function" ? new AbortController() : null;
-    fetchJSON("/api/search", { q: q, limit: "20" }, search.ctrl && search.ctrl.signal).then(function (resp) {
+    // Поиск до загрузки списка проектов шёл без project= и падал на
+    // нескольких -project: ждём список.
+    var ctrl = search.ctrl;
+    projectsReady.then(function () {
+      return fetchJSON("/api/search", { q: q, limit: "20" }, ctrl && ctrl.signal);
+    }).then(function (resp) {
       if (searchEl.value.trim() !== q) return;
       var note = resp.warnings && resp.warnings.length ? "показаны первые " + (resp.items || []).length + ", уточните запрос" : "";
       renderResults(resp.items || [], note);
@@ -1305,7 +1314,8 @@
   var params = new URLSearchParams(window.location.search);
   if (VIEWS.indexOf(params.get("view")) >= 0) state.view = params.get("view");
   markView();
-  loadProjects().then(function () {
+  var projectsReady = loadProjects();
+  projectsReady.then(function () {
     if (params.get("project")) {
       state.project = params.get("project");
       document.getElementById("project").value = state.project;
