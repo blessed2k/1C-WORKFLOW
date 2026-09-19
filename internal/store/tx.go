@@ -869,10 +869,8 @@ type Role struct {
 	Layer       string
 }
 
-// EnsureRole создаёт или обновляет роль и возвращает её id. Пустой ObjectID
-// прежний объект не стирает: его не знает публикация Rights.xml, которая
-// приходит после XML роли, и без этого чистая пересборка оставляла указатель
-// пустым, а инкремент по XML роли заполнял (ADR-038).
+// EnsureRole создаёт или обновляет роль по её собственному XML и возвращает
+// её id.
 func (tx *WriteTx) EnsureRole(r Role) (int64, error) {
 	if err := tx.checkNoFlush(); err != nil {
 		return 0, err
@@ -880,7 +878,26 @@ func (tx *WriteTx) EnsureRole(r Role) (int64, error) {
 	if err := tx.c.exec(tx.ctx, `INSERT INTO role(component_id,name_norm,name_display,object_id,file_id,layer)
 		VALUES(?,?,?,?,?,?)
 		ON CONFLICT(component_id,name_norm) DO UPDATE SET name_display=excluded.name_display,
-		  object_id=COALESCE(excluded.object_id, role.object_id), file_id=excluded.file_id, layer=excluded.layer`,
+		  object_id=excluded.object_id, file_id=excluded.file_id, layer=excluded.layer`,
+		r.ComponentID, r.NameNorm, r.NameDisplay, nullID(r.ObjectID), r.FileID, layerOrBase(r.Layer)); err != nil {
+		return 0, err
+	}
+	return tx.c.queryInt(tx.ctx, `SELECT id FROM role WHERE component_id=? AND name_norm=?`,
+		r.ComponentID, r.NameNorm)
+}
+
+// RoleForRights возвращает id роли для прав из Rights.xml и создаёт её, только
+// если роли ещё нет (XML роли в выгрузке нет). Существующую строку не трогает:
+// ею владеет XML роли, и публикация прав, которая объекта роли не знает, не
+// должна переписывать ни объект, ни файл. Иначе инкремент по одному Rights.xml
+// переводил роль на этот файл, следующий такой инкремент сносил её каскадом и
+// вставлял без объекта (ADR-038).
+func (tx *WriteTx) RoleForRights(r Role) (int64, error) {
+	if err := tx.checkNoFlush(); err != nil {
+		return 0, err
+	}
+	if err := tx.c.exec(tx.ctx, `INSERT INTO role(component_id,name_norm,name_display,object_id,file_id,layer)
+		VALUES(?,?,?,?,?,?) ON CONFLICT(component_id,name_norm) DO NOTHING`,
 		r.ComponentID, r.NameNorm, r.NameDisplay, nullID(r.ObjectID), r.FileID, layerOrBase(r.Layer)); err != nil {
 		return 0, err
 	}

@@ -49,16 +49,14 @@ func publishScheduledJob(tx *store.WriteTx, ts *txState, rel string, fileID int6
 
 // publishRole вставляет identity роли (аспект — её собственный XML). Роль не
 // node-сущность (interfaces.md, таск 03): identity — имя внутри компонента.
-// ts.roleFile запоминает file_id ИМЕННО этого файла, чтобы publishRoleRights
-// (другой файл, Rights.xml) не перезаписал его чужим id — EnsureRole
-// безусловно перезаписывает file_id тем, что ему передали.
-func publishRole(tx *store.WriteTx, ts *txState, rel string, fileID, objID int64, role *store.Role) error {
+// Строкой роли владеет этот файл: публикация Rights.xml её не переписывает
+// (store.RoleForRights).
+func publishRole(tx *store.WriteTx, rel string, fileID, objID int64, role *store.Role) error {
 	row := *role
 	row.ObjectID, row.FileID = objID, fileID
 	if _, err := tx.EnsureRole(row); err != nil {
 		return fmt.Errorf("role %s: %w", rel, err)
 	}
-	ts.roleFile[roleCacheKey(domain.ComponentID(row.ComponentID), row.NameNorm)] = fileID
 	return nil
 }
 
@@ -67,24 +65,17 @@ func publishRole(tx *store.WriteTx, ts *txState, rel string, fileID, objID int64
 // (resolve.EffectiveRoleObjectRights) остаётся делом читающего слоя (app,
 // таск 12+): здесь её вызывать не для чего, раз ничего из её результата не
 // публикуется отдельной таблицей, а схема store для эффективных прав
-// отдельного места не резервирует. Если роль уже встретилась в ЭТОЙ ЖЕ
-// транзакции (publishRole), используется её настоящий file_id. Если роль в
-// этой транзакции не публиковалась (инкремент тронул только Rights.xml) —
-// узкий случай, file_id остаётся на Rights.xml вместо собственного XML роли
-// (упрощение: store не даёт прочитать существующий file_id роли без второго
-// SQL-слоя вне себя).
+// отдельного места не резервирует. Роль уже есть (её XML опубликован этой
+// или прошлой транзакцией): берётся как есть. Нет (XML роли в выгрузке нет):
+// создаётся на file_id этого Rights.xml, как её создала бы и чистая
+// пересборка.
 func publishRoleRights(tx *store.WriteTx, ts *txState, rel string, fileID int64, rp *roleRightsPlan) error {
-	roleFileID, ok := ts.roleFile[rp.roleKey]
-	if !ok {
-		roleFileID = fileID
-	}
 	role := rp.role
-	role.FileID = roleFileID
-	roleID, err := tx.EnsureRole(role)
+	role.FileID = fileID
+	roleID, err := tx.RoleForRights(role)
 	if err != nil {
 		return fmt.Errorf("role (rights) %s: %w", rel, err)
 	}
-	ts.roleFile[rp.roleKey] = roleFileID
 
 	for _, obj := range rp.objects {
 		objID := resolveRoleObjectNode(tx, ts, obj.objectKey)
@@ -130,10 +121,6 @@ func handlerSymbolID(tx *store.WriteTx, ts *txState, key string) (int64, error) 
 		return 0, nil
 	}
 	return id, nil
-}
-
-func roleCacheKey(component domain.ComponentID, nameNorm string) string {
-	return string(component) + "\x00" + nameNorm
 }
 
 // rlsToText сериализует RLS-ограничения права в компактный текст —

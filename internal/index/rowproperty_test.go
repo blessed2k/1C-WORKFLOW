@@ -89,6 +89,59 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// Декларированное ребро зависит от XML и пересобирается честно.
 		checkIncrementRows(t, 30, documentXMLEdits)
 	})
+	t.Run("два инкремента по Rights.xml", func(t *testing.T) {
+		// Правится только Rights.xml, дважды подряд. Строка роли принадлежит
+		// своему XML и не должна переходить к Rights.xml: иначе второй
+		// инкремент сносит её каскадом и вставляет без объекта роли
+		// (ревью issue #11, ADR-038).
+		checkIncrementRows(t, 30, rightsOnlyEdits)
+	})
+	t.Run("удаление XML регистра", func(t *testing.T) {
+		// Регистр удалён: снятые рёбра документа не возвращаются, конца
+		// у них больше нет. Итог тот же, что у чистой пересборки.
+		checkIncrementRows(t, 30, registerRemoveEdits)
+	})
+	t.Run("удаление XML роли при живом Rights.xml", func(t *testing.T) {
+		// Граница ADR-038: чистая пересборка создаёт роль из одного
+		// Rights.xml (file_id на нём, без объекта роли), а инкремент роль не
+		// воссоздаёт, и права Rights.xml пропадают: его никто не
+		// переопубликует. В выгрузке конфигуратора Rights.xml лежит в каталоге
+		// роли и удаляется вместе с её XML, поэтому случай патологический.
+		// Починка: добавлять Rights.xml удалённой роли в дельту публикации.
+		t.Skip("граница ADR-038: роль без своего XML инкремент не воссоздаёт из нетронутого Rights.xml")
+		checkIncrementRows(t, 30, roleXMLRemoveEdits)
+	})
+}
+
+var rightsOnlyEdits = incrementScenario{
+	seed: roleXMLEdits.seed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write("Roles/ЧтениеТоваров/Ext/Rights.xml", strings.Replace(allPointersRights, "<value>true</value>", "<value>false</value>", 1))
+	},
+	then: []func(write func(rel, content string), remove func(rel string)){
+		func(write func(rel, content string), remove func(rel string)) {
+			write("Roles/ЧтениеТоваров/Ext/Rights.xml", allPointersRights)
+		},
+	},
+	mustHave: []string{"object_id=node:" + metadataObjectIdentityKey("cfg", "Role", "чтениетоваров")},
+}
+
+var registerRemoveEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"))
+	},
+	// Декларированное ребро пропадает честно, а бейдж has-dynamic документа
+	// остаётся: сценарий создал граф, рёбра которого исчезают.
+	mustHave: []string{"badge=has-dynamic"},
+}
+
+var roleXMLRemoveEdits = incrementScenario{
+	seed: roleXMLEdits.seed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"))
+	},
+	mustHave: []string{"right_name=Read"},
 }
 
 var roleXMLEdits = incrementScenario{
@@ -296,6 +349,8 @@ type incrementScenario struct {
 	seed map[string]string
 	// edit применяет правки: write пишет файл со сдвигом mtime, remove удаляет.
 	edit func(write func(rel, content string), remove func(rel string))
+	// then: следующие раунды правок, после каждого свой инкремент.
+	then []func(write func(rel, content string), remove func(rel string))
 	// mustHave: подстроки, каждая из которых обязана встретиться в строках
 	// чистой пересборки: иначе сценарий не создал то, что проверяет.
 	mustHave []string
@@ -430,9 +485,11 @@ func checkIncrementRows(t *testing.T, fillers int, sc incrementScenario) {
 			t.Fatal(err)
 		}
 	}
-	sc.edit(write, remove)
-	if _, err := svcA.Reindex(ctx, ModeIncremental, ""); err != nil {
-		t.Fatalf("A: Reindex(incremental): %v", err)
+	for i, edit := range append([]func(func(string, string), func(string)){sc.edit}, sc.then...) {
+		edit(write, remove)
+		if _, err := svcA.Reindex(ctx, ModeIncremental, ""); err != nil {
+			t.Fatalf("A: Reindex(incremental) №%d: %v", i+1, err)
+		}
 	}
 
 	stB := openTestStore(t)
