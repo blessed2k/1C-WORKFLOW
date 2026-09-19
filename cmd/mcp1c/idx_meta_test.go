@@ -14,7 +14,7 @@ import (
 )
 
 // metaDumpEnvVars — те же переменные, что internal/index/internal/resolve
-// realworld-тесты (interfaces.md §28): один прогон, один и тот же путь к
+// realworld-тесты: один прогон, один и тот же путь к
 // выгрузке, не зашитый в код.
 var metaDumpEnvVars = []string{"ONEC_DUMP", "MCP1C_SPIKE_DUMP"}
 
@@ -124,8 +124,8 @@ func metaFixtureProject(t *testing.T, workspaceRoot, projectRoot, id string) {
 	metaWriteFile(t, registryPath, string(regData))
 }
 
-// TestFindRegisterWritesAgainstGetMovementsRealDump — критерий приёмки
-// тикета 12: «результат сверен с существующим get_movements на том же
+// TestFindRegisterWritesAgainstGetMovementsRealDump: критерий приёмки
+// «результат сверен с существующим get_movements на том же
 // объекте, расхождения объяснены» (не косметическая сверка — прогон на
 // реальном документе УТ, найденном в выгрузке заранее: КорректировкаНалого-
 // обложенияНДСПартийТоваров пишет движения по регистру ПартииТоваровОрганизаций
@@ -215,7 +215,7 @@ func TestFindRegisterWritesAgainstGetMovementsRealDump(t *testing.T) {
 		"флаг ставится вне модуля документа), find_register_writes нашёл %d доступ(ов) mode=movement к тому же регистру в том же документе",
 		got.WriteFlag, len(inThisDoc))
 
-	// --- пагинация (R61) на реальных данных: тот же фикстурный doc содержит
+	// --- пагинация на реальных данных: тот же фикстурный doc содержит
 	// несколько разных регистров-движений; limit=1 на другом регистре этого
 	// же документа даёт nextCursor, вторая страница отдаёт следующую запись,
 	// а не повтор первой. ---
@@ -245,7 +245,7 @@ func TestFindRegisterWritesAgainstGetMovementsRealDump(t *testing.T) {
 	}
 }
 
-// TestGetObjectRealDump — критерий приёмки тикета 12: «get_object на объекте
+// TestGetObjectRealDump: критерий приёмки «get_object на объекте
 // из реальной выгрузки даёт структуру, формы, подписки, права; parts реально
 // сужает выдачу». Catalogs/Номенклатура выбран заранее (не подогнан по ходу
 // теста): содержит реквизиты, минимум одну подписку с единственным
@@ -356,7 +356,7 @@ func TestGetObjectRealDump(t *testing.T) {
 }
 
 // --- get_form_handlers: фикстура с одним разрешённым и одним
-// unresolved-обработчиком (R43.1) ---
+// unresolved-обработчиком (с diagnostic) ---
 
 const fixtureCatalogXML = metaBOM + `<?xml version="1.0" encoding="UTF-8"?>
 <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" version="2.20">
@@ -385,7 +385,7 @@ const fixtureFormModuleBSL = metaBOM + `Процедура ПриСоздани�
 КонецПроцедуры
 `
 
-// TestGetFormHandlersUnresolvedFixture — критерий приёмки тикета 12:
+// TestGetFormHandlersUnresolvedFixture: критерий приёмки
 // «get_form_handlers на форме с необъявленным обработчиком даёт unresolved +
 // diagnostic, а не пустую выдачу». Фикстура собрана вручную (не найдена в
 // реальной выгрузке — искать заведомо сломанный случай в чужих данных
@@ -453,7 +453,7 @@ func TestGetFormHandlersUnresolvedFixture(t *testing.T) {
 		t.Errorf("ПриОткрытии: Symbol должен быть nil при unresolved, получено %+v", unresolved.Symbol)
 	}
 	if len(unresolved.Diagnostics) == 0 {
-		t.Error("ПриОткрытии: unresolved-привязка ОБЯЗАНА нести diagnostic (R43.1), получен пустой список")
+		t.Error("ПриОткрытии: unresolved-привязка ОБЯЗАНА нести diagnostic, получен пустой список")
 	} else if unresolved.Diagnostics[0].Code != "handler_unresolved" {
 		t.Errorf("diagnostic.Code = %q, want handler_unresolved", unresolved.Diagnostics[0].Code)
 	}
@@ -497,7 +497,7 @@ const fixtureQueryModuleBSL = metaBOM + `Процедура Тест() Эксп�
 КонецПроцедуры
 `
 
-// TestFindQueriesUsingFixture — критерий приёмки тикета 12: «find_queries_using
+// TestFindQueriesUsingFixture: критерий приёмки «find_queries_using
 // находит запрос по виртуальной таблице и по полю» — здесь по базовой
 // таблице (Справочник.Тест2, TableBase, доступная тем же путём, что и
 // виртуальная — resolve.DeriveQueryReference не различает TableBase/

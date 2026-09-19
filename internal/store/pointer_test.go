@@ -197,7 +197,7 @@ func TestRecoverIgnoresOtherProjectEpochs(t *testing.T) {
 
 // Повреждённый указатель, ссылающийся в никуда, обязан приводить к честному
 // «нужен полный rebuild», а не к выбору «последней validated-эпохи»: отметка
-// validated означает «готова», но НЕ «была опубликована» (запрет ревью №5).
+// validated означает «готова», но НЕ «была опубликована».
 func TestBothSlotsCorruptedMeansFullRebuild(t *testing.T) {
 	dir := t.TempDir()
 	p := newPointer(dir)

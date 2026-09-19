@@ -72,7 +72,7 @@ type Status struct {
 	Candidates      []workspace.Candidate
 }
 
-// Policy — политика свежести запроса (§18.5, R33.1/R54).
+// Policy: политика свежести запроса (§18.5).
 type Policy struct {
 	// Mode — "allow-stale" (по умолчанию) или "require-fresh".
 	Mode string
@@ -99,7 +99,7 @@ type Freshness struct {
 }
 
 // ErrIndexNotFresh — require-fresh не дождался публикации в пределах deadline
-// (R33.1): stale под видом fresh не возвращается никогда, поэтому вызывающий
+// (stale под видом fresh не возвращается никогда), поэтому вызывающий
 // получает честную ошибку с прогрессом вместо устаревшего ответа.
 type ErrIndexNotFresh struct {
 	Progress string
@@ -110,7 +110,7 @@ func (e *ErrIndexNotFresh) Error() string {
 }
 
 // Service — пайплайн индексации одного logical project поверх internal/store
-// (interfaces.md: NewService/Status/Reindex/EnsureFresh).
+// (NewService/Status/Reindex/EnsureFresh).
 type Service struct {
 	st       *store.Store
 	project  domain.ProjectID

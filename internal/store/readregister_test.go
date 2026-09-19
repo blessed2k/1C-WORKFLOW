@@ -8,8 +8,8 @@ import (
 )
 
 // Слой доступа к регистру доезжает до читателя: без него raw и effective
-// неразличимы (D11). Строка без явного слоя читается как base — тот же дефолт,
-// что стоит в схеме.
+// неразличимы (D11, docs/architecture-graph.md). Строка без явного слоя
+// читается как base: тот же дефолт, что стоит в схеме.
 func TestRegisterAccessKeepsLayer(t *testing.T) {
 	s, f := seeded(t)
 	if err := s.Write(context.Background(), func(tx *WriteTx) error {

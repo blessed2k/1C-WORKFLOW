@@ -10,7 +10,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/graphweb"
 )
 
-// TestServeStopsOnContextCancelWithoutHangingGoroutine — R18/R46: Ctrl+C
+// TestServeStopsOnContextCancelWithoutHangingGoroutine: Ctrl+C
 // (в проде — отменённый ctx) обязан погасить сервер, и Serve обязан
 // вернуться только ПОСЛЕ того, как http.Server.Serve реально завершилась —
 // иначе вызывающий (cmd/mcp1c/graph.go) считает процесс погашенным, пока

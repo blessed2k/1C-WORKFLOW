@@ -11,7 +11,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// Синтетическая фикстура из двух компонентов (§9, история 35): конфигурация и
+// Синтетическая фикстура из двух компонентов (§9): конфигурация и
 // расширение с AppliesTo, ОДИН И ТОТ ЖЕ путь модуля документа в обоих слоях.
 // В ut_demo расширений нет, поэтому слой в рёбрах доказывается только так.
 //
@@ -118,7 +118,7 @@ func registersWrittenInLayer(t *testing.T, ctx context.Context, st *store.Store,
 	return out
 }
 
-// TestObjectEdgeLayersRawVsEffective — истории 6 и 35 (R08, R34, R35): слой в
+// TestObjectEdgeLayersRawVsEffective: слой в
 // рёбрах работает. Один и тот же путь модуля в конфигурации и в расширении
 // даёт РАЗНЫЕ рёбра, и различие видно фильтром по layer.
 func TestObjectEdgeLayersRawVsEffective(t *testing.T) {

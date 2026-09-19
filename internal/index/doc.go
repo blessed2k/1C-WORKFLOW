@@ -5,7 +5,7 @@
 //
 // Пакет — единственный писатель индекса: он строит resolve.EnvInput из
 // разобранных фактов (в памяти, а не через SQL-выборки — internal/store не
-// выставляет их, см. D02) и публикует результат одной транзакцией
+// выставляет их) и публикует результат одной транзакцией
 // (internal/store уже даёт атомарность и last-known-good, index здесь
 // только вызывающий).
 //
@@ -17,8 +17,8 @@
 // form_structure/form_element/form_command, handler_binding,
 // event_subscription, scheduled_job, role/role_right, register_access,
 // query (текст/span/staticity), query_reference (только static-литералы —
-// таск 12 научил resolve.DeriveQueryReference группировать по литералу и
-// добавил публикацию в publishderive.go, закрыв долг таска 08/09),
+// resolve.DeriveQueryReference группирует их по литералу, публикация в
+// publishderive.go),
 // dependency_edge(field-typed-by).
 //
 // НЕ публикуется, честно (не имитация готовности):

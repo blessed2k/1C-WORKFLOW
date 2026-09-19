@@ -6,7 +6,7 @@ import (
 )
 
 // TestSourceFilesByComponent — выборка, на которой стоит гидратация корпуса
-// (interfaces.md: store выставляет выборку source_file компонента
+// (store выставляет выборку source_file компонента
 // rel_path/size/mtime_ns/content_hash/parser_version). Ожидаемое взято из
 // seedFixture, а не из кода выборки.
 func TestSourceFilesByComponent(t *testing.T) {

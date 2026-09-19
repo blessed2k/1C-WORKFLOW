@@ -108,7 +108,7 @@ func TestГардЛовитСтарыйСлой(t *testing.T) {
 
 // TestГардЛовитRetrieveЧерезApp: internal/retrieve, тянущий internal/app
 // напрямую, обязан упасть — направление зависимостей обратное (app зовёт
-// retrieve, не наоборот; найдено ревью при работе над D08/raw-effective).
+// retrieve, не наоборот).
 func TestГардЛовитRetrieveЧерезApp(t *testing.T) {
 	модуль := загрузитьФикстуру(t, "broken")
 	сверить(t, собрать(arch.CheckRetrieveNotApp(модуль)), []нарушениеФикстуры{

@@ -40,9 +40,8 @@ type QueryReferenceResult struct {
 }
 
 // QueryLiteralReferences — query_reference одного текста запроса
-// (bsl.QueryLiteral): группировка, которой не хватало до таска 12
-// (interfaces.md, «Из таска 09»/«Из таска 08» — «query_reference для
-// partial-текстов... не строится — только static», а static-результат
+// (bsl.QueryLiteral): группировка, которой раньше не хватало (query_reference для
+// partial-текстов не строился, только для static, а static-результат
 // возвращался ОДНИМ плоским списком без привязки к литералу, из которого
 // присвоить query_id было нечем). LiteralIndex — индекс в mod.Queries: тот
 // же порядок, что видит publish (index/publishderive.go), поэтому query_id,
@@ -54,13 +53,13 @@ type QueryLiteralReferences struct {
 }
 
 // DeriveQueryReference разрешает таблицы/поля/параметры/временные таблицы
-// текста запроса (internal/parse/query, таск 07) против объектов и членов
+// текста запроса (internal/parse/query) против объектов и членов
 // метаданных из Env, сгруппированные по литералу-источнику. Работает ТОЛЬКО
 // со статичными литералами (bsl.StaticityStatic): текст частично собранного
 // запроса (Partial) — это один фрагмент конкатенации, а не полный текст, и
 // разбирать его в одиночку значило бы выдавать часть за целое; сборка
 // полного текста через query.GapMarker по всем фрагментам одного выражения —
-// работа таска 09 (у него есть доступ ко всем токенам метода, а не только к
+// работа пайплайна index (у него есть доступ ко всем токенам метода, а не только к
 // одному QueryLiteral), НЕ повторный разбор здесь.
 func DeriveQueryReference(mod *bsl.Module, env Env) []QueryLiteralReferences {
 	if mod == nil {

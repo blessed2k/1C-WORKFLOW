@@ -16,14 +16,14 @@ import (
 )
 
 // ownerlessModuleKinds — единственные виды модулей, у которых объекта-владельца
-// в конфигурации нет (история 8): они лежат вне коллекции выгрузки.
+// в конфигурации нет: они лежат вне коллекции выгрузки.
 var ownerlessModuleKinds = map[bsl.ModuleKind]bool{
 	bsl.ModuleApplication:        true,
 	bsl.ModuleSession:            true,
 	bsl.ModuleExternalConnection: true,
 }
 
-// TestRealDumpModuleOwnerFilled — приёмка истории 8 на реальной выгрузке:
+// TestRealDumpModuleOwnerFilled: приёмка заполнения владельца на реальной выгрузке:
 // после полного индекса module.owner_object_id заполнена у КАЖДОГО модуля,
 // кроме модулей приложения, сеанса и внешнего соединения. Без ONEC_DUMP
 // честно скипается. Прогон холодный и полный, поэтому только точечно

@@ -187,7 +187,7 @@ func buildObjectGraphFixture(t *testing.T) (*ObjectGraphService, objectGraphFixt
 
 // TestObjectGraphNodeReturnsBadges — критерий: «Бейджи узла (has-dynamic со
 // счётчиком) приезжают в карточке узла», и все ТРИ вида бейджей видны, не
-// только has-dynamic (ревью таска 06: фильтр бейджей не должен терять ни
+// только has-dynamic (фильтр бейджей не должен терять ни
 // один).
 func TestObjectGraphNodeReturnsBadges(t *testing.T) {
 	svc, ids := buildObjectGraphFixture(t)
@@ -213,7 +213,7 @@ func TestObjectGraphNodeReturnsBadges(t *testing.T) {
 
 // TestObjectGraphNodeShowsAttributionTruncatedBadge — Node(O2) обязан
 // показать attribution-truncated отдельно от has-dynamic/attribution-stale
-// (ревью манифеста: TestObjectGraphNodeReturnsBadges проверял только O1,
+// (TestObjectGraphNodeReturnsBadges проверял только O1,
 // где этого бейджа нет вовсе — фильтрация по имени бейджа в nodeItemFrom
 // оставалась непроверенной).
 func TestObjectGraphNodeShowsAttributionTruncatedBadge(t *testing.T) {
@@ -235,7 +235,7 @@ func TestObjectGraphNodeShowsAttributionTruncatedBadge(t *testing.T) {
 }
 
 // TestObjectGraphNodeByTypeAndName — вход MCP-инструмента object_graph
-// (таск 11): адресация объекта видом+именем, без готового id.
+// (адресация объекта видом+именем, без готового id).
 func TestObjectGraphNodeByTypeAndName(t *testing.T) {
 	svc, _ := buildObjectGraphFixture(t)
 	resp, err := svc.Node(context.Background(), NodeInput{Target: ObjectTarget{ObjectType: "Document", ObjectName: "ЗаказКлиента"}})

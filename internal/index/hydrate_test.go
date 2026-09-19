@@ -11,7 +11,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// TestRestartSeesNoChanges — история 10/11 таска 02: после перезапуска
+// TestRestartSeesNoChanges: после перезапуска
 // процесса (новый Service поверх того же store) корпус восстанавливается из
 // source_file, precheck видит 0 изменений, фоновая полная пересборка не
 // планируется. Раньше карта корпуса была пуста и изменившимися объявлялись
@@ -202,7 +202,7 @@ func TestPipelineAfterRestartReadsAllHydrated(t *testing.T) {
 	}
 }
 
-// TestHydrationFailureFallsBackToFirstTime — R12.1: пустой индекс,
+// TestHydrationFailureFallsBackToFirstTime: пустой индекс,
 // недоступная эпоха и нечитаемый source_file дают один исход — компонент
 // индексируется как в первый раз. Паники нет, у отказа есть диагностика.
 func TestHydrationFailureFallsBackToFirstTime(t *testing.T) {
@@ -221,8 +221,8 @@ func TestHydrationFailureFallsBackToFirstTime(t *testing.T) {
 		t.Errorf("пустой индекс: precheckChangedCount = %d, want 4", changed)
 	}
 	// Пустой индекс отказом гидратации не считается (ADR-028 п.6), но
-	// молчать о том, что корпус не восстановлен, нельзя: история 14 требует
-	// диагностику и для этого случая — info, не warning.
+	// молчать о том, что корпус не восстановлен, нельзя: нужна
+	// диагностика и для этого случая (info, не warning).
 	svcEmpty.stateMu.Lock()
 	diags := append([]domain.Diagnostic(nil), svcEmpty.lastDiagnostics...)
 	svcEmpty.stateMu.Unlock()
@@ -253,7 +253,7 @@ func TestHydrationFailureFallsBackToFirstTime(t *testing.T) {
 	}
 }
 
-// TestRestartWithOneEditDoesNotBlockCaller — D01 спецификации: после
+// TestRestartWithOneEditDoesNotBlockCaller: после
 // перезапуска одна правка на диске не имеет права утащить вызывающего в
 // СИНХРОННЫЙ разбор всего проекта. Порог «синхронно или в фон» считает объём
 // предстоящей работы (изменения плюс гидратированные записи, которые придётся

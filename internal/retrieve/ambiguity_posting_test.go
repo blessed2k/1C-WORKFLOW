@@ -15,7 +15,7 @@ func hasAmbiguitySubject(r Result, subject string) bool {
 	return false
 }
 
-// TestPostingHandlerAmbiguitySuppressed — критерий приёмки П4 (R32). Условие
+// TestPostingHandlerAmbiguitySuppressed: шум омонимов обработчика проведения. Условие
 // узкое: intent posting И есть анкер-объект И subject — имя обработчика
 // проведения. В контрольном вызове это снимает 32 одноимённых
 // ОбработкаПроведения чужих документов; во всех остальных сочетаниях

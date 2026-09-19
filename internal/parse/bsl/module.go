@@ -153,7 +153,7 @@ type ManagerRef struct {
 	Provenance     domain.Provenance
 }
 
-// Staticity — насколько текст запроса известен статически (истории спецификации 36–37).
+// Staticity: насколько текст запроса известен статически.
 type Staticity string
 
 const (

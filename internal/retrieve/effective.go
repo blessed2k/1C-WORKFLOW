@@ -1,8 +1,8 @@
 // Effective-слияние перехватчиков расширений внутри typed expansion
-// get_context_for_task (закрытие долга D08: view=effective принимался схемой
+// get_context_for_task (закрывает долг: view=effective принимался схемой
 // input'а, но молча откатывался на raw — cmd/mcp1c/idx_context.go и
 // build.go). Семантика идентична get_symbol/get_object/get_module_structure
-// (internal/app/effective.go, тикет 14): перехватчики (&Перед/&После/
+// (internal/app/effective.go): перехватчики (&Перед/&После/
 // &Вместо/ИзменениеИКонтроль) вычисляются НА ЧТЕНИИ, не материализуются;
 // каждый effective-факт несёт свой слой (provenance); конфликт нескольких
 // &Вместо на один метод — diagnostic (Warning) с обоими слоями и confidence<1,
@@ -148,8 +148,8 @@ func effectiveSignatureInterceptors(bctx *buildCtx, row store.SymbolRow) ([]*can
 }
 
 // effectivePostingIntercepts — "posting_handler_intercepts" под
-// view=effective: перехватчики обработчика проведения (П2.3/R20) и их
-// СОБСТВЕННЫЕ обращения к регистрам (П2.4/R21). Подключение — тем же
+// view=effective: перехватчики обработчика проведения и их
+// СОБСТВЕННЫЕ обращения к регистрам. Подключение: тем же
 // приёмом, что handler_intercepts у формы (expand2.go): общий
 // effectiveInterceptsForSymbol + makeInterceptCandidate +
 // interceptConflictWarnings, второй реализации механики перехвата здесь нет.
@@ -215,7 +215,7 @@ const postingHandlerDisplayName = "ОбработкаПроведения"
 // механизма здесь нет.
 //
 // Про view. Факты перехватчиков добавляются только при view=effective —
-// правило R25 «raw не несёт фактов расширений» держится. Но ПРОВЕРКА идёт в
+// правило «raw не несёт фактов расширений» держится. Но ПРОВЕРКА идёт в
 // обоих видах, и предупреждение уходит в оба: raw, промолчавший про документ,
 // у которого проведение целиком написано расширением, — не «сырой вид», а
 // ложный ответ. Цена — разбор модулей объекта в применяющихся расширениях и

@@ -32,7 +32,7 @@ func TestCursorEmptyIsFirstPage(t *testing.T) {
 	}
 }
 
-// TestCursorExpiredAfterGenerationChange: R61 — курсор валиден, пока его
+// TestCursorExpiredAfterGenerationChange: курсор валиден, пока его
 // generation текущий; после инкремента (смена generation) — cursor_expired.
 func TestCursorExpiredAfterGenerationChange(t *testing.T) {
 	cur := EncodeCursor(domain.NewGeneration(1, 7), "k1", "q=x")
@@ -48,7 +48,7 @@ func TestCursorExpiredAfterGenerationChange(t *testing.T) {
 	}
 }
 
-// TestCursorExpiredOnForeignParams: тикет 10 п.3 — «cursor с чужими
+// TestCursorExpiredOnForeignParams: «cursor с чужими
 // параметрами отклоняется». Тот же generation, другой фильтр — тоже
 // cursor_expired, а не тихая подмена страницы чужого запроса.
 func TestCursorExpiredOnForeignParams(t *testing.T) {

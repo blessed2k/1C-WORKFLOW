@@ -54,7 +54,7 @@ type findRegisterWritesInput struct {
 }
 
 // registerMetaTools регистрирует get_object, get_form_handlers,
-// find_queries_using, find_register_writes — тикет 12. Сервисы строятся
+// find_queries_using, find_register_writes. Сервисы строятся
 // здесь же, локально, поверх deps.projects (см. doc-комментарий
 // indexToolDeps в indexreg.go — общий файл реестра не редактируется).
 func registerMetaTools(server *mcp.Server, deps indexToolDeps) {

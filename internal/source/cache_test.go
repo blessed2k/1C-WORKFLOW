@@ -265,7 +265,7 @@ func entryIdle(t *testing.T, stats CacheStats, kind string) time.Duration {
 	return 0
 }
 
-// TestCacheHitRefreshesLastAccess pins R03: a collection that is being read is
+// TestCacheHitRefreshesLastAccess: a collection that is being read is
 // live, and the snapshot must say so. Without this, the sweeper would drop
 // exactly the entries the session keeps using.
 func TestCacheHitRefreshesLastAccess(t *testing.T) {
@@ -289,7 +289,7 @@ func TestCacheHitRefreshesLastAccess(t *testing.T) {
 	}
 }
 
-// TestCacheExpiresIdleEntry pins R04: an entry nobody has asked for in longer
+// TestCacheExpiresIdleEntry: an entry nobody has asked for in longer
 // than the TTL leaves the cache on its own, with no tool call involved. The
 // clock is driven by hand — a sleeping test would either take minutes or flake.
 func TestCacheExpiresIdleEntry(t *testing.T) {
@@ -319,7 +319,7 @@ func TestCacheExpiresIdleEntry(t *testing.T) {
 	}
 }
 
-// TestCacheAnswerSurvivesExpiry pins R06: after the cache has forgotten a
+// TestCacheAnswerSurvivesExpiry: after the cache has forgotten a
 // collection, the next call re-reads the export from cold and must answer
 // exactly as it did while the entry was warm. A cache that changes the answer by
 // expiring is worse than no cache.
@@ -365,7 +365,7 @@ func TestCacheAnswerSurvivesExpiry(t *testing.T) {
 	}
 }
 
-// TestCacheExpiryOnMissingCollection covers half of R06.1: the collection
+// TestCacheExpiryOnMissingCollection covers half of expiry over missing data: the collection
 // directory can be gone by the time the entry expires. The cold re-read then
 // behaves as it always did for a missing directory — an empty collection, not a
 // panic — and the empty result is cached like any other.
@@ -423,7 +423,7 @@ func cachedKinds(stats CacheStats) []string {
 	return out
 }
 
-// TestCacheEvictsOldestOverLimit pins R08: what goes when the ceiling is
+// TestCacheEvictsOldestOverLimit: what goes when the ceiling is
 // exceeded is the collection nobody has asked for longest, not the one that just
 // arrived — evicting the fresh entry would mean rebuilding it on the next call.
 func TestCacheEvictsOldestOverLimit(t *testing.T) {
@@ -460,7 +460,7 @@ func TestCacheEvictsOldestOverLimit(t *testing.T) {
 	}
 }
 
-// TestCacheKeepsEntryLargerThanLimit pins R08.1: a collection that is on its own
+// TestCacheKeepsEntryLargerThanLimit: a collection that is on its own
 // bigger than the whole ceiling must not evict itself. Eviction stops at the
 // last entry, otherwise every insert would clear the cache and cache nothing.
 func TestCacheKeepsEntryLargerThanLimit(t *testing.T) {
@@ -531,7 +531,7 @@ func TestCacheSizeEstimatedOnceAtInsert(t *testing.T) {
 	}
 }
 
-// TestCacheSweeperLifecycle pins R19 and R28i: the goroutine exists only while
+// TestCacheSweeperLifecycle: the goroutine exists only while
 // there is something to expire. An idle process has no sweeper at all, and the
 // next insert has to bring one back.
 func TestCacheSweeperLifecycle(t *testing.T) {
@@ -571,7 +571,7 @@ func TestCacheSweeperLifecycle(t *testing.T) {
 	ticker.tick(t) // the restarted goroutine is the one listening now
 }
 
-// TestCacheExpiryLeavesHandedOutValueAlone pins R04.1: a call that already holds
+// TestCacheExpiryLeavesHandedOutValueAlone: a call that already holds
 // a cached collection keeps reading its own reference. Expiry unlinks the entry
 // from the map and stops there.
 //
@@ -626,7 +626,7 @@ func TestCacheExpiryLeavesHandedOutValueAlone(t *testing.T) {
 	}
 }
 
-// TestCacheExpiryOnVanishedExportRoot covers the other half of R06.1: the whole
+// TestCacheExpiryOnVanishedExportRoot covers the other half: the whole
 // export root, not just one collection, can be gone when the entry expires.
 //
 // The expectation is not "an empty report": it is whatever the server did before
@@ -698,7 +698,7 @@ func subsOfSize(count, textBytes int) []parsedSubscription {
 
 // TestEstimateSizeCountsBytesOfTheValue is what the ceiling stands on: the
 // estimate has to be a number of bytes that follows the value, not a constant
-// and not a count of elements. R07 and R08 are only worth something if this
+// and not a count of elements. The ceiling and eviction are only worth something if this
 // number moves with the data.
 //
 // The bounds come from the shape of the value: three text fields of a known

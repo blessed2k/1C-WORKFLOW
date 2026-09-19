@@ -5,15 +5,15 @@ import (
 	"errors"
 )
 
-// Файл — типизированные ВЫБОРКИ (interfaces.md: «store... выставляет...
-// типизированные выборки/вставки — методы на *ReadTx/*WriteTx»), нужные
-// таску 12 (get_object, get_form_handlers): metadata_object/metadata_member,
+// Файл: типизированные ВЫБОРКИ (store выставляет типизированные
+// выборки/вставки методами на *ReadTx/*WriteTx), нужные
+// get_object и get_form_handlers: metadata_object/metadata_member,
 // form/form_element/form_command, event_subscription, scheduled_job,
 // role/role_right, handler_binding, symbol-по-id, source_file-по-id. Ровно
 // столько SQL, сколько требуют эти два инструмента — не общий ORM-слой.
 //
 // SQL живёт ТОЛЬКО здесь (RuleSQLOnlyInStore, internal/arch): app сервисы
-// таска 12 читают исключительно через эти методы, ни одного SELECT вне
+// этих инструментов читают исключительно через эти методы, ни одного SELECT вне
 // internal/store.
 
 // MetadataObjectRow — одна строка metadata_object.
@@ -255,7 +255,7 @@ type EventSubscriptionRow struct {
 // EventSubscriptionsBySourceNames отдаёт подписки, чей source_name_norm
 // совпадает с ЛЮБЫМ из candidates. source_name_norm хранит нормализованный
 // СЫРОЙ текст источника платформы («catalogobject.товары» для конкретного
-// типа, «documentobject» для голого вида — R30.1, обе формы уже слиты в одну
+// типа, «documentobject» для голого вида; обе формы уже слиты в одну
 // колонку publishEventSubscription), НЕ голое имя объекта метаданных —
 // сравнивать его с metadata_object.name_norm напрямую нельзя, поэтому
 // кандидатов ("<mtype>object.<имя>" и "<mtype>object" для голого вида)
@@ -371,7 +371,7 @@ type RoleRightRow struct {
 // role_right.object_name_norm хранит нормализованный ПОЛНЫЙ текст из
 // Rights.xml ("справочник.товары"), не голое имя объекта, и сравнивать его с
 // metadata_object.name_norm впрямую было бы систематическим промахом. ИЛИ-логика
-// и set_for_new_objects (R30.2) остаются как в role_right (raw факты, включая
+// и set_for_new_objects остаются как в role_right (raw факты, включая
 // value=false), решение по ним — дело вызывающего (та же семантика, что
 // rightsaudit.go).
 func (tx *ReadTx) RoleRightsByObjectID(objectID int64) ([]RoleRightRow, error) {
@@ -415,7 +415,7 @@ type HandlerBindingRow struct {
 }
 
 // HandlerBindingsByForm перечисляет привязки обработчиков формы, включая
-// unresolved (R43.1: обработчик объявлен, но не найден в модуле — остаётся
+// unresolved (обработчик объявлен, но не найден в модуле: остаётся
 // строкой, не пропадает).
 func (tx *ReadTx) HandlerBindingsByForm(formID int64) ([]HandlerBindingRow, error) {
 	if err := tx.check(); err != nil {
@@ -442,6 +442,6 @@ func (tx *ReadTx) HandlerBindingsByForm(formID int64) ([]HandlerBindingRow, erro
 }
 
 // SymbolRow и SourceFileRow, вместе с SymbolByID/SourceFileByID, уже
-// объявлены в read_symbol.go (тикет 11 — тот же шов ReadTx, оказался нужен
-// первым ему): get_form_handlers/find_queries_using/find_register_writes
+// объявлены в read_symbol.go (тот же шов ReadTx, оказался нужен
+// первым символьным инструментам): get_form_handlers/find_queries_using/find_register_writes
 // переиспользуют их, не заводя вторую проекцию тех же таблиц.

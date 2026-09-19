@@ -13,7 +13,7 @@ import (
 // (§24 шаг 2). Оборачивает index.ErrIndexNotFresh без протечки самого типа
 // index.* наружу: cmd/mcp1c различает этот случай через
 // errors.As(err, &*retrieve.NotFreshError), ни разу не называя
-// "internal/index" в своём исходнике (interfaces.md: «cmd/mcp1c не
+// "internal/index" в своём исходнике (граница пакетов: «cmd/mcp1c не
 // импортирует internal/index/store/resolve/parse/* напрямую — только через
 // internal/app/internal/retrieve»).
 type NotFreshError struct {

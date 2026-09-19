@@ -16,7 +16,7 @@ func init() {
 	registerIndexTool(registerContextTool)
 }
 
-// contextTaskInput — вход get_context_for_task (тикет 15, архитектура §23).
+// contextTaskInput: вход get_context_for_task (архитектура §23).
 type contextTaskInput struct {
 	Task           string   `json:"task" jsonschema:"the task in words: bugfix, signature change, register/form/rights question, add-attribute"`
 	Project        string   `json:"project,omitempty" jsonschema:"expected active project; a mismatch gives not_found"`
@@ -33,9 +33,9 @@ type contextTaskInput struct {
 // registerContextTool регистрирует get_context_for_task поверх
 // internal/retrieve.Run — единственный индексный инструмент, идущий
 // напрямую через internal/retrieve, а не через свой internal/app.XxxService
-// (interfaces.md, зона тикета 15: "cmd/mcp1c не импортирует
-// internal/index/store/resolve/parse/* напрямую — только через
-// internal/app/internal/retrieve", и именно retrieve владеет
+// (граница слоёв: cmd/mcp1c не импортирует
+// internal/index/store/resolve/parse/* напрямую, только через
+// internal/app/internal/retrieve, и именно retrieve владеет
 // intent-классификатором/expansion/scoring/packing/sufficiency, а не app).
 // app.Projects по-прежнему единственный резолвер активного проекта — тот же
 // deps.projects, что у всех остальных idx_*.go.

@@ -271,8 +271,8 @@ func TestDeterminism(t *testing.T) {
 }
 
 // TestBudgetInvariantAcrossSizes — usedChars<=budget держится на широком
-// диапазоне бюджетов, включая экстремально малые (R47/R50: «инвариант
-// проверяется на всём evaluation-наборе»).
+// диапазоне бюджетов, включая экстремально малые (инвариант
+// проверяется на всём evaluation-наборе).
 func TestBudgetInvariantAcrossSizes(t *testing.T) {
 	st := openFixtureStore(t)
 	seedScenarioFixture(t, st)
@@ -504,7 +504,7 @@ func writeTestFile(t *testing.T, path, content string) {
 // TestRunRequireFreshNeverReturnsStale — много изменённых файлов (сверх
 // SmallChangeFileLimit) уходят в фоновую пересборку; require-fresh с коротким
 // deadline не дожидается её и обязан вернуть index_not_fresh, а НЕ
-// Result{Stale:true} под видом свежего (R33.1/R54).
+// Result{Stale:true} под видом свежего.
 func TestRunRequireFreshNeverReturnsStale(t *testing.T) {
 	st, svc, root := newFreshnessHarness(t, 1, 15*time.Millisecond)
 	for i := 0; i < 5; i++ {

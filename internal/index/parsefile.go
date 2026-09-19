@@ -12,8 +12,8 @@ import (
 
 // parseOneFile разбирает один файл в fileRecord: единственная точка,
 // решающая ПО РАСШИРЕНИЮ, каким парсером идти — bsl.Parse для .bsl,
-// meta.Classify+meta.ParseFile для .xml (единственная точка чтения XML,
-// D01/interfaces.md). Чистая функция: диска не касается, hash считает через
+// meta.Classify+meta.ParseFile для .xml (единственная точка чтения XML).
+// Чистая функция: диска не касается, hash считает через
 // store.HashContent (единственный алгоритм хэша на весь индекс).
 func parseOneFile(relPath string, data []byte) *fileRecord {
 	return parseHashedFile(relPath, data, store.HashContent(data))

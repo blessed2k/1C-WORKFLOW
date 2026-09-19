@@ -18,7 +18,7 @@ import (
 
 // symbolToolsRealDumpEnvVars — тот же приём, что internal/index/realworld_test.go и
 // internal/resolve/realworld_test.go: путь к реальной выгрузке из
-// переменной окружения, никогда не зашит в код (interfaces.md, §28).
+// переменной окружения, никогда не зашит в код.
 var symbolToolsRealDumpEnvVars = []string{"ONEC_DUMP", "MCP1C_SPIKE_DUMP"}
 
 func symbolToolsRealDumpRoot(t *testing.T) string {
@@ -116,7 +116,7 @@ func sumFilesChanged(r index.Result) int {
 	return n
 }
 
-// TestRealDumpSymbolToolLatencyBudgets — критерии приёмки тикета 11: p50/p95
+// TestRealDumpSymbolToolLatencyBudgets: p50/p95
 // find_symbol (20/50мс) и find_references (50/200мс) РЕАЛЬНО замерены на
 // ut_demo — N вызовов, не одна выборка. get_module_structure на самом
 // большом по числу символов модуле выгрузки не должен утечь текст модуля
@@ -167,8 +167,8 @@ func TestRealDumpSymbolToolLatencyBudgets(t *testing.T) {
 		}
 		// Модуль с наибольшим числом найденных совпадений среди страницы —
 		// плейсхолдер «самого большого модуля»: настоящий top-1 по count(*)
-		// потребовал бы агрегата, которого store сегодня не выставляет
-		// (interfaces.md, «Из таска 10»); подстрочный поиск по частой
+		// потребовал бы агрегата, которого store сегодня не выставляет;
+		// подстрочный поиск по частой
 		// приставке — практическая замена без выдумывания нового примитива.
 		counts := map[string]int{}
 		for _, s := range found.Items {

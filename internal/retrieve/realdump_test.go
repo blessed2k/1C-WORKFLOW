@@ -34,8 +34,8 @@ func retrieveRealDumpRoot(t *testing.T) string {
 	return ""
 }
 
-// TestRealDumpLatencyBudget — критерий приёмки тикета 15: get_context_for_task
-// замерен p50/p95 против бюджета 1/2.5с (spec §Бюджеты производительности) на
+// TestRealDumpLatencyBudget: get_context_for_task
+// замерен p50/p95 против бюджета 1/2.5с на
 // реальной выгрузке ut_demo, N=10 прогонов, не одна выборка. Anchor берётся
 // не из памяти о конкретном имени выгрузки, а находится на месте — тем же
 // приёмом, что graph_realworld_test.go («ищем стартовый символ с хоть каким-то
@@ -210,8 +210,8 @@ func TestBuildIsolatedLatency(t *testing.T) {
 // copyBSLTreeForFreshnessTest копирует поддерево реальной выгрузки во
 // временный каталог теста — тот же приём, что
 // internal/index/realworld_test.go:copyTree (TestRealDumpIncrementalTwoFiles):
-// тест правит файл, исходную выгрузку трогать нельзя (interfaces.md), а
-// зеркало симлинками несовместимо с workspace.SafeJoin (R62). Симлинки и
+// тест правит файл, исходную выгрузку трогать нельзя, а
+// зеркало симлинками несовместимо с workspace.SafeJoin. Симлинки и
 // служебные каталоги (workspace.SkipDir) пропускаются.
 func copyBSLTreeForFreshnessTest(t *testing.T, src, dst string) {
 	t.Helper()
@@ -284,7 +284,7 @@ func firstBSLFile(t *testing.T, root string) string {
 // discoverComponent внутри precheckChangedCount ради latency §28, см.
 // TestBuildIsolatedLatency): ускорение НЕ имеет права ослабить
 // freshness-гарантию §18.5/§23 — устаревшее под видом свежего не отдаётся
-// никогда (R33.1). discoverComponentMeta по-прежнему статит КАЖДЫЙ файл
+// никогда. discoverComponentMeta по-прежнему статит КАЖДЫЙ файл
 // компонента (просто без workspace.SafeJoin, который precheck не
 // использует), так что обнаружение изменений обязано остаться точным.
 //
@@ -544,7 +544,7 @@ func duplicateWarning(ws []Warning) (Warning, bool) {
 // предупреждения в списке (не два разных факта, один и тот же текст дважды).
 //
 // Этот тест — НЕ про потерю anchor'а объекта-владельца (Catalog.Номенклатура
-// уже проверяется TestRealDumpFormIntentReturnsHandlerData/D07-приёмом и
+// уже проверяется TestRealDumpFormIntentReturnsHandlerData и
 // здесь ниже — anchor есть, maxAnchors=6 не обрезает 5 anchors этого
 // сценария). Дубликат чинится дедупликацией warnings на границе агрегации в
 // Build (dedupWarnings, build.go) — не точечным патчем внутри expandForm,
@@ -642,8 +642,8 @@ func percentileDur(durs []time.Duration, p float64) time.Duration {
 	return sorted[idx]
 }
 
-// TestRealDumpFormIntentNoCompleteEmpty — D03 (§6 спецификации): проверка на
-// РЕАЛЬНОЙ выгрузке того, что регрессия таска 06 не вернётся. Интент form в
+// TestRealDumpFormIntentNoCompleteEmpty: проверка на
+// РЕАЛЬНОЙ выгрузке того, что ложный complete_empty не вернётся. Интент form в
 // этот прогон не входит и ничего не заявляет собранным, поэтому ни одна его
 // обязательная категория не имеет права на complete_empty — а вызов, в котором
 // не совпало вообще ничего (на выгрузке с расширениями именно так: warning

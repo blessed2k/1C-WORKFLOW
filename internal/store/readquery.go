@@ -7,8 +7,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Файл — типизированные выборки query/query_reference для find_queries_using
-// (таск 12). SQL живёт только здесь (RuleSQLOnlyInStore).
+// Файл: типизированные выборки query/query_reference для find_queries_using.
+// SQL живёт только здесь (RuleSQLOnlyInStore).
 
 // QueryRow — одна строка query (текст, span В ФАЙЛЕ, staticity, confidence).
 type QueryRow struct {
@@ -50,7 +50,7 @@ type QueryReferenceRow struct {
 }
 
 // QueryReferenceFilter — фильтр find_queries_using: ищет по объекту (ObjectID)
-// ИЛИ по имени поля/таблицы (NameNorm, работает и для unresolved — R28.1:
+// ИЛИ по имени поля/таблицы (NameNorm, работает и для unresolved:
 // staticity=dynamic/partial тексты не резолвятся, но имя в query_reference
 // остаётся, если факт вообще опубликован). Нулевые/пустые поля — «любой».
 type QueryReferenceFilter struct {

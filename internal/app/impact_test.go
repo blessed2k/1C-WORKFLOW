@@ -351,7 +351,7 @@ func TestImpactServiceCycleDoesNotHang(t *testing.T) {
 
 // TestImpactServiceBudgetTruncatesHonestly: budget=1 обязан остановить обход
 // после первого узла и честно пометить это warning-ом impact_truncated, а не
-// молча обрезать список без объяснения (критерий приёмки тикета 13).
+// молча обрезать список без объяснения.
 func TestImpactServiceBudgetTruncatesHonestly(t *testing.T) {
 	svc, ids := buildImpactFixture(t)
 	resp, err := svc.Impact(context.Background(), ImpactInput{
@@ -497,13 +497,13 @@ func TestImpactServiceBadTarget(t *testing.T) {
 	}
 }
 
-// Сверка с find_dependency_paths (критерий приёмки тикета 13, «на трёх
-// входах») живёт НЕ здесь, а в cmd/mcp1c/idx_impact_realdump_test.go.
+// Сверка с find_dependency_paths на трёх
+// входах живёт НЕ здесь, а в cmd/mcp1c/idx_impact_realdump_test.go.
 // Причина — internal/arch.CheckLegacyIsolation (RuleNoLegacyInNew):
 // internal/app в списке «новых» пакетов, которым запрещено опираться на
 // internal/source (эталон find_dependency_paths — internal/source/deppaths.go),
 // и правило проверяет ВСЕ файлы пакета, включая _test.go — исключения для
-// тестов в этом гарде нет и заводить его не входит в зону тикета 13. Сборка
+// тестов в этом гарде нет, и заводить его здесь незачем. Сборка
 // реального проекта над реальной выгрузкой (store.Open/index.NewService/
 // workspace, без internal/source) вынесена в internal/app/impact_testsupport.go как
 // NewRealDumpImpactService — единственный кусок, которому нужны внутренности

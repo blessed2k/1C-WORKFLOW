@@ -133,7 +133,7 @@ func seedPostingFixture(t *testing.T, st *store.Store, opts postingFixtureOpts) 
 			span: spanOf(0, len(baseBody)),
 		})
 		// Второй омоним — ЗаполнитьДвижения в обоих документах: неоднозначность
-		// по имени, НЕ связанная с обработчиком проведения (нужна тестам П4/R32,
+		// по имени, НЕ связанная с обработчиком проведения (нужна тестам,
 		// чтобы отличить «убрали шум по ОбработкаПроведения» от «выключили
 		// ambiguities для posting целиком»).
 		symbolHelper(t, tx, symbolSpec{
@@ -209,7 +209,7 @@ func seedPostingFixture(t *testing.T, st *store.Store, opts postingFixtureOpts) 
 	}
 }
 
-// TestPostingHandlerFoundByOwningModule — критерий приёмки П2.2 (R19):
+// TestPostingHandlerFoundByOwningModule:
 // обработчик проведения ищется по факту принадлежности СВОЕМУ модулю
 // объекта, а не по вхождению имени объекта в путь модуля. У документа Заказ
 // есть омоним ЗаказКлиента с таким же обработчиком, и его путь
@@ -247,8 +247,8 @@ func TestPostingHandlerFoundByOwningModule(t *testing.T) {
 	}
 }
 
-// TestPostingHandlerInterceptsEffectiveOnly — критерии приёмки П2.3 (R20) и
-// R25: при view=effective перехватчик расширения попадает в ответ отдельной
+// TestPostingHandlerInterceptsEffectiveOnly (raw не несёт фактов расширений):
+// при view=effective перехватчик расширения попадает в ответ отдельной
 // категорией posting_handler_intercepts — с ФАКТИЧЕСКИМ телом и своим слоем;
 // при view=raw ответ прежний, фактов перехвата в нём нет. Мутация ext="none"
 // (метод с тем же именем, но без аннотации) обязана гасить факт: это проверка
@@ -301,10 +301,10 @@ func TestPostingHandlerInterceptsEffectiveOnly(t *testing.T) {
 	})
 }
 
-// TestPostingInterceptorRegisterAccesses — критерий приёмки П2.4 (R21):
+// TestPostingInterceptorRegisterAccesses:
 // движения САМОГО перехватчика попадают в те же movements/register_access,
 // что и движения базового обработчика, но с component своего слоя. В raw
-// движение расширения не появляется вовсе (R25).
+// движение расширения не появляется вовсе.
 func TestPostingInterceptorRegisterAccesses(t *testing.T) {
 	st := openFixtureStore(t)
 	seedPostingFixture(t, st, postingFixtureOpts{ext: "instead"})
@@ -342,14 +342,14 @@ func TestPostingInterceptorRegisterAccesses(t *testing.T) {
 	}
 	// display-имя, не нормализованное: у базового обработчика в этой же
 	// категории стоит NameDisplay, и два регистра написания в одной категории
-	// ответа — тихая потеря правды (таск 09 п.3).
+	// ответа: тихая потеря правды.
 	if ext.From != "РасшА_ОбработкаПроведения" {
 		t.Errorf("движение перехватчика From = %q, want РасшА_ОбработкаПроведения", ext.From)
 	}
 }
 
-// TestEffectivePartialCoverageWarningScope — критерий приёмки П2.1 (R22,
-// R23) и issue #4 (ADR-035): каждый intent, который выдаёт классификатор,
+// TestEffectivePartialCoverageWarningScope: по issue #4 (ADR-035)
+// каждый intent, который выдаёт классификатор,
 // строится с наложением слоёв и предупреждения effective_view_partial_coverage
 // не несёт. Сторону «предупреждение обязано быть» классификатор больше не
 // производит: её держит TestPartialCoverageWarningForUnlistedIntent на
@@ -383,7 +383,7 @@ func TestEffectivePartialCoverageWarningScope(t *testing.T) {
 	}
 }
 
-// TestPostingTwoInsteadConflict — критерий приёмки R24: два расширения
+// TestPostingTwoInsteadConflict: два расширения
 // перехватывают ОбработкаПроведения через &Вместо. Молчаливого выбора одного
 // слоя быть не должно: в ответе оба перехватчика и предупреждение
 // instead_conflict с обоими слоями и confidence < 1 (ADR-4).

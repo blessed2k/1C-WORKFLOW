@@ -36,7 +36,7 @@ func TestNoAnchorsHonestPath(t *testing.T) {
 	assertBudgetInvariant(t, res, DefaultBudgetChars)
 }
 
-// TestViewEffectiveBugfixNoInterceptorNoise — D08: bugfix — effective-aware
+// TestViewEffectiveBugfixNoInterceptorNoise: bugfix является effective-aware
 // intent (effectiveAwareIntent), поэтому НЕ должен нести
 // effective_view_partial_coverage; фикстурный анкер ЗаполнитьСтатус не
 // заимствован ни одним расширением (seedScenarioFixture заимствует только
@@ -54,9 +54,9 @@ func TestViewEffectiveBugfixNoInterceptorNoise(t *testing.T) {
 	requireCoverageStatus(t, res, "definition", CompleteInline)
 }
 
-// TestViewInvalidIsError — D08: опечатка в view — ошибка, не молчаливый
+// TestViewInvalidIsError: опечатка в view даёт ошибку, а не молчаливый
 // откат на raw (тот же принцип, что internal/app/effective.go:parseView уже
-// применяет к get_symbol/get_object/get_module_structure, тикет 14).
+// применяет к get_symbol/get_object/get_module_structure).
 func TestViewInvalidIsError(t *testing.T) {
 	st := openFixtureStore(t)
 	seedScenarioFixture(t, st)

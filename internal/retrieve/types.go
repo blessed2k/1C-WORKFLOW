@@ -1,12 +1,11 @@
-// Package retrieve реализует get_context_for_task (тикет 15, architecture-index.md
-// §23-25, spec.md «get_context_for_task» и «Бюджет и покрытие
-// get_context_for_task») — ключевой пользовательский результат всего
-// прогона: агент описывает задачу словами и получает минимальный достаточный
+// Package retrieve реализует get_context_for_task (architecture-index.md
+// §23-25): ключевой пользовательский результат всего
+// индекса: агент описывает задачу словами и получает минимальный достаточный
 // контекст, начинающийся с определения и места правки, в пределах жёсткого
 // бюджета символов, с честным отчётом о покрытии.
 //
 // Build — единственная точка входа, потребитель уже построенного: store
-// (типизированные выборки тасков 03/11/12/13/15), resolve (типы domain,
+// (типизированные выборки), resolve (типы domain,
 // косвенно через store), internal/syntax не используется здесь напрямую.
 // Контракт stateless: Build не хранит состояние между вызовами, повторяемость
 // обеспечивается детерминированным пайплайном над одной read-транзакцией.
@@ -38,7 +37,7 @@ type Request struct {
 	// FocusHints — явные имена объектов/символов, проверяются anchors ПЕРЕД
 	// разбором текста задачи.
 	FocusHints []string
-	// View — "raw" (умолчание) | "effective" (D08 — effective.go). effective
+	// View: "raw" (умолчание) | "effective" (см. effective.go). effective
 	// накладывает слои расширений: bugfix/unknown и signature-change получают
 	// precise-факты перехватчиков ("interceptors", через
 	// internal/resolve.DeriveIntercepts, не эвристику по имени), form:
@@ -88,10 +87,9 @@ const (
 	FreshnessRequireFresh = "require-fresh"
 )
 
-// CoverageStatus — статус покрытия обязательной категории (spec «Бюджет и
-// покрытие», ревью №4). Четыре исходных значения (ADR-015) смысла не меняли;
-// complete_empty добавлено таском 06 прогона 3 (ADR-030) пятым — «категория
-// собрана, фактов нет».
+// CoverageStatus: статус покрытия обязательной категории. Четыре исходных
+// значения (ADR-015) смысла не меняли; complete_empty добавлено позже
+// (ADR-030) пятым: «категория собрана, фактов нет».
 type CoverageStatus string
 
 const (
@@ -110,8 +108,7 @@ const (
 	// CompleteEmpty — категория собрана, и в индексе по ней честно нет ни
 	// одного факта (totalCount == 0). Это не неполнота ответа: документ без
 	// подписок и без чтения регистров полон именно пустотой этих категорий,
-	// и deriveSufficiency/missingRequiredFrom такой ответ не роняют (ADR-030,
-	// R26–R28).
+	// и deriveSufficiency/missingRequiredFrom такой ответ не роняют (ADR-030).
 	CompleteEmpty CoverageStatus = "complete_empty"
 )
 
@@ -246,15 +243,15 @@ type Ambiguity struct {
 }
 
 // BudgetInfo — бюджет вызова: запрошено, реально использовано, оценка в
-// токенах (не обещание точности ни для одной модели, spec §Бюджет).
+// токенах (не обещание точности ни для одной модели).
 type BudgetInfo struct {
 	RequestedChars  int `json:"requestedChars"`
 	UsedChars       int `json:"usedChars"`
 	EstimatedTokens int `json:"estimatedTokens"`
 }
 
-// ExcludedItem — факт с score>0, не поместившийся в бюджет (R47/R49:
-// «excludedHighScoring[] показывает, что не влезло»).
+// ExcludedItem: факт с score>0, не поместившийся в бюджет
+// (excludedHighScoring[] показывает, что не влезло).
 type ExcludedItem struct {
 	Category string  `json:"category"`
 	Display  string  `json:"display"`
@@ -264,8 +261,7 @@ type ExcludedItem struct {
 
 // Warning — предупреждение (тот же контракт по форме, что app.Warning —
 // retrieve не зависит от internal/app, поэтому объявлен здесь заново,
-// формат {code,message,hint} общий для всех индексных инструментов,
-// spec §Формат структурированного ответа).
+// формат {code,message,hint} общий для всех индексных инструментов).
 type Warning struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

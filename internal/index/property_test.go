@@ -16,7 +16,7 @@ import (
 // производство (parseOneFile/buildSymbols/metadataObjectIdentityKey), но
 // независимо от текущего состояния store. Используется только тестом
 // равенства инкремента и чистой пересборки: у internal/store нет
-// bulk-SELECT (D02 — EnvInput строится из фактов пайплайна, не запросом к
+// bulk-SELECT (EnvInput строится из фактов пайплайна, не запросом к
 // store), поэтому «логический дамп» здесь — множество identity_key плюс
 // содержимое blob, а не сырые строки таблиц (то, что публичный API ReadTx
 // вообще может проверить без второго SQL-слоя вне internal/store, что
@@ -109,7 +109,7 @@ func assertIdentitySetPresent(t *testing.T, ctx context.Context, st *store.Store
 	}
 }
 
-// TestIncrementEqualsCleanRebuild — R32.1, критерий приёмки таска 09:
+// TestIncrementEqualsCleanRebuild: критерий приёмки инкрементальной индексации:
 // последовательность инкрементов на фикстуре даёт тот же набор identity-
 // узлов, что чистая пересборка того же финального состояния с нуля.
 //
@@ -118,7 +118,7 @@ func assertIdentitySetPresent(t *testing.T, ctx context.Context, st *store.Store
 // метаданных) плюс Validate()==пусто в обоих сторе — то, что можно
 // утверждать через ПУБЛИЧНЫЙ API store.ReadTx без второго SQL-слоя вне
 // internal/store. Построчное сравнение reference/call_edge вне этого
-// периметра: store не выставляет bulk-SELECT (interfaces.md, D02), а
+// периметра: store не выставляет bulk-SELECT, а
 // заводить его — не зона этого таска.
 func TestIncrementEqualsCleanRebuild(t *testing.T) {
 	ctx := context.Background()
@@ -193,8 +193,8 @@ func TestCleanRebuildDeterministic(t *testing.T) {
 	}
 }
 
-// TestIncrementAfterRestartEqualsCleanRebuild — история 13 таска 02 (R17,
-// R50): случай ПЕРЕЗАПУСКА в property-тесте. Корпус второго Service не
+// TestIncrementAfterRestartEqualsCleanRebuild: случай ПЕРЕЗАПУСКА в
+// property-тесте. Корпус второго Service не
 // строится индексацией, а восстанавливается из source_file (ADR-028); дальше
 // идут обычные инкременты, и итог обязан совпасть с чистой пересборкой того
 // же финального состояния с нуля. Метод сравнения — тот же, что у

@@ -12,7 +12,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// TestFindReferencesGroupsByModuleWithResolutionAndConfidence — R37: ссылка
+// TestFindReferencesGroupsByModuleWithResolutionAndConfidence: ссылка
 // на Помощь() из ManagerModule приходит resolved, с confidence и
 // группировкой по модулю источника (Catalogs/Товары/Ext/ManagerModule.bsl).
 func TestFindReferencesGroupsByModuleWithResolutionAndConfidence(t *testing.T) {
@@ -206,7 +206,7 @@ func TestTraceCallGraphCycleSafe(t *testing.T) {
 }
 
 // TestTraceCallGraphCursorPaginatesWithoutRepeats — регрессия на баг из
-// независимого ревью (таск 11): NextCursor кодировался буквальным limit
+// независимого ревью: NextCursor кодировался буквальным limit
 // вместо накопленного смещения, из-за чего вторая и все следующие страницы
 // декодировали один и тот же offset=limit и повторяли узлы первой страницы,
 // а хвост графа никогда не отдавался. Цепочка Ф1->Ф2->Ф3->Ф4->Ф5 (4 ребра,

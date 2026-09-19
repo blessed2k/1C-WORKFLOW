@@ -9,7 +9,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// TestReadsDuringRebuildSeeOldEpoch — R33: во время полной пересборки
+// TestReadsDuringRebuildSeeOldEpoch: во время полной пересборки
 // сервер продолжает отвечать из last known good. testMidRunHook блокирует
 // пайплайн ПОСРЕДИ ещё не закоммиченной транзакции store.Rebuild — ровно
 // тот момент, когда store физически не может быть смешан со старым

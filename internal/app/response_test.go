@@ -7,8 +7,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// TestResponseJSONShape закрепляет форму конверта из spec §Формат
-// структурированного ответа буквально: generation, stale, warnings, items,
+// TestResponseJSONShape закрепляет форму конверта структурированного
+// ответа буквально: generation, stale, warnings, items,
 // totalCount, nextCursor — и ничего лишнего сверх jsonschema-выведенной формы.
 func TestResponseJSONShape(t *testing.T) {
 	type item struct {

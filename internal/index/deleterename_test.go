@@ -9,7 +9,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// TestDeleteFileNoDanglingFK — R32.2: удаление файла обрабатывается как
+// TestDeleteFileNoDanglingFK: удаление файла обрабатывается как
 // удаление фактов, PRAGMA foreign_key_check (через tx.Validate) остаётся
 // пустым, а ссылка на удалённый символ из другого файла переходит в
 // unresolved вместо разрыва.
@@ -54,7 +54,7 @@ func TestDeleteFileNoDanglingFK(t *testing.T) {
 	}
 }
 
-// TestRenameFileNoDanglingFK — R32.2: переименование = удаление старого пути
+// TestRenameFileNoDanglingFK: переименование = удаление старого пути
 // + добавление нового (упрощение архитектуры §17: переиспользование фактов
 // не в v1). Инвариантов не нарушено, новый путь проиндексирован.
 func TestRenameFileNoDanglingFK(t *testing.T) {

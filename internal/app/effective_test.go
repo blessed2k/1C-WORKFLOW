@@ -159,7 +159,7 @@ func newExtensionFixtureProjectCfg(t *testing.T, id domain.ProjectID, exts []ext
 // oneExtension — фикстура «расширение из выгрузки (или фикстуры)»: один
 // компонент-расширение, заимствующий Catalogs/Товары (добавляет реквизит
 // КомментарийРасширения) и ManagerModule (перехватывает Рассчитать через
-// &Вместо) — критерий приёмки тикета 14, п.1: реального расширения в
+// &Вместо). Реального расширения в
 // dumps/ut_demo нет (проверено: ни один Configuration.xml не несёт
 // ConfigurationExtensionPurpose), фикстура — ожидаемый, явно допустимый путь.
 func oneExtension() []extensionSpec {
@@ -315,7 +315,7 @@ func TestGetSymbolEffectiveTwoInsteadConflict(t *testing.T) {
 }
 
 // TestGetSymbolInvalidViewIsError — опечатка в view — ошибка, не молчаливый
-// откат на raw (тикет 14 меняет поведение тасков 12/13: теперь effective
+// откат на raw (раньше view != raw молча откатывался на raw; теперь effective
 // реализован, и "effectiv" не должен тихо стать raw).
 func TestGetSymbolInvalidViewIsError(t *testing.T) {
 	p, _ := newExtensionFixtureProject(t, "sym-badview", nil)
@@ -476,7 +476,7 @@ func TestFindImpactEffectiveAddsInterceptItem(t *testing.T) {
 }
 
 // TestFindImpactInvalidViewIsError — опечатка в view — ошибка (не
-// молчаливый откат на raw, как было до тикета 14).
+// молчаливый откат на raw, как было до поддержки effective).
 func TestFindImpactInvalidViewIsError(t *testing.T) {
 	p, _ := newExtensionFixtureProject(t, "impact-badview", nil)
 	ctx := context.Background()

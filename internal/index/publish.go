@@ -22,7 +22,7 @@ type publishInput struct {
 	// смены резолюции. Образы разобранных файлов записаны раньше, пулом.
 	blobs   map[string]store.PreparedBlob
 	resolve map[string][]resolvedRef
-	// env — тот же Env, что построил resolve-шаг: derive-функции таска 08
+	// env: тот же Env, что построил resolve-шаг; derive-функции
 	// (DeriveRegisterAccess/DeriveHandlerBinding/DeriveQueryReference/
 	// DeriveDependencyEdges) вызываются здесь же, при публикации, потому что
 	// им нужен Env, а не только уже посчитанные resolvedRef.
@@ -399,7 +399,7 @@ func toStoreDiagnostic(d domain.Diagnostic, fileID int64, componentID string) st
 // общего модуля — ещё и аспект module_context на identity BSL-модуля,
 // построенную по платформенной конвенции пути (см. commonModuleBSLPath):
 // правка ТОЛЬКО XML общего модуля не трогает source_file его Module.bsl,
-// поэтому identity модуля и symbol_uid не меняются (R32.3).
+// поэтому identity модуля и symbol_uid не меняются.
 func publishMetadataObject(tx *store.WriteTx, ts *txState, rel string, fileID int64, op *objectPlan) error {
 	row := op.row
 	row.FileID = fileID
@@ -458,7 +458,7 @@ func moduleRecord(component domain.ComponentID, rel string, info bsl.ModuleInfo,
 	}
 }
 
-// publishModuleOwner дописывает module.owner_object_id (§3, истории 8 и 9)
+// publishModuleOwner дописывает module.owner_object_id (§3)
 // после прохода 1: объект-владелец публикуется своим XML-файлом в том же
 // проходе и не обязан идти раньше своего Module.bsl, поэтому резолв ключа
 // владельца ждёт того же «после прохода 1», по которому уже живут
@@ -595,7 +595,7 @@ func signatureOf(s domain.Symbol) string {
 // каждого RefCall в том же порядке, в котором resolve.BuildRawRefs строит
 // RawRef из mod.References: обе функции проходят mod.References по порядку и
 // пропускают всё, кроме RefCall, поэтому i-й элемент здесь соответствует i-й
-// записи BuildRawRefs. Упрощение: RawRef (таск 08) не несёт Method-индекс
+// записи BuildRawRefs. Упрощение: RawRef не несёт Method-индекс
 // сам, реконструкция — минимальная дублирующая функция, а не второй парсер.
 func refCallMethodIndexes(mod *bsl.Module) []int {
 	out := make([]int, 0, len(mod.References))

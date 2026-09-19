@@ -64,7 +64,7 @@ type traceCallGraphInput struct {
 
 // registerSymbolTools регистрирует find_symbol, get_symbol,
 // get_module_structure, find_references, trace_call_graph и их resource-links
-// (onec://symbol/..., onec://references/..., onec://src/...) — тикет 11.
+// (onec://symbol/..., onec://references/..., onec://src/...).
 // app.SymbolService/app.GraphService строятся здесь же, локально, поверх
 // deps.projects (см. doc-комментарий indexToolDeps в indexreg.go).
 func registerSymbolTools(server *mcp.Server, deps indexToolDeps) {
@@ -152,7 +152,7 @@ func registerSymbolTools(server *mcp.Server, deps indexToolDeps) {
 // onec://references/{project}/{uid}{?gen} — полный список ссылок;
 // onec://src/{project}/{component}/{path}{?hash,start,end} — точный фрагмент
 // по content hash. Несовпадение hash/gen -> resource_expired (err.Error()
-// уже несёт код в фиксированной позиции — interfaces.md, «Из таска 10»).
+// уже несёт код в фиксированной позиции).
 func registerSymbolResources(server *mcp.Server, symSvc *app.SymbolService, graphSvc *app.GraphService) {
 	server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: "onec://symbol/{project}/{uid}{?gen}",

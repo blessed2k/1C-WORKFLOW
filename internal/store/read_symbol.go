@@ -9,14 +9,14 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Read-сторона символьных/графовых инструментов (тикет 11). ReadTx после
-// тикета 10 нёс только Meta/GenerationNumber/Blob/SourceFileID/NodeID/Validate
+// Read-сторона символьных/графовых инструментов. ReadTx до неё
+// нёс только Meta/GenerationNumber/Blob/SourceFileID/NodeID/Validate
 // — этого достаточно для index_status, но find_symbol/get_symbol/
 // get_module_structure/find_references/trace_call_graph читают таблицы
 // symbol/parameter/module/reference/reference_candidate/call_edge, для
-// которых до сих пор не было ни одной типизированной выборки (interfaces.md,
-// «Из таска 09»: «расширение этого контракта вне зоны тикета 10» — оно
-// принадлежит тому тикету, которому оно физически нужно первым). SQL живёт
+// которых до сих пор не было ни одной типизированной выборки (расширение
+// контракта ReadTx принадлежит тому инструменту, которому оно физически
+// нужно первым). SQL живёт
 // здесь, как и требует правило пакета: cmd/mcp1c и internal/app SQL не пишут.
 
 // Generation читает текущее поколение индекса (epoch.number) той же
@@ -349,7 +349,7 @@ func (tx *ReadTx) SymbolParameters(symbolID int64) ([]ParameterRow, error) {
 // ReferenceRow — ссылка вместе с местом (компонент/модуль файла-источника),
 // нужным для группировки find_references по модулю. Координаты неполны по
 // схеме раздела 15: reference хранит только byte_start/byte_end/start_line/
-// start_col (end_line/end_col не персистентны — упрощение схемы таска 03).
+// start_col (end_line/end_col не персистентны: упрощение схемы).
 // EndLine/EndCol здесь достраиваются равными Start*, что валидно для
 // domain.Span.Validate(), но не является настоящим концом фрагмента.
 type ReferenceRow struct {

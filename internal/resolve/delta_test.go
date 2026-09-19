@@ -12,7 +12,7 @@ import (
 // НЕГАТИВНЫЙ lookup, и AffectedKeys(delta) для новосозданного символа даёт
 // ровно тот же ключ, который эта негативная попытка консультировала. Тест
 // эмулирует внешний incremental-контур (resolution_dep живёт в store,
-// таск 09), но сама гарантия — целиком в этом пакете: Resolve и AffectedKeys
+// пайплайн index), но сама гарантия целиком в этом пакете: Resolve и AffectedKeys
 // обязаны согласованно хэшировать один и тот же ключ.
 func TestResolutionDepNegativeLookupTriggersReResolve(t *testing.T) {
 	modulePath := "CommonModules/Utils/Ext/Module.bsl"

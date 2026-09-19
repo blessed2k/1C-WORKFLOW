@@ -4,7 +4,7 @@
 // физически разной формы (call graph — CallEdgesFrom/To, register_access —
 // плоский фильтр по регистру, role_right — JOIN по объекту), общий walker
 // поверх них означал бы либо новый универсальный граф поверх разнородных
-// таблиц (никто из тасков 03/11/12/13 его не завёл — read_symbol.go,
+// таблиц (никто из читателей store его не завёл: read_symbol.go,
 // query_impact.go и readmeta.go/readquery.go/readregister.go читают каждый
 // свой срез своим способом), либо генерик, который просто прячет те же
 // switch'и на один уровень глубже. builder ниже честно называет, какие виды
@@ -21,7 +21,7 @@ import (
 
 // buildCtx — общее окружение всех builder'ов: транзакция, вход, поколение,
 // компоненты-расширения (для интерцепторов), разобранный view (raw/effective —
-// D08, effective.go).
+// см. effective.go).
 type buildCtx struct {
 	tx *store.ReadTx
 	// symbols — источник символов перехватчиков (effective.go). Всегда та же
@@ -45,7 +45,7 @@ type buildCtx struct {
 	view                domain.View
 
 	// collected/collectionFailed — заявление сборщика о том, что обязательная
-	// категория БЫЛА собрана (D03, §6 спецификации). Пустая категория имеет
+	// категория БЫЛА собрана. Пустая категория имеет
 	// право на статус complete_empty только по заявлению: «фактов нет» и
 	// «никто не искал» — разные ответы, и вывести первый из счёта
 	// (totalCount == 0) нельзя. Сборщик, у которого чтение упало, заявления
@@ -301,7 +301,7 @@ func expandBugfix(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	out = append(out, qCands...)
 	warnings = append(warnings, qWarn...)
 
-	// effective (D08): "interceptors" не входит в requiredCategoryMap
+	// effective: "interceptors" не входит в requiredCategoryMap
 	// bugfix/unknown (тот же список, что §25 №1: definition/callers/callees) —
 	// добавляется контекстно, тем же приёмом, что query_in_body чуть выше:
 	// не обязательная категория, но доказавшая релевантность (анкер реально
@@ -328,7 +328,7 @@ func symbolByUID(tx *store.ReadTx, uid string) (store.SymbolRow, bool, error) {
 
 // maxCallGraphWalkNodes/maxCallGraphEdgesPerNode — потолки walkCallGraph, тот
 // же приём, что internal/app/graph.go:maxCallGraphNodes/maxEdgesPerNode
-// (тикет 11): реальная выгрузка содержит символы с сотнями/тысячами
+// и по той же причине: реальная выгрузка содержит символы с сотнями/тысячами
 // callers/callees (общие утилиты), и BFS без потолка на них — не «typed
 // expansion, доказавшая релевантность», а полный обход графа, который
 // одинаково дорог и для paking (лишняя сортировка), и для самого запроса к
@@ -529,7 +529,7 @@ func expandSignatureChange(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	out = append(out, callerCands...)
 	warnings = append(warnings, callerWarn...)
 
-	// effective (D08): "interceptors" — обязательная категория signature-change
+	// effective: "interceptors" - обязательная категория signature-change
 	// (requiredCategoryMap). view=effective меняет ТОЛЬКО источник фактов
 	// (точный resolve.DeriveIntercepts вместо эвристики по имени
 	// signatureInterceptors) — raw остаётся байт-в-байт прежним поведением,
@@ -557,7 +557,7 @@ func expandSignatureChange(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // confidence снижена (0.5, heuristic-provenance), это честно помечено и в
 // whyIncluded, и в confidence, а не выдано за точный факт.
 //
-// Используется ТОЛЬКО при view=raw (умолчание) — D08 добавил точный
+// Используется ТОЛЬКО при view=raw (умолчание). Рядом есть точный
 // effective-путь (effective.go:effectiveSignatureInterceptors, поверх
 // resolve.DeriveIntercepts — тот самый «раздельный merge слоёв», который эта
 // эвристика когда-то замещала), эта функция и её поведение при этом не

@@ -94,8 +94,9 @@ func TestInsertObjectDataEdgeRefusesEdgeWithoutFiles(t *testing.T) {
 	}
 }
 
-// Схема допускает только объекты метаданных в качестве узлов (D6): ребро на
-// чужой id не вставляется даже когда такой node существует.
+// Схема допускает только объекты метаданных в качестве узлов (D6,
+// docs/architecture-graph.md): ребро на чужой id не вставляется даже когда
+// такой node существует.
 func TestInsertObjectDataEdgeRefusesNonObjectNode(t *testing.T) {
 	s, f := seeded(t)
 	err := s.Write(context.Background(), func(tx *WriteTx) error {

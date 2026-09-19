@@ -15,8 +15,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// Projects resolves the active logical project (workspace.Registry —
-// interfaces.md «Из таска 02») into an open store+index pipeline pair, one
+// Projects resolves the active logical project (workspace.Registry)
+// into an open store+index pipeline pair, one
 // per project, opened lazily on first use and cached for the life of the
 // process (index.Service owns debounce/corpus state that is expensive to
 // throw away between calls — this mirrors how the offline dumpState in
@@ -186,9 +186,9 @@ func (p *Projects) Active(ctx context.Context) (*openProject, error) {
 
 // ByRoot resolves the project registered at root into an open store+pipeline
 // pair WITHOUT touching which project is active in the registry — a real
-// one-off override (spec.md §8, D3): unlike index_status's project=, which
+// one-off override (D3, docs/architecture-graph.md): unlike index_status's project=, which
 // only COMPARES against Active (cmd/mcp1c/idx_status.go), object_graph's
-// project= (taск 11) actually has to read a DIFFERENT project's data while
+// project= actually has to read a DIFFERENT project's data while
 // every other caller in the same process keeps seeing the usual active one.
 // root has the same meaning as reindex's projectRoot — the directory holding
 // 1c-project.json — and is resolved through the identical Abs+EvalSymlinks
@@ -250,7 +250,7 @@ func (p *Projects) EnsureProjectActive(_ context.Context, projectRoot string) (r
 	// workspace.SafeJoin проверяет rel-путь относительно уже существующего
 	// корня, а projectRoot — независимый каталог выгрузки где угодно на
 	// диске, тем же приёмом, что и workspace.RegisterTemporary для
-	// set_dump (interfaces.md, «Из таска 02»). Вместо SafeJoin —
+	// set_dump. Вместо SafeJoin здесь
 	// абсолютизация и раскрытие симлинков: несуществующий каталог отсеивается
 	// здесь, отсутствие 1c-project.json — чуть ниже, в LoadManifest.
 	real, canonErr := canonicalRoot(root)
@@ -346,8 +346,8 @@ func (p *Projects) open(_ context.Context, entry workspace.ProjectEntry) (*openP
 }
 
 // Close shuts down every project opened during this process's lifetime.
-// Store/Service ownership passes to Projects once opened (interfaces.md:
-// index.Service does not own its store, but whoever constructs the pair does)
+// Store/Service ownership passes to Projects once opened
+// (index.Service does not own its store, but whoever constructs the pair does)
 // — nothing else in the server currently calls this; it exists for tests and
 // for a future graceful-shutdown hook in cmd/mcp1c/main.go (out of this
 // ticket's zone: main.go is untouched here).

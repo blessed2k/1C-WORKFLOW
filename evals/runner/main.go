@@ -1,4 +1,4 @@
-// Command evalrunner — вспомогательная утилита тикета 16 (НЕ production-код,
+// Command evalrunner: вспомогательная утилита agent evaluation (НЕ production-код,
 // не регистрируется как MCP tool, ничего в internal/* и cmd/mcp1c/* не
 // меняет). Прогоняет набор реальных задач из evals/*.json через РЕАЛЬНО
 // собранный сервер cmd/mcp1c, поднятый по stdio тем же go-sdk клиентом, что
@@ -35,7 +35,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// Task — один файл evals/NN-slug.json (формат зафиксирован в тикете 16:
+// Task: один файл evals/NN-slug.json (формат полей:
 // id/intent/task/target/requiredCategories/expectedTools, плюс наши поля
 // genre/notes для читаемости отчёта).
 type Task struct {
@@ -79,7 +79,7 @@ type TaskResult struct {
 	EstimatedTokens      int               `json:"estimatedTokens"`
 	UsedChars            int               `json:"usedChars"`
 	RequestedChars       int               `json:"requestedChars"`
-	WholeFileReadNeeded  bool              `json:"wholeFileReadNeeded"` // всегда false по конструкции (R34) — фиксируется явно, не предполагается
+	WholeFileReadNeeded  bool              `json:"wholeFileReadNeeded"` // всегда false по конструкции: фиксируется явно, не предполагается
 	FalseReferences      string            `json:"falseReferences"`     // текстовая заметка, не число: ложные references для offline-корпуса не считаются автоматически, см. docs/evaluation-report.md
 	Err                  string            `json:"error,omitempty"`
 }
@@ -172,7 +172,7 @@ func main() {
 	// per-task метрики (это setup, не часть агентского запроса), но время
 	// записывается отдельно в отчёт (§28 cold full index — прецедент, не
 	// повторный замер: тот делает docs/benchmarks.md на этой же выгрузке
-	// отдельной задачей другого исполнителя тикета 16).
+	// отдельной задачей).
 	reindexStart := time.Now()
 	reindexResp, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "reindex", Arguments: map[string]any{"mode": "full"}})
 	reindexDur := time.Since(reindexStart)
@@ -506,7 +506,7 @@ func setupWorkspace(dumpRoot string) (workspaceRoot, projectID string, cleanup f
 		cleanup()
 		return "", "", nil, err
 	}
-	// workspace.SafeJoin (единственная точка валидации путей, interfaces.md)
+	// workspace.SafeJoin (единственная точка валидации путей)
 	// намеренно отклоняет симлинк, ведущий за пределы корня проекта — это
 	// защита от выхода за workspace, а не то, что можно обойти в раннере.
 	// Поэтому выгрузка не симлинкается, а клонируется физически внутрь

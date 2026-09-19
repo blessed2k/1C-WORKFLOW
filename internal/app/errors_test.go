@@ -25,7 +25,7 @@ func TestErrorStringCarriesCodeMessageHint(t *testing.T) {
 }
 
 // TestNotFoundErrorNamesNearest: "не найдено" называет ближайшие по написанию
-// имена (R60), не первые попавшиеся и не все подряд.
+// имена, не первые попавшиеся и не все подряд.
 func TestNotFoundErrorNamesNearest(t *testing.T) {
 	candidates := []string{"ПолучитьЦену", "ПолучитьЦеныНоменклатуры", "ЗаписатьДокумент"}
 	err := NotFoundError("символ", "ПолучитьЦены", candidates)
@@ -76,7 +76,7 @@ func TestComponentNotRegisteredErrorEmptyManifest(t *testing.T) {
 }
 
 // TestResourceExpiredErrorCode проверяет конструктор ресурсной ошибки
-// (используется тасками 11+ для onec://src|symbol|references ссылок).
+// (используется инструментами для onec://src|symbol|references ссылок).
 func TestResourceExpiredErrorCode(t *testing.T) {
 	err := ResourceExpiredError("onec://symbol/proj/abc?gen=e1.g1", "generation не совпадает")
 	if err.Code != CodeResourceExpired {

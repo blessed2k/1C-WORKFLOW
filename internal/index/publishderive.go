@@ -9,7 +9,7 @@ import (
 )
 
 // publishDerivedModuleFacts вставляет факты, которые resolve.Derive*
-// (таск 08) строит из уже готового bsl.Module+Env: доступы к регистрам и
+// строит из уже готового bsl.Module+Env: доступы к регистрам и
 // обработчики формы. Требует прохода 2 (Env те же цели, что и ссылки —
 // объекты/члены метаданных уже опубликованы в проходе 1, символы формы
 // могут быть в другом файле той же транзакции).
@@ -82,9 +82,9 @@ func publishRegisterAccess(tx *store.WriteTx, in publishInput, ts *txState, rel 
 
 // publishQueries вставляет узлы query (текст, span, staticity) для каждого
 // литерала bsl.QueryLiteral — не только static, все staticity: сам текст и
-// его границы полезны (R28) независимо от того, разобран ли он. Следом, для
-// static-литералов, вставляет их query_reference — таск 12 научил
-// resolve.DeriveQueryReference группировать результат по литералу
+// его границы полезны независимо от того, разобран ли он. Следом, для
+// static-литералов, вставляет их query_reference: resolve.DeriveQueryReference умеет
+// группировать результат по литералу
 // (QueryLiteralReferences.LiteralIndex), поэтому i-й литерал этого цикла и
 // i-й LiteralIndex дериватора теперь один и тот же индекс в mod.Queries, и
 // query_id, вставленный здесь строкой выше, находится без второго разбора
@@ -151,7 +151,7 @@ func publishQueryReferences(tx *store.WriteTx, ts *txState, queryID int64, refs 
 // структура (Form.xml) republish-ится этим проходом: обработчики
 // (FormStructureFact.Handlers) резолвятся против Env модуля формы —
 // DeriveHandlerBinding сам ищет formModulePath в Env, промах — Resolution
-// unresolved у КАЖДОГО обработчика (R43.1), не пустая выдача.
+// unresolved у КАЖДОГО обработчика, не пустая выдача.
 func publishHandlerBindingsForForm(tx *store.WriteTx, ts *txState, rel string, hp *handlerBindingsPlan) error {
 	formID, ok, err := ts.nodes.lookup(tx, hp.formKey)
 	if err != nil {
@@ -184,7 +184,7 @@ func publishHandlerBindingsForForm(tx *store.WriteTx, ts *txState, rel string, h
 
 // publishDependencyEdges строит field-typed-by рёбра (resolve.
 // DeriveDependencyEdges — единственный вид, реализованный резолвером; три
-// остальных вида из таска 08 остаются нереализованными, см. doc.go) для
+// остальных вида остаются нереализованными, см. doc.go) для
 // членов метаданных, republish-нутых этой транзакцией. Остальные (не
 // затронутые инкрементом) уже несли бы свои рёбра с прошлого поколения,
 // если бы этот код был включён раньше — сейчас он включается впервые, поэтому

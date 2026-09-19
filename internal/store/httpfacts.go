@@ -2,7 +2,7 @@ package store
 
 import "github.com/blessed2k/1C-WORKFLOW/internal/domain"
 
-// Файл: факты HTTP (веха В2, решение D10, ADR-039): исходящие вызовы
+// Файл: факты HTTP (веха В2, решение D10 docs/architecture-graph.md, ADR-039): исходящие вызовы
 // HTTPСоединение в коде (http_call) и методы HTTP-сервисов в метаданных
 // (http_endpoint). Сшивка вызовов с сервисами идёт при чтении и через
 // границу индексов (сервис лежит в индексе другой базы), поэтому здесь

@@ -13,8 +13,8 @@ import (
 
 // NewRealDumpImpactService строит ImpactService над РЕАЛЬНОЙ выгрузкой,
 // проиндексированной прямо здесь (полный reindex) — только для сверки
-// find_impact с internal/source.XMLSource.DependencyPaths (критерий приёмки
-// тикета 13, «сверка на трёх входах»).
+// find_impact с internal/source.XMLSource.DependencyPaths (сверка на трёх
+// входах).
 //
 // Живёт в обычном (не _test.go) файле НАМЕРЕННО, а не как "export for test"
 // — Go не даёт _test.go пакета internal/app экспортировать символы в тесты
@@ -66,7 +66,7 @@ func NewRealDumpImpactService(t *testing.T, projectID domain.ProjectID, root str
 	p := &Projects{workspaceRoot: workspaceRoot, registry: reg, builtins: builtins}
 	// Кладём готовую пару в кэш ДО первого Active: p.open() при cache-hit не
 	// зовёт workspace.LoadManifest(entry.Root) вовсе, поэтому 1c-project.json
-	// в реальной выгрузке не нужен (interfaces.md: путь к выгрузке только
+	// в реальной выгрузке не нужен (путь к выгрузке только
 	// читается, ничего не пишется).
 	p.opened = map[domain.ProjectID]*openProject{
 		projectID: {Entry: entry, Manifest: manifest, Store: st, Service: svcIdx},

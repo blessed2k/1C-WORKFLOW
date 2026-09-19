@@ -10,7 +10,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// TestSafeJoinОтбиваетВыходИзКорня — история 62 спецификации: сервер не выходит
+// TestSafeJoinОтбиваетВыходИзКорня: сервер не выходит
 // за workspace. Проверяются все три способа выйти: относительный подъём, путь
 // в обход корня и симлинк, ведущий наружу.
 func TestSafeJoinОтбиваетВыходИзКорня(t *testing.T) {

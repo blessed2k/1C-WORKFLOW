@@ -5,7 +5,7 @@ package meta
 // сущностей 1С (общий модуль = XML со свойствами + Module.bsl; форма =
 // объявление в XML владельца + Form.xml) каждый файл даёт свой аспект, а
 // склейка аспектов в одну логическую identity — дело индексного пайплайна
-// (архитектура §14, §15; таск 09), не этого пакета.
+// (архитектура §14, §15), не этого пакета.
 type Facts struct {
 	// Object — объект метаданных, когда файл его корень (Classify ==
 	// KindMetadataObject): справочник, документ, регистр, общий модуль, роль,
@@ -135,7 +135,7 @@ type HandlerBindingFact struct {
 }
 
 // ModuleRegistryFact — свойства общего модуля, прочитанные из его XML, а не
-// выведенные по имени (критерий приёмки таска 06).
+// выведенные по имени.
 type ModuleRegistryFact struct {
 	Global                    bool
 	Server                    bool
@@ -263,8 +263,8 @@ type PredefinedItemFact struct {
 }
 
 // HTTPServiceFact: HTTP-сервис конфигурации: принимающая сторона сшивки
-// HTTP-вызовов между базами (веха В2, D10). Адрес метода в опубликованной
-// базе: /<имя публикации>/hs/<RootURL><Template>.
+// HTTP-вызовов между базами (веха В2, D10 в docs/architecture-graph.md).
+// Адрес метода в опубликованной базе: /<имя публикации>/hs/<RootURL><Template>.
 type HTTPServiceFact struct {
 	RootURL   string
 	Templates []HTTPTemplateFact

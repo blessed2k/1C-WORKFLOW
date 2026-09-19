@@ -31,7 +31,7 @@ type options struct {
 	cacheTTL        time.Duration // export cache: idle TTL; zero disables expiry
 	cacheLimitBytes int64         // export cache: memory ceiling; zero disables eviction
 
-	// Object-graph tunables (spec V1 §5). Thresholds never drop an edge: going
+	// Object-graph tunables. Thresholds never drop an edge: going
 	// over one multiplies the edge confidence, so an attribution chain stays
 	// visible with a lower score instead of vanishing silently.
 	graphChainDepth   int     // attribution chain length beyond which every link is penalised
@@ -156,7 +156,7 @@ const (
 	defaultCacheLimitBytes int64 = 512 << 20
 )
 
-// Defaults for the object-graph tunables (spec V1 §5, table of §5). They are
+// Defaults for the object-graph tunables. They are
 // the starting point of the calibration, not its result: ADR-024 records what
 // the run on ut_demo showed and any value it moved.
 //

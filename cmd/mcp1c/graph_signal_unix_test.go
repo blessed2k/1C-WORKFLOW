@@ -17,8 +17,8 @@ import (
 	"time"
 )
 
-// TestAdditionalShutdownSignalsIncludesSIGTERM — D04 манифеста: «kill
-// (SIGTERM) завершает процесс так же корректно, как Ctrl+C». Регистрация
+// TestAdditionalShutdownSignalsIncludesSIGTERM: kill
+// (SIGTERM) завершает процесс так же корректно, как Ctrl+C. Регистрация
 // сама по себе: additionalShutdownSignals должна назвать SIGTERM, не
 // какой-то другой сигнал.
 func TestAdditionalShutdownSignalsIncludesSIGTERM(t *testing.T) {

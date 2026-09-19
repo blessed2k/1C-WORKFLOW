@@ -103,7 +103,7 @@ func seedFormlessObjectOnly(t *testing.T, st *store.Store) {
 }
 
 // TestFormIntentDoesNotSuppressNoFormsForUnrelatedObject — находка ревью
-// (Codex stop-gate) над прогоном reindex-timings: первая версия
+// по шуму форм: первая версия
 // suppressFormNoiseWhenMatched гасила no_forms/form_binding_not_matched при
 // ЛЮБОЙ настоящей находке во всём ответе, не только у анкеров ТОГО ЖЕ имени.
 // Если задача упоминает два РАЗНЫХ объекта — не омонима один другого, — и у
@@ -167,7 +167,7 @@ func seedFormlessDifferentObject(t *testing.T, st *store.Store) {
 }
 
 // TestFormIntentDoesNotSuppressNoFormsForSameNameDifferentType — находка
-// второго круга ревью (Codex stop-gate): группировка только по ObjectName
+// второго круга ревью: группировка только по ObjectName
 // (без ObjectType) объединяла объекты РАЗНЫХ видов с одним именем — тот же
 // факт, что описан в комментарии dedupWarnings (build.go): одно имя
 // резолвится MetadataObjectsByNameNormAnyType сразу в несколько объектов
@@ -223,8 +223,8 @@ func seedFormlessSameNameDifferentType(t *testing.T, st *store.Store) {
 }
 
 // TestFormIntentNoFormsMessageNamesTypeAndComponent — находка третьего круга
-// ревью (Codex stop-gate): даже когда no_forms корректно НЕ подавлено (D02,
-// D03 — генуинно разный объект), текст предупреждения нёс только голое
+// ревью: даже когда no_forms корректно НЕ подавлено (генуинно разный
+// объект), текст предупреждения нёс только голое
 // Display-имя и был неотличим от предупреждения про омоним другого вида или
 // компонента — рядом с настоящей находкой ЧИТАЛСЯ как противоречие, даже
 // оставаясь технически верным решением. Текст обязан называть тип и

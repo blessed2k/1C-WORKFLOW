@@ -17,7 +17,7 @@ import (
 //
 // Рядом заведён документ-омоним ЗаказКлиента с таким же обработчиком, и его
 // модуль вставлен ПЕРВЫМ: правило подстроки отдаёт именно его — тот самый
-// дефект D04, ради которого правило владения и появилось. Тест фиксирует, что
+// дефект, ради которого правило владения и появилось. Тест фиксирует, что
 // откат ВИДЕН потребителю, а не применяется молча.
 func seedPostingOwnerUnknownFixture(t *testing.T, st *store.Store) {
 	t.Helper()
@@ -68,10 +68,10 @@ func seedPostingOwnerUnknownFixture(t *testing.T, st *store.Store) {
 	}
 }
 
-// TestPostingHandlerSubstringFallbackIsVisible — пункт 4 таска 09: когда
+// TestPostingHandlerSubstringFallbackIsVisible: когда
 // каталог модулей объекта вывести не из чего, findPostingHandler откатывается
 // на правило подстроки — то самое, которое отдавало обработчик ЧУЖОГО
-// документа (D04). В ответе это обязано быть видно предупреждением, иначе
+// документа-омонима. В ответе это обязано быть видно предупреждением, иначе
 // исправленный дефект возвращается тихо.
 func TestPostingHandlerSubstringFallbackIsVisible(t *testing.T) {
 	st := openFixtureStore(t)
@@ -142,7 +142,7 @@ func postingOwnerUnknownMessage(t *testing.T, res Result) string {
 	return out[0]
 }
 
-// TestPostingOwnerUnknownWarningNamesOutcome — находка ревью по таску 09:
+// TestPostingOwnerUnknownWarningNamesOutcome:
 // один и тот же текст уходил на ДВА разных исхода отката. Утверждение
 // «прежнее правило подстроки отдаёт обработчик документа-омонима» верно
 // только когда обработчик найден; когда откат не нашёл ничего, тот же текст

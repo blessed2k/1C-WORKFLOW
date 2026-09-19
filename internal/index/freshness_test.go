@@ -49,7 +49,7 @@ func TestEnsureFreshSmallChangeSync(t *testing.T) {
 
 // TestEnsureFreshAllowStaleDuringBackgroundRebuild — много изменений:
 // allow-stale отдаёт ответ сразу с warning вместо ожидания фоновой
-// пересборки (R33/R54).
+// пересборки.
 func TestEnsureFreshAllowStaleDuringBackgroundRebuild(t *testing.T) {
 	ctx := context.Background()
 	st := openTestStore(t)
@@ -90,7 +90,7 @@ func TestEnsureFreshAllowStaleDuringBackgroundRebuild(t *testing.T) {
 // TestEnsureFreshRequireFreshTimesOut — require-fresh не дожидается
 // зависшей (искусственно заблокированной) пересборки в пределах короткого
 // deadline и возвращает ErrIndexNotFresh — устаревшее под видом свежего не
-// отдаётся никогда (R33.1).
+// отдаётся никогда.
 func TestEnsureFreshRequireFreshTimesOut(t *testing.T) {
 	ctx := context.Background()
 	st := openTestStore(t)

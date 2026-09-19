@@ -107,7 +107,7 @@ func (tp testProject) withRadiusCap(cap int) graphweb.ProjectHandle {
 
 // seedTwoNodesWithEdge кладёт два объекта метаданных O1->O2 с одним ребром
 // writes-register и объект O3 без единого ребра (нужен различению
-// «объекта нет» от «объект есть, соседей нет» — R22.1/§43). Возвращает id
+// «объекта нет» от «объект есть, соседей нет»). Возвращает id
 // всех трёх.
 func seedTwoNodesWithEdge(t *testing.T, tp testProject) (o1, o2, o3, edgeID int64) {
 	return seedTwoNodesWithEdgeNamed(t, tp, "")

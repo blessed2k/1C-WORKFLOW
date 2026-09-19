@@ -1,4 +1,4 @@
-// find_register_writes (тикет 12) — поверх register_access.
+// find_register_writes поверх register_access.
 package app
 
 import (
@@ -23,11 +23,11 @@ type RegisterService struct{ projects *Projects }
 // NewRegisterService строит сервис поверх общего резолвера проектов.
 func NewRegisterService(p *Projects) *RegisterService { return &RegisterService{projects: p} }
 
-// FindRegisterWritesInput — вход find_register_writes (тикет 12: «register,
-// modes?, component?, symbol?, minConfidence?, view, cursor»). Symbol — uid
+// FindRegisterWritesInput: вход find_register_writes (register,
+// modes?, component?, symbol?, minConfidence?, view, cursor). Symbol: uid
 // символа-владельца доступа (тот же формат, что у find_references — сам uid,
 // не module+name: доступ ищется по конкретному владельцу, не по подстроке).
-// View валидируется (тикет 14), но не меняет выдачу: register_access —
+// View валидируется, но не меняет выдачу: register_access это
 // список, не get_object-подобный «выбор одной строки», каждая строка уже
 // несёт свой Component — сливать нечего (см. FindQueriesUsingInput.View,
 // та же причина).
@@ -42,7 +42,7 @@ type FindRegisterWritesInput struct {
 	Cursor        string
 }
 
-// RegisterAccessItem — один доступ к регистру (R29).
+// RegisterAccessItem: один доступ к регистру.
 type RegisterAccessItem struct {
 	Register      string             `json:"register"`
 	Mode          string             `json:"mode"`
@@ -91,7 +91,7 @@ func parseRegisterModes(raw string) ([]string, error) {
 
 // FindRegisterWrites отвечает на find_register_writes: кто пишет в регистр и
 // (по modes) кто из него читает — режим, символ-владелец, span,
-// транзакционность, static/dynamic и confidence (R29).
+// транзакционность, static/dynamic и confidence.
 func (s *RegisterService) FindRegisterWrites(ctx context.Context, in FindRegisterWritesInput) (Response[RegisterAccessItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {

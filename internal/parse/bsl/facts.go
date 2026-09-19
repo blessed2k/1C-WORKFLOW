@@ -124,7 +124,7 @@ func (p *parser) adjacentToConcat(i int) bool {
 // числе после '|' на следующей строке — Static; либо соседствует с '+' и
 // содержит ключевое слово запроса — Partial, фрагмент конкатенации). Это
 // угадывание по тексту, а не разбор языка запросов, поэтому confidence
-// всегда меньше ConfidenceExact (спецификация, история 36–37).
+// всегда меньше ConfidenceExact.
 func (p *parser) collectQueryLiteral(i int) {
 	t := p.toks[i]
 	inner := stringLiteralInner(t.lit)

@@ -1,4 +1,4 @@
-// GraphService — find_references и trace_call_graph (тикет 11). Делит с
+// GraphService: find_references и trace_call_graph. Делит с
 // symbol.go резолвер проекта, componentFromInput, clampLimit, resource URI.
 package app
 
@@ -29,14 +29,14 @@ const (
 	maxCallGraphLimit     = 500
 )
 
-// CandidateItem — один кандидат ambiguous-разрешения ссылки (R37.2).
+// CandidateItem: один кандидат ambiguous-разрешения ссылки.
 type CandidateItem struct {
 	TargetUID string `json:"targetUid,omitempty"`
 	Rank      int    `json:"rank"`
 	Reason    string `json:"reason,omitempty"`
 }
 
-// ReferenceItem — одна ссылка со своим состоянием разрешения (R37.1).
+// ReferenceItem: одна ссылка со своим состоянием разрешения.
 type ReferenceItem struct {
 	Kind          string          `json:"kind"`
 	Span          domain.Span     `json:"span"`
@@ -49,7 +49,7 @@ type ReferenceItem struct {
 	Candidates    []CandidateItem `json:"candidates,omitempty"`
 }
 
-// ReferenceGroup — ссылки одного модуля (R37: «группировка по модулю»).
+// ReferenceGroup: ссылки одного модуля (группировка по модулю).
 type ReferenceGroup struct {
 	Module     string             `json:"module"`
 	Component  domain.ComponentID `json:"component"`
@@ -57,7 +57,7 @@ type ReferenceGroup struct {
 }
 
 // FindReferencesInput — вход find_references. View=effective добавляет
-// предупреждение о перехватчиках ЦЕЛЕВОГО символа (тикет 14) — не по
+// предупреждение о перехватчиках ЦЕЛЕВОГО символа, но не по
 // каждому символу в выдаче: разбор модулей расширений на каждую строку
 // списка ссылок стоил бы дороже самого поиска (упрощение, см.
 // docs/tools-index.md).
@@ -100,7 +100,7 @@ type CallGraphNodeItem struct {
 }
 
 // TraceCallGraphInput — вход trace_call_graph. View=effective добавляет
-// предупреждение о перехватчиках КОРНЕВОГО символа (тикет 14) — обход
+// предупреждение о перехватчиках КОРНЕВОГО символа, но обход
 // (BFS) сам по себе перехватчики не пересекает, см. doc-комментарий
 // FindReferencesInput.View.
 type TraceCallGraphInput struct {
@@ -120,7 +120,7 @@ type GraphService struct{ projects *Projects }
 func NewGraphService(p *Projects) *GraphService { return &GraphService{projects: p} }
 
 // FindReferences отдаёт все ссылки на символ, сгруппированные по модулю, с
-// resolution/confidence и кандидатами ambiguous (R37). При усечении —
+// resolution/confidence и кандидатами ambiguous. При усечении:
 // warning + resource link на полный список (onec://references/...).
 func (g *GraphService) FindReferences(ctx context.Context, in FindReferencesInput) (Response[ReferenceGroup], error) {
 	op, err := g.projects.Active(ctx)
@@ -361,7 +361,7 @@ func leafKind(e store.CallEdgeRow) string {
 }
 
 // TraceCallGraph — BFS по callers/callees на глубину depth, cycle-safe,
-// с объяснением пути на каждый узел (R26). ambiguous по умолчанию не
+// с объяснением пути на каждый узел. ambiguous по умолчанию не
 // расширяется; expandAmbiguous=true продолжает BFS по кандидатам,
 // помечая шаг как ambiguous-переход.
 func (g *GraphService) TraceCallGraph(ctx context.Context, in TraceCallGraphInput) (Response[CallGraphNodeItem], error) {

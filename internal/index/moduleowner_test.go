@@ -70,7 +70,7 @@ func objectNodeID(t *testing.T, ctx context.Context, st *store.Store, mtype, nam
 	return id
 }
 
-// TestModuleOwnerFilledOnPublish — история 8 (G06): у модуля, чей владелец
+// TestModuleOwnerFilledOnPublish: у модуля, чей владелец
 // есть в индексе, module.owner_object_id указывает на объект метаданных.
 // Проверяются обе точки вызова EnsureModule: общий модуль (ветка
 // CommonModule в publishMetadataObject плюс его же Module.bsl) и обычный
@@ -107,7 +107,7 @@ func TestModuleOwnerFilledOnPublish(t *testing.T) {
 // <Name>, а не из имени файла, поэтому «Catalogs/яПорядок.xml» описывает тот
 // же справочник Порядок, чей модуль объекта лежит в «Catalogs/Порядок/...».
 // Проход 1 publishFiles идёт по отсортированному списку файлов, значит
-// модуль публикуется РАНЬШЕ своего владельца — тот самый порядок из истории 9.
+// модуль публикуется РАНЬШЕ своего владельца (владелец приходит позже).
 func writeOwnerAfterModuleFixture(t *testing.T) (root, modulePath, ownerXMLPath string) {
 	t.Helper()
 	root = t.TempDir()
@@ -129,7 +129,7 @@ func writeOwnerAfterModuleFixture(t *testing.T) (root, modulePath, ownerXMLPath 
 	return root, modulePath, ownerXMLPath
 }
 
-// TestModuleOwnerResolvedWhenOwnerPublishedLater — история 9 (G06): владелец
+// TestModuleOwnerResolvedWhenOwnerPublishedLater: владелец
 // резолвится и тогда, когда его объект метаданных публикуется в транзакции
 // позже своего Module.bsl.
 func TestModuleOwnerResolvedWhenOwnerPublishedLater(t *testing.T) {
@@ -163,7 +163,7 @@ func mustMkdirAll(t *testing.T, dir string) {
 	}
 }
 
-// TestModulesWithoutOwnerStayNull — история 8, вторая её половина: у модулей
+// TestModulesWithoutOwnerStayNull: у модулей
 // приложения, сеанса и внешнего соединения объекта-владельца в конфигурации
 // нет, и пустая колонка для них — правильный ответ. Строка модуля при этом
 // обязана существовать: «нет владельца» не равно «модуль не опубликован».
@@ -250,7 +250,7 @@ func TestModuleOwnerSurvivesIncrementalRepublish(t *testing.T) {
 	}
 }
 
-// TestModuleOwnerFilledForServiceCollections — история 8, полнота словаря
+// TestModuleOwnerFilledForServiceCollections: полнота словаря
 // ownerTypeToMType: коллекции выгрузки, чьи модули есть в реальной
 // конфигурации (хранилища настроек, web- и integration-сервисы, критерии
 // отбора), обязаны находить своего владельца. Ожидаемые mtype взяты из
@@ -356,7 +356,7 @@ func TestUnknownOwnerCollectionLeavesDiagnostic(t *testing.T) {
 
 // TestCommonModuleOwnerWrittenByXMLBranch — закрепляет ВТОРУЮ точку вызова
 // EnsureModule отдельно от первой: правится только XML общего модуля, его
-// Module.bsl в транзакцию не попадает (R32.3, см. modulecontext_test.go),
+// Module.bsl в транзакцию не попадает (см. modulecontext_test.go),
 // поэтому отложенный резолв прохода 2 не запускается и владельца в строке
 // module оставляет ровно ветка CommonModule из publishMetadataObject. Если
 // она перестанет писать OwnerObjectID, колонка обнулится безусловным

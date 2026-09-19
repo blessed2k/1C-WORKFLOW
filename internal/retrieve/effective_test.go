@@ -67,7 +67,7 @@ func seedEffectiveInterceptFixture(t *testing.T, st *store.Store, withAnnotation
 }
 
 // TestEffectiveSignatureChangeInterceptorsPreciseVsHeuristic — критерий
-// приёмки D08 п.3/4а/6: на ОДНИХ И ТЕХ ЖЕ данных (одноимённый символ в
+// приёмки view=effective: на ОДНИХ И ТЕХ ЖЕ данных (одноимённый символ в
 // расширении, применяющемся к базовому компоненту) view=raw остаётся на
 // старой эвристике (name-match, confidence 0.5, находит "перехватчика" ДАЖЕ
 // когда аннотации нет), а view=effective строит точный факт из
@@ -158,7 +158,7 @@ func TestEffectiveSignatureChangeInterceptorsPreciseVsHeuristic(t *testing.T) {
 	})
 }
 
-// TestEffectiveTwoInsteadConflictWarning — критерий приёмки D08: два
+// TestEffectiveTwoInsteadConflictWarning: два
 // расширения перехватывают один метод через &Вместо -> instead_conflict
 // (diagnostic с обоими слоями, confidence<1), та же семантика, что
 // internal/app/effective_test.go:TestGetSymbolEffectiveTwoInsteadConflict,
@@ -289,7 +289,7 @@ func seedEffectiveFormInterceptFixture(t *testing.T, st *store.Store, withAnnota
 	}
 }
 
-// TestEffectiveFormHandlerIntercepts — критерий приёмки D08 п.4б: форма
+// TestEffectiveFormHandlerIntercepts: форма
 // перехвачена расширением через модуль формы. view=raw не знает о
 // перехватчике вовсе (нет категории handler_intercepts в выдаче); view=
 // effective добавляет её с точным фактом (confidence=1, Kind=Вместо,

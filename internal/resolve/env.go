@@ -13,7 +13,7 @@ import (
 // ModuleEntry — один модуль компонента: идентичность (§14/§15: module +
 // аспекты module_context/module_code), символы, объявленные в нём, и, для
 // общих модулей, свойства из XML (parse/meta.ModuleRegistryFact — тот же
-// тип, без копии). Строится вызывающим (таск 09) из фактов parse/bsl и
+// тип, без копии). Строится вызывающим (internal/index) из фактов parse/bsl и
 // parse/meta; сам resolve модулей не парсит.
 type ModuleEntry struct {
 	// ModulePath — канонический путь модуля (domain.NormalizeModulePath),

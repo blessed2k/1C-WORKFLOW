@@ -148,7 +148,7 @@ func TestNormalizeHTTPHost(t *testing.T) {
 }
 
 // TestAttributeSymbolFact: HTTP-вызов в общем модуле приписывается тем же
-// документам, что и запись в регистр из того же места (D6): сквозь общий
+// документам, что и запись в регистр из того же места (D6, architecture-graph.md): сквозь общий
 // модуль вверх до владельцев, достоверность: минимум по цепочке.
 func TestAttributeSymbolFact(t *testing.T) {
 	g := newGraph().

@@ -2,7 +2,7 @@ package resolve
 
 import "testing"
 
-// TestDeriveDependencyEdgesFieldTypedBy — критерий из тела таска 08: "поле
+// TestDeriveDependencyEdgesFieldTypedBy: критерий "поле
 // типизировано объектом" -> dependency_edge. Вход построен вручную по
 // формату реального XML (cfg:CatalogRef.Имя, см. Documents/*.xml выгрузки
 // ut_demo), ожидаемое ребро посчитано по этому входу вручную, а не взято из

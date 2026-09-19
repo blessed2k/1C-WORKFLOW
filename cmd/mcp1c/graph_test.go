@@ -32,8 +32,8 @@ func captureStderr(t *testing.T, fn func() int) (int, string) {
 }
 
 // TestRunGraphRequiresAtLeastOneProject: без --project команда обязана
-// отказать до того, как коснётся сети или диска (spec §6, критерий тикета
-// 09 — флаг --project обязателен).
+// отказать до того, как коснётся сети или диска (флаг --project
+// обязателен).
 func TestRunGraphRequiresAtLeastOneProject(t *testing.T) {
 	code, stderr := captureStderr(t, func() int { return runGraph(nil) })
 	if code == 0 {
@@ -44,8 +44,8 @@ func TestRunGraphRequiresAtLeastOneProject(t *testing.T) {
 	}
 }
 
-// TestRunGraphRejectsNonLoopbackListen — R17: «слушает только 127.0.0.1,
-// привязка к 0.0.0.0 невозможна». Проверяется ДО net.Listen: попытка реально
+// TestRunGraphRejectsNonLoopbackListen: слушаем только 127.0.0.1,
+// привязка к 0.0.0.0 невозможна. Проверяется ДО net.Listen: попытка реально
 // открыть 0.0.0.0 в тесте была бы и небезопасной, и не нужна — достаточно
 // доказать, что процесс отказывается пробовать.
 func TestRunGraphRejectsNonLoopbackListen(t *testing.T) {
@@ -74,7 +74,7 @@ func TestRunGraphRejectsListenWithoutPort(t *testing.T) {
 	}
 }
 
-// TestRunGraphNonexistentProjectDir — R21.1: каталог проекта не существует —
+// TestRunGraphNonexistentProjectDir: каталог проекта не существует, и
 // сообщение называет путь, ничего не создаётся на диске (workspace.OpenRegistry
 // не должен получить шанс сделать mkdir по опечатке).
 func TestRunGraphNonexistentProjectDir(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRunGraphNonexistentProjectDir(t *testing.T) {
 	if !strings.Contains(stderr, missing) {
 		t.Errorf("stderr не называет путь %q: %q", missing, stderr)
 	}
-	// R21.1 требует не только путь, но и ЧТО ИМЕННО не найдено: сообщение не
+	// Нужен не только путь, но и ЧТО ИМЕННО не найдено: сообщение не
 	// должно быть тем же generic «нет активного проекта, вызовите reindex»,
 	// что и TestRunGraphMissingIndexNamesReindex — иначе пользователь попробует
 	// reindex на опечатке в пути вместо того, чтобы её исправить.
@@ -100,9 +100,9 @@ func TestRunGraphNonexistentProjectDir(t *testing.T) {
 	}
 }
 
-// TestRunGraphMissingIndexNamesReindex — spec §6: «индекса нет — ошибка с
+// TestRunGraphMissingIndexNamesReindex: индекса нет, значит ошибка с
 // точной командой reindex и ненулевым кодом возврата, ничего не
-// индексируя». Каталог существует (проходит R21.1), но в нём никогда не
+// индексируя. Каталог существует (проверка пути пройдена), но в нём никогда не
 // был собран индекс — noActiveProjectError уже называет reindex в подсказке
 // (internal/app/projects.go), это транспортный тест на то, что runGraph
 // действительно доводит это сообщение до пользователя и останавливается ДО

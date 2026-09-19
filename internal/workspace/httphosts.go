@@ -13,8 +13,9 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Маппинг хостов на проекты (веха В2, решение D10, ADR-039): какой
-// проект workspace стоит за сервером в Новый HTTPСоединение("...").
+// Маппинг хостов на проекты (веха В2, решение D10 в
+// docs/architecture-graph.md, ADR-039): какой проект workspace стоит за сервером в
+// Новый HTTPСоединение("...").
 // Файл лежит рядом с реестром и индексами, в <workspace>/.mcp1c/http-hosts.json:
 //
 //	{

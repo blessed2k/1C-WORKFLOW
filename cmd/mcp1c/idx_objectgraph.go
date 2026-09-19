@@ -13,17 +13,17 @@ func init() {
 	registerIndexTool(registerObjectGraphTool)
 }
 
-// objectGraphMaxDepth — жёсткий потолок глубины object_graph (тикет 11,
-// spec.md §8/§9: «depth (потолок 2)»). Отдельный, МЕНЬШИЙ потолок, чем
+// objectGraphMaxDepth: жёсткий потолок глубины object_graph
+// (depth не больше 2). Отдельный, МЕНЬШИЙ потолок, чем
 // maxRadiusDepth сервиса (internal/app/objectgraph.go:33, =6, тот обслуживает
-// HTTP graph-режим таска 09 с его собственным UI-контролем радиуса): здесь
+// HTTP graph-режим с его собственным UI-контролем радиуса): здесь
 // превышение ОТВЕРГАЕТСЯ понятной ошибкой, а не тихо обрезается до потолка
 // сервиса — если бы тул просто передавал большой Depth дальше,
 // RadiusInput.Depth молча упёрся бы в 6, а не в обещанные 2.
 const objectGraphMaxDepth = 2
 
-// objectGraphInput — вход object_graph (тикет 11, spec.md §8/§9: «object,
-// direction, kinds, depth (потолок 2), minConfidence, project»). Адресация
+// objectGraphInput: вход object_graph (object,
+// direction, kinds, depth с потолком 2, minConfidence, project). Адресация
 // цели — ровно один из (objectId) или (objectType+objectName[+component]),
 // тот же контракт, что у ObjectTarget/impactInput: проверка и нормализация —
 // в internal/app.normalizeObjectTarget (транспорт не несёт бизнес-правил).
@@ -68,7 +68,7 @@ func wantsHTTPLinks(in objectGraphInput) bool {
 
 // registerObjectGraphTool регистрирует object_graph поверх
 // internal/app.ObjectGraphService.Radius, построенного локально над
-// deps.projects (interfaces.md, «Из таска 10»: indexToolDeps не несёт
+// deps.projects (indexToolDeps не несёт
 // готовых сервисов). radiusNodesCap=0 -> DefaultRadiusNodesCap: тот же
 // process-wide флаг -graph-radius-nodes сегодня потребляет только graph-режим
 // (cmd/mcp1c/graph.go), indexToolDeps его не несёт (реестр закрыт правкам, а

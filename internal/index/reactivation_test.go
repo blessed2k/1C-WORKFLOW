@@ -248,7 +248,7 @@ func TestRealDumpDiagnosticsSurviveReactivation(t *testing.T) {
 	}
 }
 
-// TestRealDumpReindexResultDiagnosticsMatchStore — D09 часть 1:
+// TestRealDumpReindexResultDiagnosticsMatchStore:
 // находка, вскрытая ПРИ проверке P7 (doc-комментарий
 // TestRealDumpDiagnosticsSurviveReactivation выше) — publishModuleSymbols
 // вставляет diagnostic "index_duplicate_symbol_uid" сразу в store
