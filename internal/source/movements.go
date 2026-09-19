@@ -75,7 +75,7 @@ func (s *XMLSource) movements(name string, mod *bsl.Module) (*MovementsReport, e
 	}
 	out := &MovementsReport{Document: "Документ." + name, Registers: []RegisterMovement{}}
 
-	regs := map[string]*regInfo{}    // key: lower(full name)
+	regs := map[string]*regInfo{}       // key: lower(full name)
 	shortIdx := map[string][]*regInfo{} // key: lower(short name)
 	ensure := func(full string) *regInfo {
 		k := strings.ToLower(full)
