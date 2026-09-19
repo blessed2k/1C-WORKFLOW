@@ -85,7 +85,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c/indexreg.go` — реестр индексных инструментов (не редактировать)
 - `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph}.go` — регистрация индексных инструментов, по файлу на группу
 - `internal/source/cache.go` — `ConfigureCache(ttl, limitBytes)`, `CacheSnapshot() CacheStats`, `cached[T]`, `estimateSize`, `dirStamp`, сам `dumpCache` со сбросом по TTL и вытеснением
-- `internal/syntax/lazy.go` — `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go` — `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`; `owner.go` — `Lookup` (owner, `Тип.Член`, компактные члены `Member`, `TypeInfo`), `MemberLimit`
+- `internal/syntax/lazy.go`: `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go`: `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`; `owner.go` — `Lookup` (owner, `Тип.Член`, компактные члены `Member`, `TypeInfo`), `MemberLimit`
 - `internal/syntax/syntaxtest`: `Fixture`/`FixtureFile` (синтетический корпус `internal/syntax/syntaxtest/testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
 - `internal/app/projects.go` — `Projects`: активный логический проект → пара store+index.Service, ленивое открытие, кэш на жизнь процесса
 - `internal/app/activeproject.go`: `Projects` владеет активным проектом процесса, то есть парой «raw-выгрузка + индексный проект» (`docs/architecture-graph.md` §4.1): `SetDump` (set_dump и `--dump`) привязывает проект по корню компонента манифеста, `reindex projectRoot` переключает raw, без выгрузки активен сохранённый в реестре или единственный проект; `registry.json` не переписывается, тип `dumpState` в `cmd/mcp1c/tools.go` лишь адаптер
@@ -218,7 +218,7 @@ blob GC, orphan-sweep, генерация, физическая фиксация
 ошибка разбора видны только через `(*Index).Err()`; сервер стартует без файла, при старте
 лишь `os.Stat` и строка предупреждения в stderr.
 `bsl_syntax` и `validate_bsl` принимают не `*syntax.Index`, а интерфейс `syntaxCorpus`
-(`Err`/`Search`/`Lookup`/`GlobalMethod`, объявлен в `cmd/mcp1c/tools.go` — на стороне потребителя) и
+(`Err`/`Search`/`Lookup`/`GlobalMethod`, объявлен в `cmd/mcp1c/tools.go` на стороне потребителя) и
 зовут `syntaxCorpusErr` внутри хендлера, а не при регистрации.
 
 **Блок памяти `server_info`.** `serverInfoHandler` собирает `processRSS()` +
