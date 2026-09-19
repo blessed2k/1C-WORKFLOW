@@ -68,7 +68,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
 - `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-034), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-035), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -101,10 +101,10 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
 - `internal/resolve/*.go` — `NewEnv`, `Resolve`, `Derive*`; `layer.go` — `ParseInterceptAnnotation`, `DeriveIntercepts` (второе значение — диагностики), `DetectInsteadConflicts`, `DiagInterceptTargetUnknown`
-- `internal/effective/*.go`: единственное наложение слоёв расширений на модуль (effective-вид), общее для `app` и `retrieve`; `Module(Source, base, modulePath) (Result, error)` отдаёт перехватчики с текстом, `BorrowedBy` и диагностики (`effective_blob_unavailable`, ADR-027), `InsteadConflict` даёт текст `instead_conflict`; адаптеры `StoreSource(*store.ReadTx)` (порядок из `store.Components` той же транзакции, не из манифеста) и `Memory` (тесты) над собственным типом `Extension`; правило порядка `ApplyingTo` (applyOrder, при равенстве id компонента), перевод из `store.Component` только в `ExtensionsFromStore`; транзакций не открывает, из `cmd/mcp1c` запрещён гардом
+- `internal/effective/*.go`: единственное наложение слоёв расширений на модуль и объект (effective-вид), общее для `app` и `retrieve`; `BorrowedObjects(ObjectSource, obj)` отдаёт строки объекта в применяющихся расширениях (ADR-035); `Module(Source, base, modulePath) (Result, error)` отдаёт перехватчики с текстом, `BorrowedBy` и диагностики (`effective_blob_unavailable`, ADR-027), `InsteadConflict` даёт текст `instead_conflict`; адаптеры `StoreSource(*store.ReadTx)` (порядок из `store.Components` той же транзакции, не из манифеста) и `Memory` (тесты) над собственным типом `Extension`; правило порядка `ApplyingTo` (applyOrder, при равенстве id компонента), перевод из `store.Component` только в `ExtensionsFromStore`; транзакций не открывает, из `cmd/mcp1c` запрещён гардом
 - `internal/parse/bsl/*.go` — `Parse`, `Module`, `Reference` (только Span, текст — через `Module.Text`); `Method.Annotations []Annotation{Name, Arg, HasArg}`, `DiagBadAnnotationArgument`
 - `internal/retrieve/build.go` — `Build`/`Run`/`buildWithSymbols`, движок `get_context_for_task`; `anchorExpansion{anchor, candidates, warnings}` — итог typed expansion одного анкера до слияния в плоские срезы; `suppressFormNoiseWhenMatched(expansions)` — гасит `no_forms`/`form_binding_not_matched` от анкера ТОЛЬКО когда анкер-омоним ТОГО ЖЕ `(ObjectType, ObjectName)` дал настоящую находку — анкеры разных имён ИЛИ разных типов друг на друга не влияют, `Component` в ключе группировки сознательно нет (только intent=form, вызывается сразу после сбора `expansions`, до слияния в `allCandidates`/`warnings` и до `dedupWarnings`)
-- `internal/retrieve/effective.go` — `symbolFinder`, `effectiveInterceptsForSymbol`, `interceptorSymbol`, предупреждения `interceptor_symbol_*`; `postingInterceptCandidates` (общий хвост обоих путей posting-перехватчиков) и `postingInterceptsWithoutBaseHandler` (базового обработчика нет вовсе)
+- `internal/retrieve/effective.go` — `symbolFinder`, `effectiveInterceptsForSymbol`, `interceptorSymbol`, предупреждения `interceptor_symbol_*`; `postingInterceptCandidates` (общий хвост обоих путей posting-перехватчиков) и `postingInterceptsWithoutBaseHandler` (базового обработчика нет вовсе); `registerWriterIntercepts`/`extensionInterceptOf` (register) и `queryInterceptCandidates` (query), ADR-035
 - `internal/retrieve/expand2.go` — `expandPosting`: `findPostingHandler`, `postingObjectModulePath`, `postingRegisterAccesses`, `postingSubscriptions`, `effectivePostingIntercepts`, `postingBaseHandlerMissingWarning`
 - `internal/retrieve/pack.go` — словарь покрытия и достаточность, гейт `complete_empty`
 - `internal/workspace/*.go` — `LoadManifest`, `OpenRegistry`, `Discover`, `SafeJoin`
@@ -164,8 +164,10 @@ read-транзакцию (`app.ReadTx[T]`) в `internal/store` и читает 
 парсера (ADR-027). `DetectInsteadConflicts` группирует по ЦЕЛИ: два расширения с `&Вместо` на
 один метод несут разные имена перехватчиков. Поверх этого `internal/retrieve` строит
 effective-вид: intent `posting` эффективный (категория `posting_handler_intercepts`, вес 0.55,
-необязательная), а `register`/`query`/`rights`/`add-attribute` — нет, и предупреждение
-`effective_view_partial_coverage` для них обязано оставаться (ADR-029). Базовый обработчик
+необязательная, ADR-029). По ADR-035 эффективны и `register` (`writer_intercepts`), `query`
+(`query_intercepts` и запросы перехватчиков) и `add-attribute`/`rights` (заимствования объекта в
+расширениях через `effective.BorrowedObjects`); `effective_view_partial_coverage` остаётся только
+для intent вне `effectiveAwareIntent`, raw всех четырёх прежний. Базовый обработчик
 проведения при этом не обязателен: если его нет вовсе, перехватчики ищутся по пути модуля
 объекта, выведенному из объявления, а отсутствие базового метода называется предупреждением
 `posting_base_handler_missing` — в обоих view, потому что молчание тут хуже пустоты (ADR-034).
@@ -176,7 +178,8 @@ effective-вид: intent `posting` эффективный (категория `p
 выглядеть как честная пустота (`declareCollectionFailed`, коды `posting_subscriptions_read_failed`,
 `posting_register_access_read_failed`). Правило «`TotalCount == 0` → `complete_empty`» без
 заявления уже давало ответ, который не нашёл ничего и объявил себя полным (ADR-030).
-Заявления сегодня делает только `expandPosting`.
+Заявления делают `expandPosting` и под `effective` `expandAddAttribute` (`forms`) и
+`expandRights` (`rls`); где пустота нечестна, заявления нет (ADR-035).
 
 **Раскладка XML-выгрузки — одно место.** `internal/workspace/dumplayout.go`: объявление объекта
 лежит ФАЙЛОМ рядом с каталогом своих модулей (`Documents/Штрафы.xml` +

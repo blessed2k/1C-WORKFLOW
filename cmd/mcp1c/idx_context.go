@@ -24,7 +24,7 @@ type contextTaskInput struct {
 	BudgetChars    int      `json:"budgetChars,omitempty" jsonschema:"hard cap in characters, default 16000; what does not fit is reported partial/missing"`
 	BudgetTokens   int      `json:"budgetTokens,omitempty" jsonschema:"budget in tokens (chars = tokens * 3) when budgetChars is unset"`
 	FocusHints     []string `json:"focusHints,omitempty" jsonschema:"known exact symbol/object names, tried first"`
-	View           string   `json:"view,omitempty" jsonschema:"raw (default) or effective: adds extension interceptors for bugfix, signature-change, form and posting tasks, with warnings on competing &Вместо and unparsed targets; register/query/rights/add-attribute stay raw and a warning says so"`
+	View           string   `json:"view,omitempty" jsonschema:"raw (default) or effective: overlays applying extensions, each fact with its own layer. bugfix, signature-change, form, posting: interceptors of the anchor or handler; register: writer_intercepts (intercepted writers and writes made by interceptors); query: query_intercepts plus the interceptors own query texts; add-attribute and rights: the object borrowed by extensions (its attributes, forms, extension roles, rights and RLS). Warns on competing &Вместо and unparsed targets"`
 	MaxDepth       int      `json:"maxDepth,omitempty" jsonschema:"call-graph depth, default 2, max 6"`
 	IncludeCode    string   `json:"includeCode,omitempty" jsonschema:"signatures (default), bodies or none"`
 	Freshness      string   `json:"freshness,omitempty" jsonschema:"allow-stale (default): answer now with a warning; require-fresh: wait or fail with index_not_fresh"`
