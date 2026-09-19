@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/resolve"
@@ -199,4 +201,30 @@ func TestPlanFileOrderedApply(t *testing.T) {
 		return i, nil
 	}, func(int, int) error { return nil })
 	t.Fatal("паника плана не дошла до вызывающего")
+}
+
+// TestPlanFileOrderedApplyPanicStopsWorkers: паника в apply (писатель, горутина
+// вызывающего) всплывает наружу и не оставляет висящими раздатчик и воркеры.
+func TestPlanFileOrderedApplyPanicStopsWorkers(t *testing.T) {
+	before := runtime.NumGoroutine()
+	func() {
+		defer func() {
+			if p := recover(); p != "паника писателя" {
+				t.Fatalf("recover = %v, ожидалась паника писателя", p)
+			}
+		}()
+		_ = runOrdered(8, 3*orderedWindow, func(i int) (int, error) { return i, nil }, func(i, _ int) error {
+			if i == 5 {
+				panic("паника писателя")
+			}
+			return nil
+		})
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for runtime.NumGoroutine() > before && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := runtime.NumGoroutine(); n > before {
+		t.Fatalf("после паники в apply висят горутины: было %d, стало %d", before, n)
+	}
 }

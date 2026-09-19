@@ -14,7 +14,8 @@ const orderedWindow = 256
 // плана или apply останавливает выдачу новых заданий; уже начатые планы
 // дорабатывают и отбрасываются. Паника в плане не роняет процесс из чужой
 // горутины: она пересылается и повторяется у вызывающего, где её видит
-// recover писателя (store.runWriteTx).
+// recover писателя (store.runWriteTx). При любом выходе, включая панику в
+// apply, раздатчик и воркеры останавливаются до возврата.
 func runOrdered[T any](workers, n int, plan func(i int) (T, error), apply func(i int, v T) error) error {
 	if n == 0 {
 		return nil
@@ -53,7 +54,9 @@ func runOrdered[T any](workers, n int, plan func(i int) (T, error), apply func(i
 			}
 		}()
 	}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer close(jobs)
 		for i := 0; i < n; i++ {
 			select {
@@ -68,28 +71,26 @@ func runOrdered[T any](workers, n int, plan func(i int) (T, error), apply func(i
 			}
 		}
 	}()
-	stop := func() {
+	// Остановка раздатчика и воркеров идёт через defer: паника в apply
+	// (писатель, горутина вызывающего) иначе миновала бы её, и раздатчик с
+	// воркерами повисли бы навсегда.
+	defer func() {
 		close(done)
 		wg.Wait()
-	}
+	}()
 
 	for i := 0; i < n; i++ {
 		r := <-slots[i]
 		<-window
 		if r.panic != nil {
-			stop()
 			panic(r.panic)
 		}
 		if r.err != nil {
-			stop()
 			return r.err
 		}
 		if err := apply(i, r.v); err != nil {
-			stop()
 			return err
 		}
 	}
-	close(done)
-	wg.Wait()
 	return nil
 }
