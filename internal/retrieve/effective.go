@@ -436,3 +436,54 @@ func registerWriterIntercepts(bctx *buildCtx, obj store.MetadataObjectRow, baseW
 	}
 	return out, warnings
 }
+
+// --- query (ADR-035) -----------------------------------------------------
+
+// queryInterceptCandidates: "query_intercepts" под view=effective и тексты
+// запросов самих перехватчиков символа-анкера row. Второе значение: сколько
+// текстов запросов нашлось у перехватчиков, чтобы вызывающий не объявил
+// no_query_in_symbol, когда запрос живёт только в расширении.
+//
+// Символ перехватчика ищется по факту перехвата (interceptorSymbol: слой +
+// путь модуля + имя), а не по подстроке имени; его запросы ложатся в те же
+// query_text/schema/tables_fields, что запросы анкера, но с component слоя
+// расширения, поэтому в ответе отличимы от базовых.
+func queryInterceptCandidates(bctx *buildCtx, row store.SymbolRow) ([]*candidate, int, []Warning) {
+	mine, _, warnings, err := effectiveInterceptsForSymbol(bctx.tx, row)
+	if err != nil {
+		return nil, 0, []Warning{{
+			Code: "query_intercepts_read_failed",
+			Message: fmt.Sprintf("не удалось наложить расширения на %s.%s: %v; перехватчики и их запросы в ответ не вошли",
+				row.ModulePath, row.NameDisplay, err),
+			Hint: "повторите вызов после reindex",
+		}}
+	}
+	sc := scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: row.ComponentID}
+	var out []*candidate
+	count := 0
+	for _, ic := range mine {
+		out = append(out, makeInterceptCandidate(bctx, sc, ic, "query_intercepts",
+			fmt.Sprintf("владелец запроса %s перехвачен; %s", row.NameDisplay, interceptWhy(ic))))
+		sym, symWarnings, ok := interceptorSymbol(bctx.symbols, ic)
+		warnings = append(warnings, symWarnings...)
+		if !ok {
+			continue
+		}
+		queries, qerr := bctx.tx.QueriesBySymbolID(sym.ID)
+		if qerr != nil {
+			warnings = append(warnings, Warning{
+				Code: "query_intercepts_read_failed",
+				Message: fmt.Sprintf("не удалось прочитать запросы перехватчика %s расширения %s: %v; его тексты запросов в ответ не вошли",
+					sym.NameDisplay, ic.Layer.Component, qerr),
+				Hint: "повторите вызов после reindex",
+			})
+			continue
+		}
+		count += len(queries)
+		qCands, qWarnings := queryCandidates(bctx, sym, queries, sc, row.ComponentID, " ("+interceptWhy(ic)+")")
+		out = append(out, qCands...)
+		warnings = append(warnings, qWarnings...)
+	}
+	warnings = append(warnings, interceptConflictWarnings(mine)...)
+	return out, count, warnings
+}

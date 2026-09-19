@@ -420,6 +420,13 @@ func itoaInt64(n int64) string { return fmt.Sprintf("%d", n) }
 // find_queries_using (без owner_symbol/query_text одного конкретного текста
 // — их несколько, «схема» в этом случае per-usage через find_queries_using,
 // не через get_context_for_task).
+//
+// view=effective (ADR-035) добавляет перехватчики символа-анкера
+// (необязательная query_intercepts) и тексты запросов из самих перехватчиков в
+// те же query_text/schema/tables_fields, со слоем расширения
+// (effective.go:queryInterceptCandidates). Для &ИзменениеИКонтроль исполняется
+// именно текст расширения. Запрос, который есть только в перехватчике, не
+// даёт effective-ответу сказать no_query_in_symbol. raw не меняется.
 func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	tx := bctx.tx
 	if a.Kind != "symbol" {
@@ -430,17 +437,40 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 		return nil, nil
 	}
 	queries, qerr := tx.QueriesBySymbolID(row.ID)
-	if qerr != nil || len(queries) == 0 {
-		return nil, []Warning{{Code: "no_query_in_symbol", Message: fmt.Sprintf("в %s не найдено текстов запросов", row.NameDisplay)}}
+	if qerr != nil {
+		queries = nil
+	}
+	var icCands []*candidate
+	var icWarnings []Warning
+	icQueries := 0
+	if bctx.view == domain.ViewEffective {
+		icCands, icQueries, icWarnings = queryInterceptCandidates(bctx, row)
+	}
+	if len(queries) == 0 && icQueries == 0 {
+		return icCands, append(icWarnings, Warning{Code: "no_query_in_symbol", Message: fmt.Sprintf("в %s не найдено текстов запросов", row.NameDisplay)})
 	}
 	sc := scoreCtx{depth: 0, anchorStrength: a.Strength, direction: 1.0, anchorComp: row.ComponentID}
 	var out []*candidate
-	var warnings []Warning
 
 	params, _ := tx.SymbolParameters(row.ID)
 	out = append(out, makeSignature(bctx, sc, row, params, "owner_symbol",
 		fmt.Sprintf("символ-владелец текста запроса %s", row.NameDisplay)))
 
+	qCands, warnings := queryCandidates(bctx, row, queries, sc, row.ComponentID, "")
+	out = append(out, qCands...)
+	out = append(out, icCands...)
+	return out, append(warnings, icWarnings...)
+}
+
+// queryCandidates строит query_text/schema/tables_fields по текстам запросов
+// символа owner. Общий для запросов анкера и запросов его перехватчиков
+// (effective): у перехватчика component и модуль его собственные, whyTail
+// называет факт перехвата. sc: оценка текстов; ссылки схемы идут на шаг
+// глубже от anchorComp.
+func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.QueryRow, sc scoreCtx, anchorComp, whyTail string) ([]*candidate, []Warning) {
+	tx := bctx.tx
+	var out []*candidate
+	var warnings []Warning
 	for i, q := range queries {
 		text := q.Text
 		truncated := false
@@ -449,16 +479,16 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			truncated = true
 		}
 		qc := &candidate{
-			id: fmt.Sprintf("qtext:%s:%d", row.UID, i), bucket: bucketSnippet, category: "query_text",
-			refUID: row.UID, component: row.ComponentID, module: row.ModulePath, kindLabel: "query_text",
+			id: fmt.Sprintf("qtext:%s:%d", owner.UID, i), bucket: bucketSnippet, category: "query_text",
+			refUID: owner.UID, component: owner.ComponentID, module: owner.ModulePath, kindLabel: "query_text",
 			text: text, truncated: truncated, span: q.Span, confidence: domain.Confidence(q.Confidence),
-			whyIncluded: fmt.Sprintf("текст запроса внутри %s", row.NameDisplay), charCost: runeLen(text),
+			whyIncluded: fmt.Sprintf("текст запроса внутри %s", owner.NameDisplay) + whyTail, charCost: runeLen(text),
 		}
 		out = append(out, bctx.apply(sc, qc))
 
 		if q.Staticity != "static" {
 			warnings = append(warnings, Warning{
-				Code: "query_not_static", Message: fmt.Sprintf("запрос %d в %s собран динамически (staticity=%s)", i, row.NameDisplay, q.Staticity),
+				Code: "query_not_static", Message: fmt.Sprintf("запрос %d в %s собран динамически (staticity=%s)", i, owner.NameDisplay, q.Staticity),
 			})
 			continue
 		}
@@ -480,13 +510,13 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				}
 			}
 			rc := &candidate{
-				id: fmt.Sprintf("qs:%s:%d:%d", row.UID, i, j), bucket: bucketRelation, category: cat,
-				kindLabel: "query_reference", fromDisplay: row.NameDisplay, display: label, detail: r.Kind,
-				component: row.ComponentID, confidence: domain.Confidence(q.Confidence),
-				whyIncluded: fmt.Sprintf("%s %q в схеме запроса %s", r.Kind, r.NameNorm, row.NameDisplay),
+				id: fmt.Sprintf("qs:%s:%d:%d", owner.UID, i, j), bucket: bucketRelation, category: cat,
+				kindLabel: "query_reference", fromDisplay: owner.NameDisplay, display: label, detail: r.Kind,
+				component: owner.ComponentID, confidence: domain.Confidence(q.Confidence),
+				whyIncluded: fmt.Sprintf("%s %q в схеме запроса %s", r.Kind, r.NameNorm, owner.NameDisplay) + whyTail,
 				charCost:    runeLen(label) + 8,
 			}
-			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: row.ComponentID}, rc))
+			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: anchorComp}, rc))
 		}
 	}
 	return out, warnings

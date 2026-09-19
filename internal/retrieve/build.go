@@ -258,7 +258,7 @@ func expandForAnchor(bctx *buildCtx, intent string, a Anchor) ([]*candidate, []W
 // effective_view_partial_coverage в Build).
 func effectiveAwareIntent(intent string) bool {
 	switch intent {
-	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting, IntentRegister:
+	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting, IntentRegister, IntentQuery:
 		return true
 	default:
 		return false
