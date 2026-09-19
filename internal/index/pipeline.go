@@ -336,6 +336,12 @@ func incrementalRepublishSet(comp domain.ComponentID, layer domain.Layer, env re
 			full[rel] = true
 		}
 		for rel := range corpus.resolved {
+			// Удалённые файлы ещё лежат в corpus.resolved (dropResolved идёт
+			// после этой функции), но в corpus.files их уже нет: republish
+			// такого файла перечитывал бы его с диска и ронял прогон.
+			if _, alive := corpus.files[rel]; !alive {
+				continue
+			}
 			full[rel] = true // консервативно: любой файл мог сменить резолюцию
 		}
 		return full
