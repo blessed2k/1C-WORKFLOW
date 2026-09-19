@@ -22,22 +22,22 @@ func openFixtureStore(t *testing.T) *store.Store {
 // TestReadTxSnapshotIsolatedFromConcurrentWrite — критерий приёмки тикета 10:
 // «одна read-транзакция на вызов — инкремент в середине вызова не виден
 // вызову». Тест реально коммитит write-транзакцию НА ТОМ ЖЕ store, пока
-// ReadTx ещё открыт, и доказывает через настоящий store.Store (не мок), что
+// readTx ещё открыт, и доказывает через настоящий store.Store (не мок), что
 // снятый снапшот этого не видит: WAL-изоляция store.Store.Read, на которой
-// стоит ReadTx, держит именно это свойство.
+// стоит readTx (под ним и ReadSnapshot), держит именно это свойство.
 func TestReadTxSnapshotIsolatedFromConcurrentWrite(t *testing.T) {
 	st := openFixtureStore(t)
 	ctx := context.Background()
 
-	before, err := ReadTx(ctx, st, func(tx *store.ReadTx) (int64, error) {
+	before, err := readTx(ctx, st, func(tx *store.ReadTx) (int64, error) {
 		return tx.GenerationNumber()
 	})
 	if err != nil {
-		t.Fatalf("ReadTx (baseline): %v", err)
+		t.Fatalf("readTx (baseline): %v", err)
 	}
 
 	var duringTx, afterCommitStillInTx int64
-	_, err = ReadTx(ctx, st, func(tx *store.ReadTx) (struct{}, error) {
+	_, err = readTx(ctx, st, func(tx *store.ReadTx) (struct{}, error) {
 		g, err := tx.GenerationNumber()
 		if err != nil {
 			return struct{}{}, err
@@ -55,7 +55,7 @@ func TestReadTxSnapshotIsolatedFromConcurrentWrite(t *testing.T) {
 		return struct{}{}, err
 	})
 	if err != nil {
-		t.Fatalf("ReadTx (снапшот): %v", err)
+		t.Fatalf("readTx (снапшот): %v", err)
 	}
 
 	if duringTx != before {
@@ -66,11 +66,11 @@ func TestReadTxSnapshotIsolatedFromConcurrentWrite(t *testing.T) {
 			afterCommitStillInTx, duringTx)
 	}
 
-	after, err := ReadTx(ctx, st, func(tx *store.ReadTx) (int64, error) {
+	after, err := readTx(ctx, st, func(tx *store.ReadTx) (int64, error) {
 		return tx.GenerationNumber()
 	})
 	if err != nil {
-		t.Fatalf("ReadTx (после): %v", err)
+		t.Fatalf("readTx (после): %v", err)
 	}
 	if after != before+1 {
 		t.Fatalf("after = %d, want %d: write-транзакция должна была реально закоммититься", after, before+1)

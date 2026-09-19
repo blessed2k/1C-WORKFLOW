@@ -186,6 +186,17 @@ func (s *Service) precheckChangedCount(ctx context.Context) (int, error) {
 func (s *Service) precheckWorkload(ctx context.Context) (precheckWork, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	start := s.now()
+	work, err := s.precheckWorkloadLocked(ctx)
+	if err == nil {
+		// Любой полный обход, откуда бы его ни позвали (EnsureFresh или
+		// CachedFreshness), и есть самый свежий исход для признака stale.
+		s.recordDiskCheck(start, work.changed)
+	}
+	return work, err
+}
+
+func (s *Service) precheckWorkloadLocked(ctx context.Context) (precheckWork, error) {
 	var work precheckWork
 	for _, id := range s.sortedComponentIDs() {
 		if ctx.Err() != nil {

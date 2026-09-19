@@ -91,6 +91,11 @@ type Freshness struct {
 	Generation domain.Generation
 	AgeSeconds float64
 	Reason     string
+	// ChangedFiles и CheckAgeSeconds заполняет только CachedFreshness:
+	// сколько файлов на диске разошлись с индексом и сколько секунд назад
+	// снят этот исход обхода (ADR-036).
+	ChangedFiles    int
+	CheckAgeSeconds float64
 }
 
 // ErrIndexNotFresh — require-fresh не дождался публикации в пределах deadline
@@ -136,6 +141,15 @@ type Service struct {
 	reindexedHere bool
 
 	deb *debouncer
+
+	// diskMu охраняет исход последнего обхода диска (ADR-036): источник
+	// признака stale у индексных инструментов. Отдельный мьютекс, а не
+	// stateMu и не opMu: читатель не должен ждать ни пересборку, ни обход.
+	diskMu         sync.Mutex
+	disk           diskCheck
+	diskRefreshing bool
+	diskClosed     bool
+	diskWG         sync.WaitGroup
 }
 
 // NewService создаёт пайплайн поверх уже открытого store.Store.
@@ -157,6 +171,7 @@ func NewService(st *store.Store, project domain.ProjectID, manifest workspace.Ma
 func (s *Service) Close() error {
 	s.deb.stop()
 	s.deb.wait()
+	s.stopDiskRefresh()
 	return nil
 }
 
@@ -256,7 +271,16 @@ func (s *Service) reindexLocked(ctx context.Context, mode Mode, comp domain.Comp
 		err = s.st.Write(ctx, runAll)
 	}
 	if err != nil {
+		s.invalidateDiskCheck()
 		return Result{}, err
+	}
+	if comp == "" {
+		// Прогон по всем компонентам сам сверил корпус с диском: на момент
+		// его старта расхождений нет. Время старта, а не конца: правка,
+		// сделанная во время прогона, могла в него не попасть.
+		s.recordDiskCheck(start, 0)
+	} else {
+		s.invalidateDiskCheck()
 	}
 
 	dur := s.now().Sub(start)

@@ -240,7 +240,7 @@ func (s *MetadataService) GetObject(ctx context.Context, in GetObjectInput) (Res
 		item ObjectItem
 		warn []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -363,9 +363,9 @@ func (s *MetadataService) GetObject(ctx context.Context, in GetObjectInput) (Res
 		return Response[ObjectItem]{}, err
 	}
 
-	return Response[ObjectItem]{
+	return withSnapshot(Response[ObjectItem]{
 		Generation: res.gen, Items: []ObjectItem{res.item}, TotalCount: 1, Warnings: res.warn,
-	}, nil
+	}, snap), nil
 }
 
 // subscriptionSourceCandidates строит нормализованные варианты
@@ -452,7 +452,7 @@ func (s *MetadataService) GetFormHandlers(ctx context.Context, in GetFormHandler
 		gen   domain.Generation
 		items []FormHandlerItem
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -529,5 +529,5 @@ func (s *MetadataService) GetFormHandlers(ctx context.Context, in GetFormHandler
 		return Response[FormHandlerItem]{}, err
 	}
 
-	return Response[FormHandlerItem]{Generation: res.gen, Items: res.items, TotalCount: len(res.items)}, nil
+	return withSnapshot(Response[FormHandlerItem]{Generation: res.gen, Items: res.items, TotalCount: len(res.items)}, snap), nil
 }

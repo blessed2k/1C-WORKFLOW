@@ -149,7 +149,7 @@ func (g *GraphService) FindReferences(ctx context.Context, in FindReferencesInpu
 		gen  domain.Generation
 		warn []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -246,7 +246,7 @@ func (g *GraphService) FindReferences(ctx context.Context, in FindReferencesInpu
 			Hint:    "запросите следующую страницу через nextCursor либо заберите полный список по " + referencesResourceURI(op.Entry.ID, uid, res.gen),
 		})
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // ResourceReferences отдаёт ПОЛНЫЙ список ссылок на символ, без пагинации
@@ -268,7 +268,7 @@ func (g *GraphService) ResourceReferences(ctx context.Context, projectArg, uid, 
 		cand map[int64][]store.ReferenceCandidateRow
 		gen  domain.Generation
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -333,7 +333,7 @@ func (g *GraphService) ResourceReferences(ctx context.Context, projectArg, uid, 
 		items = append(items, *groups[key])
 		total += len(groups[key].References)
 	}
-	return Response[ReferenceGroup]{Generation: res.gen, Items: items, TotalCount: total}, nil
+	return withSnapshot(Response[ReferenceGroup]{Generation: res.gen, Items: items, TotalCount: total}, snap), nil
 }
 
 // bfsNode — рабочее состояние одного фронта BFS.
@@ -399,7 +399,7 @@ func (g *GraphService) TraceCallGraph(ctx context.Context, in TraceCallGraphInpu
 		afterIdx       int
 		warn           []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -562,5 +562,5 @@ func (g *GraphService) TraceCallGraph(ctx context.Context, in TraceCallGraphInpu
 			Hint:    "сузьте depth или начните обход от более конкретного символа",
 		})
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }

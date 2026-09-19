@@ -545,7 +545,7 @@ func (g *ObjectGraphService) neighborsMerged(ctx context.Context, op *openProjec
 		total    int
 		warnings []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -610,7 +610,7 @@ func (g *ObjectGraphService) neighborsMerged(ctx context.Context, op *openProjec
 	if hasMore {
 		resp.NextCursor = EncodeCursor(res.gen, strconv.Itoa(res.afterIdx+limit), paramsKey)
 	}
-	return resp, nil
+	return withSnapshot(resp, snap), nil
 }
 
 // godNodesDiff: топ узлов по числу связей, добавленных расширениями: какие

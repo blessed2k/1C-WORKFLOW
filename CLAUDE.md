@@ -68,7 +68,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
 - `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-035), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-036), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
 
 ## Ключевые файлы
 
@@ -89,7 +89,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/syntax/syntaxtest`: `Fixture`/`FixtureFile` (синтетический корпус `internal/syntax/syntaxtest/testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
 - `internal/app/projects.go` — `Projects`: активный логический проект → пара store+index.Service, ленивое открытие, кэш на жизнь процесса
 - `internal/app/activeproject.go`: `Projects` владеет активным проектом процесса, то есть парой «raw-выгрузка + индексный проект» (`docs/architecture-graph.md` §4.1): `SetDump` (set_dump и `--dump`) привязывает проект по корню компонента манифеста, `reindex projectRoot` переключает raw, без выгрузки активен сохранённый в реестре или единственный проект; `registry.json` не переписывается, тип `dumpState` в `cmd/mcp1c/tools.go` лишь адаптер
-- `internal/app/readtx.go` — `ReadTx[T]`: ровно одна read-транзакция на MCP-вызов, использовать вместо ручного `store.Read`
+- `internal/app/snapshot.go`: `ReadSnapshot[T](ctx, op, fn) (T, Snapshot, error)`, единственная точка чтения индекса инструментом: проверка свежести (`index.Service.CachedFreshness`) плюс ровно одна read-транзакция; ответ проходит через `withSnapshot(resp, snap)` (неиспользованный `snap` не компилируется). Голый `readTx` только у resource-чтений, закреплённых за поколением или хэшем (ADR-036)
 - `internal/app/errors.go` — `Error`/коды/`similarName` — канонический «возможно, вы имели в виду»
 - `internal/app/indexstatus.go` — `Status(ctx, StatusInput)`, `ReindexInput`, `doseDiagnostics`, `DiagnosticsDigest`, `const diagnosticsSample = 10`; `ReindexStageResult{Name, DurationMS}` и `ReindexResultItem.Stages []ReindexStageResult` (`json:"stages,omitempty"`) — поэтапные тайминги `reindex` в MCP-ответе, собираются из `index.Result.Stages`
 - `internal/index/service.go`, `pipeline.go` — `Service.Reindex/Status/EnsureFresh`, сам пайплайн; `Result.Stages []StageTiming`
@@ -97,6 +97,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/parserversion.go`: `const ParserVersion` (сейчас 3); поднимает каждый, кто меняет ВЫХОД парсера
 - `internal/index/corpus.go`, `hydrate.go`, `envbuild.go` — резидентный корпус файлов, восстановление из `source_file`, `fileRecord.hydrated`, инвариант `buildEnvInput`
 - `internal/index/freshness.go` — `precheckWork{changed, pending}`, `precheckWorkload`, `precheckChangedCount` (обёртка)
+- `internal/index/diskcheck.go`: `CachedFreshness` (дешёвый источник `stale` без запуска инкремента), исход обхода `diskCheck` с TTL/MaxAge (`Config.FreshnessTTL`/`FreshnessMaxAge`, 30 с / 5 мин), фоновый обход один на сервис; каждый `precheckWorkload` пишет исход, прогон по всем компонентам сбрасывает его в «расхождений нет» на момент старта (ADR-036)
 - `internal/index/publish.go`, `publishderive.go`, `publishmeta2.go`, `publishforms.go` — публикация фактов в store; `publishModuleOwner` дописывает `module.owner_object_id` после прохода 1
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
@@ -134,7 +135,8 @@ parse/* → domain`. Проверяется тестом
 
 Поток вызова индексного инструмента: MCP-запрос → `cmd/mcp1c/idx_*.go` резолвит активный
 проект через `app.Projects` → зовёт свой `internal/app.XxxService` → тот открывает одну
-read-транзакцию (`app.ReadTx[T]`) в `internal/store` и читает уже опубликованные факты.
+read-транзакцию через `app.ReadSnapshot[T]` (она же ставит `stale` и `stale_index` по
+`index.Service.CachedFreshness`, ADR-036) и читает уже опубликованные факты.
 Единственное исключение — `get_context_for_task`: `cmd/mcp1c/idx_context.go` зовёт
 `internal/retrieve.Run` напрямую (`Run` сам делает freshness-precheck через
 `index.Service.EnsureFresh`, затем `store.Read`, затем `retrieve.Build`) — `internal/retrieve`
@@ -478,6 +480,11 @@ guard по корпусу, сервер без файла индекса син�
   файлов» у него не зависит от механизма свежести и **ничего о ней не говорит**. Свежесть
   меряется путём `EnsureFresh`: мгновенный ответ без `stale_index` достижим ровно при
   `work.changed == 0`.
+- `stale` у индексных инструментов (кроме `get_context_for_task`) не «проверено сейчас», а
+  «проверено не раньше TTL назад» (ADR-036): правка, сделанная внутри окна 30 с, видна со
+  следующего обхода. `CachedFreshness` индекс не меняет и пересборку не планирует; не
+  подменять её на `EnsureFresh` ради «точности»: тот синхронно гоняет инкремент в ответе
+  инструмента, а бюджет p50 `find_symbol` 20 мс.
 - `precheckWork` не сводить обратно к одному числу: «нужен ли прогон» решается по `changed`,
   «синхронно или в фон» — по `pending`. Одна правка после рестарта иначе уходит в синхронный
   инкремент, который дочитывает весь проект (на крупной конфигурации ~14 минут блокировки

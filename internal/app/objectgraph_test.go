@@ -396,10 +396,11 @@ func TestObjectGraphRadiusTruncation(t *testing.T) {
 	// подряд — перепутанный порядок компилятор не ловил, а пакет оставался
 	// зелёным, потому что ни один тест не сверял ТЕКСТ предупреждения с его
 	// причиной.
-	if len(resp.Warnings) != 1 {
+	truncWarnings := withoutStaleIndex(resp.Warnings)
+	if len(truncWarnings) != 1 {
 		t.Fatalf("warnings = %+v, want ровно одно (только потолок узлов сработал)", resp.Warnings)
 	}
-	w := resp.Warnings[0]
+	w := truncWarnings[0]
 	if w.Code != "truncated" {
 		t.Fatalf("warning.Code = %q, want truncated", w.Code)
 	}
@@ -506,10 +507,11 @@ func TestObjectGraphRadiusFetchLimitTruncationIsNotSilent(t *testing.T) {
 	// Текст ЭТОЙ причины (потолок выборки одного узла) обязан честно
 	// признавать отбор по id, а НЕ обещать confidence — иначе перепутанный
 	// текст (см. TestObjectGraphRadiusTruncation) прошёл бы незамеченным.
-	if len(resp.Warnings) != 1 {
+	truncWarnings := withoutStaleIndex(resp.Warnings)
+	if len(truncWarnings) != 1 {
 		t.Fatalf("warnings = %+v, want ровно одно (только потолок выборки сработал)", resp.Warnings)
 	}
-	w := resp.Warnings[0]
+	w := truncWarnings[0]
 	if w.Code != "truncated" {
 		t.Fatalf("warning.Code = %q, want truncated", w.Code)
 	}
@@ -645,4 +647,18 @@ func TestObjectGraphEdgeEvidenceNotFound(t *testing.T) {
 	if appErr, ok := err.(*Error); !ok || appErr.Code != CodeNotFound {
 		t.Fatalf("EdgeEvidence: err = %v, want CodeNotFound", err)
 	}
+}
+
+// withoutStaleIndex убирает предупреждение о свежести: сид этого файла пишет
+// store мимо пайплайна, эпоха честно несёт признак полной пересборки, и
+// stale_index в ответе штатен (ADR-036). Тесты усечения считают только свои
+// предупреждения.
+func withoutStaleIndex(ws []Warning) []Warning {
+	var out []Warning
+	for _, w := range ws {
+		if w.Code != "stale_index" {
+			out = append(out, w)
+		}
+	}
+	return out
 }

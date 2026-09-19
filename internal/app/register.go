@@ -125,7 +125,7 @@ func (s *RegisterService) FindRegisterWrites(ctx context.Context, in FindRegiste
 		nextCursor string
 		warnings   []Warning
 	}
-	res, err := ReadTx(ctx, op.Store, func(tx *store.ReadTx) (txResult, error) {
+	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
 		var out txResult
 		gen, gerr := tx.Generation()
 		if gerr != nil {
@@ -220,9 +220,9 @@ func (s *RegisterService) FindRegisterWrites(ctx context.Context, in FindRegiste
 		// отличать «ничего не нашлось» от «поле потерялось».
 		items = []RegisterAccessItem{}
 	}
-	return Response[RegisterAccessItem]{
+	return withSnapshot(Response[RegisterAccessItem]{
 		Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: len(items), NextCursor: res.nextCursor,
-	}, nil
+	}, snap), nil
 }
 
 // declaredMovementsWarning считает объекты, объявившие движения в регистр

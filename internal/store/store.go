@@ -600,6 +600,16 @@ func runWriteTx(ctx context.Context, c *conn, opts *Options, fn func(*WriteTx) e
 	return nil
 }
 
+// NeedsFullRebuild: стоит ли на эпохе признак полной пересборки, без похода
+// в БД и без stat файлов: то же поле, что Status().NeedsFullRebuild, но по
+// цене мьютекса. Нужен проверке свежести на каждый вызов индексного
+// инструмента (ADR-036), где Status слишком дорог для бюджета find_symbol.
+func (s *Store) NeedsFullRebuild() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.needsFullRebuild
+}
+
 // StoreStatus — наблюдаемое состояние хранилища для index_status.
 type StoreStatus struct {
 	ProjectID        domain.ProjectID  `json:"projectId"`
