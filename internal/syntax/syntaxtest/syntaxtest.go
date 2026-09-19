@@ -1,6 +1,6 @@
 // Package syntaxtest gives tests a platform syntax index without the platform
 // install. Fixture is a small hand-written corpus (testdata/corpus.json): a
-// dozen entries in the shape syntaxgen produces, enough for the lookups the
+// couple of dozen entries in the shape syntaxgen produces, enough for the lookups the
 // tests exercise and nothing copied from the platform reference. RealOrSkip is
 // for tests that run against a real configuration export and need the real
 // index the user generated.

@@ -309,7 +309,7 @@ column says whether the tool is part of `--tools=core`.
 | Tool | Mode | core | Purpose |
 |---|---|---|---|
 | `get_query_schema` | offline | yes | fields and virtual tables of an object for the query language |
-| `bsl_syntax` | both | yes | syntax of a platform method, property or type (needs the syntax index) |
+| `bsl_syntax` | both | yes | syntax of a platform method, property or type; `owner=<type>` lists all members of a type compactly, `query=Type.Member` searches within a type, a lookup by type name shows its constructors (needs the syntax index) |
 | `validate_bsl` | offline | yes | references to missing metadata and wrong argument counts |
 | `query_advisor` | offline | yes | query anti-patterns with rewrites, and index hints |
 

@@ -52,6 +52,10 @@ func (b brokenCorpus) Search(string, int) []onec.SyntaxEntry {
 	return []onec.SyntaxEntry{{NameRu: "Сообщить", Kind: "method", Signature: "Сообщить(<ТекстСообщения>)"}}
 }
 
+func (b brokenCorpus) Lookup(q, _ string, n int) syntax.Lookup {
+	return syntax.Lookup{Matches: b.Search(q, n)}
+}
+
 func (b brokenCorpus) GlobalMethod(string) (onec.SyntaxEntry, bool) {
 	return onec.SyntaxEntry{NameRu: "Сообщить", Kind: "method", Signature: "Сообщить(<ТекстСообщения>)"}, true
 }
@@ -74,6 +78,7 @@ func TestBrokenSyntaxCorpusIsAToolError(t *testing.T) {
 		args map[string]any
 	}{
 		{"bsl_syntax", map[string]any{"query": "Сообщить"}},
+		{"bsl_syntax", map[string]any{"owner": "Массив"}},
 		{"validate_bsl", map[string]any{"code": "Сообщить(1);"}},
 	} {
 		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: tc.tool, Arguments: tc.args})

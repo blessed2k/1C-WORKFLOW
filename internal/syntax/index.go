@@ -54,6 +54,9 @@ type Index struct {
 	parse    func() ([]onec.SyntaxEntry, error)
 	once     sync.Once
 	parseErr error
+
+	ownersOnce sync.Once
+	owners     map[string]ownerStat // lower-cased owner name -> stat
 }
 
 // LoadFile reads the index from path. A missing file is an ErrNotFound carrying
@@ -108,6 +111,12 @@ func (ix *Index) Count() int {
 // ranked exact > prefix > substring (case-insensitive), capped at limit.
 func (ix *Index) Search(query string, limit int) []onec.SyntaxEntry {
 	ix.ensure()
+	return ix.search(query, "", limit)
+}
+
+// search is Search restricted to one owner (exact, as stored) when owner is not
+// empty.
+func (ix *Index) search(query, owner string, limit int) []onec.SyntaxEntry {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		return nil
@@ -122,6 +131,9 @@ func (ix *Index) Search(query string, limit int) []onec.SyntaxEntry {
 	}
 	var hits []scored
 	for _, e := range ix.entries {
+		if owner != "" && e.Owner != owner {
+			continue
+		}
 		rank := matchRank(strings.ToLower(e.NameRu), q)
 		if r := matchRank(strings.ToLower(e.NameEn), q); r > rank {
 			rank = r

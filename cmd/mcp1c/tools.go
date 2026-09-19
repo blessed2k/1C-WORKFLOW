@@ -91,18 +91,27 @@ func (d *dumpState) source() source.ConfigSource {
 }
 
 type bslSyntaxInput struct {
-	Query   string   `json:"query,omitempty" jsonschema:"one name in Russian or English (exact, prefix or substring)"`
+	Query   string   `json:"query,omitempty" jsonschema:"one name in Russian or English (exact, prefix or substring); Type.Member (ТаблицаЗначений.Свернуть) restricts it to that type"`
 	Queries []string `json:"queries,omitempty" jsonschema:"several names in one call"`
-	Limit   int      `json:"limit,omitempty" jsonschema:"max matches per query (default 20)"`
+	Owner   string   `json:"owner,omitempty" jsonschema:"type (owner) in Russian, e.g. ТаблицаЗначений: restricts matches to its members; without query lists all its members in compact form"`
+	Limit   int      `json:"limit,omitempty" jsonschema:"max matches per query (default 20; members listing default 150)"`
 }
 
 // bslSyntaxOutput keeps query/matches for a single lookup (unchanged for existing
-// callers) and adds results when several names were asked for at once.
+// callers) and adds results when several names were asked for at once. The
+// owner fields appear only when a lookup is restricted to one owner, lists its
+// members, or the query is itself a type name.
 type bslSyntaxOutput struct {
-	Query   string             `json:"query,omitempty"`
-	Count   int                `json:"count"`
-	Matches []onec.SyntaxEntry `json:"matches,omitempty"`
-	Results []bslSyntaxResult  `json:"results,omitempty" jsonschema:"one entry per requested name, in the order asked"`
+	Query     string             `json:"query,omitempty"`
+	Count     int                `json:"count"`
+	Matches   []onec.SyntaxEntry `json:"matches,omitempty"`
+	Results   []bslSyntaxResult  `json:"results,omitempty" jsonschema:"one entry per requested name, in the order asked"`
+	Owner     string             `json:"owner,omitempty" jsonschema:"the owner (type) the lookup was restricted to"`
+	Members   []syntax.Member    `json:"members,omitempty" jsonschema:"compact members of owner, by kind: constructors, methods, properties, events; query+owner gives one member in full"`
+	Total     int                `json:"total,omitempty" jsonschema:"members of owner before the limit"`
+	Truncated bool               `json:"truncated,omitempty" jsonschema:"members were cut at limit"`
+	Type      *syntax.TypeInfo   `json:"type,omitempty" jsonschema:"query is itself a type: member count, constructors and how to list its members"`
+	Note      string             `json:"note,omitempty"`
 }
 
 // bslSyntaxResult is one name's lookup inside a batch.
@@ -110,6 +119,9 @@ type bslSyntaxResult struct {
 	Query   string             `json:"query"`
 	Count   int                `json:"count"`
 	Matches []onec.SyntaxEntry `json:"matches,omitempty"`
+	Owner   string             `json:"owner,omitempty"`
+	Type    *syntax.TypeInfo   `json:"type,omitempty"`
+	Note    string             `json:"note,omitempty"`
 }
 
 type objectStructureInput struct {
@@ -482,6 +494,7 @@ func finishSurface(server *mcp.Server, surface *toolSurface, deps indexToolDeps,
 type syntaxCorpus interface {
 	Err() error
 	Search(query string, limit int) []onec.SyntaxEntry
+	Lookup(query, owner string, limit int) syntax.Lookup
 	GlobalMethod(name string) (onec.SyntaxEntry, bool)
 }
 
@@ -515,7 +528,7 @@ func registerCoreTools(server *mcp.Server, describe func() (string, string), inf
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "bsl_syntax",
-		Description: "Look up 1C BSL / platform syntax by Russian or English name (function, method, property, type, constructor). Returns signature, parameters, return value and description. Consult it WHILE writing BSL, before calling a platform method you are recalling from memory. Pass queries=[...] to look up everything a block of code needs in one call.",
+		Description: "Look up 1C BSL / platform syntax by Russian or English name (function, method, property, type, constructor). Returns signature, parameters, return value and description. Consult it WHILE writing BSL, before calling a platform method you are recalling from memory. Pass queries=[...] to look up everything a block of code needs in one call. owner=<type> (e.g. ТаблицаЗначений) restricts matches to that type, and alone lists all its members compactly; query=Type.Member is the same as owner+query. A query that names a type also reports its constructors.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in bslSyntaxInput) (*mcp.CallToolResult, bslSyntaxOutput, error) {
 		if err := syntaxCorpusErr(idx); err != nil {
 			return nil, bslSyntaxOutput{}, err
@@ -526,17 +539,23 @@ func registerCoreTools(server *mcp.Server, describe func() (string, string), inf
 		if len(in.Queries) > 0 {
 			out := bslSyntaxOutput{}
 			for _, q := range in.Queries {
-				m := idx.Search(q, in.Limit)
-				out.Results = append(out.Results, bslSyntaxResult{Query: q, Count: len(m), Matches: m})
-				out.Count += len(m)
+				r := idx.Lookup(q, in.Owner, in.Limit)
+				out.Results = append(out.Results, bslSyntaxResult{Query: q, Count: len(r.Matches), Matches: r.Matches, Owner: r.Owner, Type: r.Type, Note: r.Note})
+				out.Count += len(r.Matches)
 			}
 			return nil, out, nil
 		}
-		if strings.TrimSpace(in.Query) == "" {
-			return nil, bslSyntaxOutput{}, errors.New("pass query (one name) or queries (several names)")
+		if strings.TrimSpace(in.Query) == "" && strings.TrimSpace(in.Owner) == "" {
+			return nil, bslSyntaxOutput{}, errors.New("pass query (one name), queries (several names) or owner (a type's members)")
 		}
-		matches := idx.Search(in.Query, in.Limit)
-		return nil, bslSyntaxOutput{Query: in.Query, Count: len(matches), Matches: matches}, nil
+		r := idx.Lookup(in.Query, in.Owner, in.Limit)
+		out := bslSyntaxOutput{Query: in.Query, Count: len(r.Matches), Matches: r.Matches,
+			Owner: r.Owner, Type: r.Type, Note: r.Note,
+			Members: r.Members, Total: r.Total, Truncated: r.Truncated}
+		if r.Members != nil {
+			out.Count = len(r.Members)
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

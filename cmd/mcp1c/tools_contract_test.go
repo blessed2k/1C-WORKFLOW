@@ -69,9 +69,9 @@ var контрактыИнструментов = []контрактИнстру�
 		имя:               "bsl_syntax",
 		режимы:            режимОффлайн | режимLive,
 		входОбязательные:  []string{},
-		входПоля:          map[string]string{"limit": "integer", "queries": "array", "query": "string"},
+		входПоля:          map[string]string{"limit": "integer", "owner": "string", "queries": "array", "query": "string"},
 		выходОбязательные: []string{"count"},
-		выходПоля:         []string{"count", "matches", "query", "results"},
+		выходПоля:         []string{"count", "matches", "members", "note", "owner", "query", "results", "total", "truncated", "type"},
 	},
 	{
 		имя:               "bsp_extension_points",
