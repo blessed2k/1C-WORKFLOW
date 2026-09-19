@@ -310,8 +310,9 @@ func TestObjectGraphViewDiffShowsInterceptEdge(t *testing.T) {
 }
 
 // TestObjectGraphViewSameRegisterIsNotDiff: мутация фикстуры: расширение
-// пишет в тот же регистр, что и база. Связь не новая, diff пуст, а effective
-// честно показывает оба ребра, у ребра расширения нет пометки added.
+// пишет в тот же регистр, что и база. Связь не новая: diff пуст, effective
+// показывает одну связь с перечнем слоёв base и ext, без пометки added, и
+// степень документа не удваивается.
 func TestObjectGraphViewSameRegisterIsNotDiff(t *testing.T) {
 	svc := buildPostingInterceptProject(t, "ТоварыНаСкладах", true)
 	doc := viewNodeID(t, svc, "Document", viewDocName)
@@ -320,9 +321,18 @@ func TestObjectGraphViewSameRegisterIsNotDiff(t *testing.T) {
 		t.Errorf("diff = %v, want пусто: связь уже есть в базе", edgeSummary(diff.Items))
 	}
 	eff := neighborsView(t, svc, doc, GraphViewEffective)
-	if got, want := strings.Join(edgeSummary(eff.Items), ";"),
-		"Отгрузка->ТоварыНаСкладах|base|;Отгрузка->ТоварыНаСкладах|ext|"; got != want {
-		t.Errorf("effective = %s, want %s", got, want)
+	if got, want := strings.Join(edgeSummary(eff.Items), ";"), "Отгрузка->ТоварыНаСкладах|base|"; got != want {
+		t.Fatalf("effective = %s, want %s", got, want)
+	}
+	if got := strings.Join(eff.Items[0].Layers, ","); got != "base,ext" {
+		t.Errorf("effective: layers = %s, want base,ext", got)
+	}
+	card, err := svc.Node(context.Background(), NodeInput{Target: ObjectTarget{ObjectID: doc}, View: GraphViewEffective})
+	if err != nil {
+		t.Fatalf("Node: %v", err)
+	}
+	if card.Items[0].FanOut != 1 {
+		t.Errorf("fanOut = %d, want 1: одна связь, а не две", card.Items[0].FanOut)
 	}
 }
 

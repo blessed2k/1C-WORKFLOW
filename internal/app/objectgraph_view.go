@@ -43,10 +43,12 @@ const EdgeDiffAdded = "added"
 // baseLayer: значение layer у фактов базовой конфигурации (index.layerName).
 const baseLayer = "base"
 
-// diffScanLimit: сколько рёбер расширений читается за раз там, где diff
-// считается в памяти (соседи узла, god-node, карточка). Рёбер расширений на
-// порядки меньше, чем базы; упор в потолок не молчит, а даёт truncated.
-const diffScanLimit = 2000
+// viewScanLimit: сколько рёбер читается за раз там, где режим считается в
+// памяти (соседи и карточка узла в effective и diff, god-node в diff).
+// Склейка связей требует видеть все рёбра узла сразу, поэтому страница
+// нарезается после неё. Упор в потолок не молчит: truncated плюс пометка,
+// что totalCount только нижняя граница.
+const viewScanLimit = 2000
 
 // nodeExtensionEdgeLimit: сколько рёбер расширений показывает карточка узла.
 const nodeExtensionEdgeLimit = 50
@@ -148,73 +150,167 @@ func (li *layerIndex) groupIDs(id int64) ([]int64, error) {
 	return out, nil
 }
 
-// added: ребро из слоя расширения, связи которого (тот же вид, те же объекты
-// с обеих сторон, любые их строки) в слое base нет.
-func (li *layerIndex) added(e store.ObjectDataEdgeRow) (bool, error) {
-	if e.Layer == baseLayer {
-		return false, nil
-	}
-	from, err := li.groupIDs(e.FromObjectID)
-	if err != nil {
-		return false, err
-	}
-	to, err := li.groupIDs(e.ToObjectID)
-	if err != nil {
-		return false, err
-	}
-	exists, err := li.tx.ObjectDataEdgeExists(from, to, e.Kind, baseLayer)
-	return !exists, err
+// relKey: связь без строки и слоя. Концы канонические.
+type relKey struct {
+	from, to int64
+	kind     string
 }
 
-// viewEdge: ребро, приведённое к режиму: концы канонические, diff посчитан.
+// viewEdge: связь, приведённая к режиму. row: представитель (ребро базы,
+// если связь есть в базе, иначе первое по id ребро расширения), концы уже
+// канонические; layers: все слои, где связь есть, база первой; diff: added,
+// если в базе связи нет.
 type viewEdge struct {
-	row  store.ObjectDataEdgeRow
-	diff string
+	row    store.ObjectDataEdgeRow
+	layers []string
+	diff   string
 }
 
-// project приводит рёбра к режиму view: в effective и diff концы заменяются
-// каноническими узлами и считается пометка added, diff оставляет только
-// добавленные расширениями. raw и пустой view отдают рёбра как есть.
-func (li *layerIndex) project(view string, rows []store.ObjectDataEdgeRow) ([]viewEdge, error) {
-	out := make([]viewEdge, 0, len(rows))
+func (e viewEdge) key() relKey { return relKey{e.row.FromObjectID, e.row.ToObjectID, e.row.Kind} }
+
+// baseRelations: какие связи из rows есть в слое base. Один запрос на все
+// рёбра (ObjectEdgeKeysInLayer), а не по запросу на ребро: базовый двойник
+// ищется среди всех строк обоих объектов, без фильтров карты (порог
+// confidence не должен превращать базовую связь в «добавленную»).
+func (li *layerIndex) baseRelations(rows []store.ObjectDataEdgeRow) (map[relKey]bool, error) {
+	var from, to []int64
+	seen := map[int64]bool{}
+	add := func(dst *[]int64, id int64) error {
+		g, err := li.groupIDs(id)
+		if err != nil {
+			return err
+		}
+		for _, x := range g {
+			if !seen[x] {
+				seen[x] = true
+			}
+		}
+		*dst = append(*dst, g...)
+		return nil
+	}
 	for _, r := range rows {
-		if !graphViewMerges(view) {
-			out = append(out, viewEdge{row: r})
+		if r.Layer == baseLayer {
 			continue
 		}
-		isAdded, err := li.added(r)
+		if err := add(&from, r.FromObjectID); err != nil {
+			return nil, err
+		}
+		if err := add(&to, r.ToObjectID); err != nil {
+			return nil, err
+		}
+	}
+	out := map[relKey]bool{}
+	if len(from) == 0 {
+		return out, nil
+	}
+	keys, err := li.tx.ObjectEdgeKeysInLayer(uniqueIDs(from), uniqueIDs(to), baseLayer)
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range keys {
+		f, _, err := li.canonical(k.FromObjectID)
 		if err != nil {
 			return nil, err
 		}
-		if view == GraphViewDiff && !isAdded {
-			continue
-		}
-		from, ok, err := li.canonical(r.FromObjectID)
+		t, _, err := li.canonical(k.ToObjectID)
 		if err != nil {
 			return nil, err
 		}
-		if ok {
-			r.FromObjectID = from.ID
-		}
-		to, ok, err := li.canonical(r.ToObjectID)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			r.ToObjectID = to.ID
-		}
-		ve := viewEdge{row: r}
-		if isAdded {
-			ve.diff = EdgeDiffAdded
-		}
-		out = append(out, ve)
+		out[relKey{f.ID, t.ID, k.Kind}] = true
 	}
 	return out, nil
 }
 
-// edgeFilterFor дополняет фильтр рёбер узла под режим: raw читает только слой
-// base, effective и diff читают все строки объекта, diff только слои
-// расширений (базовые рёбра добавленными не бывают по определению).
+func uniqueIDs(ids []int64) []int64 {
+	seen := make(map[int64]bool, len(ids))
+	out := ids[:0:0]
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// project приводит рёбра к режиму view. raw и пустой view отдают рёбра как
+// есть. effective и diff заменяют концы каноническими узлами и склеивают
+// рёбра одной связи (те же объекты, тот же вид) в одно с перечнем слоёв:
+// связь базы, повторённая расширением, одна связь, а не две параллельные, и
+// степени её не удваивают. diff оставляет только связи, которых нет в base.
+func (li *layerIndex) project(view string, rows []store.ObjectDataEdgeRow) ([]viewEdge, error) {
+	if !graphViewMerges(view) {
+		out := make([]viewEdge, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, viewEdge{row: r})
+		}
+		return out, nil
+	}
+	inBase, err := li.baseRelations(rows)
+	if err != nil {
+		return nil, err
+	}
+	var order []relKey
+	byKey := map[relKey]*viewEdge{}
+	for _, r := range rows {
+		for _, end := range []*int64{&r.FromObjectID, &r.ToObjectID} {
+			c, ok, err := li.canonical(*end)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				*end = c.ID
+			}
+		}
+		k := relKey{r.FromObjectID, r.ToObjectID, r.Kind}
+		e, have := byKey[k]
+		if !have {
+			e = &viewEdge{row: r}
+			byKey[k] = e
+			order = append(order, k)
+		} else if r.Layer == baseLayer && e.row.Layer != baseLayer {
+			e.row = r
+		}
+		e.layers = addLayer(e.layers, r.Layer)
+		if r.Layer == baseLayer {
+			inBase[k] = true
+		}
+	}
+	out := make([]viewEdge, 0, len(order))
+	for _, k := range order {
+		e := byKey[k]
+		if !inBase[k] {
+			e.diff = EdgeDiffAdded
+		}
+		if view == GraphViewDiff && e.diff != EdgeDiffAdded {
+			continue
+		}
+		out = append(out, *e)
+	}
+	return out, nil
+}
+
+// addLayer добавляет слой в перечень без повторов: base первой, остальные
+// по алфавиту.
+func addLayer(layers []string, l string) []string {
+	for _, x := range layers {
+		if x == l {
+			return layers
+		}
+	}
+	layers = append(layers, l)
+	sort.SliceStable(layers, func(i, j int) bool {
+		if (layers[i] == baseLayer) != (layers[j] == baseLayer) {
+			return layers[i] == baseLayer
+		}
+		return layers[i] < layers[j]
+	})
+	return layers
+}
+
+// edgeFilterFor дополняет фильтр рёбер узла под режим: raw читает только
+// слой base, effective и diff читают все строки объекта всех слоёв (diff
+// нужна и база: по ней видно, что связь не новая).
 func (li *layerIndex) edgeFilterFor(view string, node int64, f store.ObjectEdgeFilter) (store.ObjectEdgeFilter, error) {
 	if view == "" {
 		f.ObjectID = node
@@ -225,27 +321,48 @@ func (li *layerIndex) edgeFilterFor(view string, node int64, f store.ObjectEdgeF
 		return f, err
 	}
 	f.ObjectID, f.ObjectIDs = node, ids
-	switch view {
-	case GraphViewRaw:
+	if view == GraphViewRaw {
 		f.Layer = baseLayer
-	case GraphViewDiff:
-		f.ExcludeLayer = baseLayer
 	}
 	return f, nil
 }
 
-// hasExtensions: в проекте есть хотя бы один компонент-расширение.
-func hasExtensions(tx *store.ReadTx) (bool, error) {
+// nodeRelations читает рёбра всех строк объекта node (не больше
+// viewScanLimit) и склеивает их в связи режима view. Второе значение: упёрлись
+// ли в потолок.
+func (li *layerIndex) nodeRelations(view string, node int64, direction string, kinds []string, minConfidence float64) ([]viewEdge, bool, error) {
+	filter, err := li.edgeFilterFor(view, node, store.ObjectEdgeFilter{
+		Direction: direction, Kinds: kinds, MinConfidence: minConfidence, Limit: viewScanLimit,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	rows, err := li.tx.ObjectDataEdges(filter)
+	if err != nil {
+		return nil, false, err
+	}
+	truncated := len(rows) > viewScanLimit
+	if truncated {
+		rows = rows[:viewScanLimit]
+	}
+	edges, err := li.project(view, rows)
+	return edges, truncated, err
+}
+
+// extensionLayers: id компонентов-расширений проекта, они же значения layer
+// рёбер расширений (index.layerName).
+func extensionLayers(tx *store.ReadTx) ([]string, error) {
 	comps, err := tx.Components()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var out []string
 	for _, c := range comps {
 		if c.Kind == string(domain.KindExtension) {
-			return true, nil
+			out = append(out, c.ID)
 		}
 	}
-	return false, nil
+	return out, nil
 }
 
 // graphViewWarnings: честные оговорки режима. Без расширений effective
@@ -257,11 +374,11 @@ func graphViewWarnings(tx *store.ReadTx, view string) ([]Warning, error) {
 	if !graphViewMerges(view) {
 		return nil, nil
 	}
-	ext, err := hasExtensions(tx)
+	exts, err := extensionLayers(tx)
 	if err != nil {
 		return nil, err
 	}
-	if !ext {
+	if len(exts) == 0 {
 		return []Warning{{
 			Code:    "no_extensions",
 			Message: "в проекте нет расширений: effective совпадает с raw, diff пуст",
@@ -270,19 +387,25 @@ func graphViewWarnings(tx *store.ReadTx, view string) ([]Warning, error) {
 	if view == GraphViewDiff {
 		return []Warning{{
 			Code:    "diff_only_added",
-			Message: "diff показывает связи, которые добавили расширения; пропавшие связи (перехват &Вместо без ПродолжитьВызов) индекс не вычисляет",
-			Hint:    "чтобы проверить, не гасит ли расширение движения базы, смотрите перехватчики через get_context_for_task с view=effective",
+			Message: "diff показывает связи, которые добавили расширения; пропавшие связи (перехват &Вместо без ПродолжитьВызов гасит движения базы) индекс не вычисляет",
+			Hint:    "перехватчики обработчика проведения видны в get_symbol с view=effective; гасит ли перехватчик движения базы, решает его текст",
 		}}, nil
 	}
 	return nil, nil
 }
 
-func diffTruncatedWarning() Warning {
-	return Warning{
+// scanTruncatedWarnings: упор в viewScanLimit. Два кода: truncated (почему
+// ответ неполон) и total_lower_bound (totalCount здесь не точное число, а
+// нижняя граница), чтобы клиент не принял обрезанный счёт за полный.
+func scanTruncatedWarnings(total int) []Warning {
+	return []Warning{{
 		Code:    "truncated",
-		Message: fmt.Sprintf("рёбер расширений больше %d, diff посчитан по первым из них", diffScanLimit),
+		Message: fmt.Sprintf("у узла больше %d рёбер, режим посчитан по первым из них", viewScanLimit),
 		Hint:    "сузьте kinds или minConfidence",
-	}
+	}, {
+		Code:    "total_lower_bound",
+		Message: fmt.Sprintf("totalCount и степени здесь нижняя граница: связей не меньше %d", total),
+	}}
 }
 
 func rowsOfView(edges []viewEdge) []store.ObjectDataEdgeRow {
@@ -293,31 +416,17 @@ func rowsOfView(edges []viewEdge) []store.ObjectDataEdgeRow {
 	return out
 }
 
-// extensionEdgesOf читает рёбра расширений всех строк объекта node (не больше
-// diffScanLimit) и приводит их к effective: концы канонические, added
-// посчитан. Второе значение: упёрлись ли в потолок.
-func (li *layerIndex) extensionEdgesOf(node int64, direction string, kinds []string, minConfidence float64) ([]viewEdge, bool, error) {
-	filter, err := li.edgeFilterFor(GraphViewDiff, node, store.ObjectEdgeFilter{
-		Direction: direction, Kinds: kinds, MinConfidence: minConfidence, Limit: diffScanLimit,
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	rows, err := li.tx.ObjectDataEdges(filter)
-	if err != nil {
-		return nil, false, err
-	}
-	truncated := len(rows) > diffScanLimit
-	if truncated {
-		rows = rows[:diffScanLimit]
-	}
-	edges, err := li.project(GraphViewEffective, rows)
-	return edges, truncated, err
+// edgeItemOf: EdgeItem связи режима, с пометкой diff и перечнем слоёв.
+func edgeItemOf(e viewEdge, objects map[int64]store.MetadataObjectRow) EdgeItem {
+	item := edgeItemFrom(e.row, objects)
+	item.Diff, item.Layers = e.diff, e.layers
+	return item
 }
 
 // viewNode строит карточку канонического узла объекта строки rowID в режиме
-// view: степени по рёбрам режима, все компоненты объекта и, в effective и
-// diff, рёбра расширений с именем расширения.
+// view. raw: степени по рёбрам базы (счётчики SQL), рёбра расширений не
+// читаются вовсе. effective и diff: степени по связям режима, все компоненты
+// объекта и связи, в которых участвует расширение, с его именем.
 func viewNode(tx *store.ReadTx, manifest workspace.Manifest, view string, rowID int64) (NodeItem, []Warning, error) {
 	li := newLayerIndex(tx, manifest)
 	group, err := li.group(rowID)
@@ -344,30 +453,9 @@ func viewNode(tx *store.ReadTx, manifest workspace.Manifest, view string, rowID 
 		item.Components = append(item.Components, r.ComponentID)
 	}
 
-	ext, truncated, err := li.extensionEdgesOf(canon.ID, store.EdgeDirectionBoth, nil, 0)
-	if err != nil {
-		return NodeItem{}, nil, err
-	}
-	switch view {
-	case GraphViewDiff:
-		for _, e := range ext {
-			if e.diff != EdgeDiffAdded {
-				continue
-			}
-			if e.row.ToObjectID == canon.ID {
-				item.FanIn++
-			}
-			if e.row.FromObjectID == canon.ID {
-				item.FanOut++
-			}
-		}
-	default:
-		layer := ""
-		if view == GraphViewRaw {
-			layer = baseLayer
-		}
+	if view == GraphViewRaw {
 		for _, dir := range []string{store.EdgeDirectionIn, store.EdgeDirectionOut} {
-			n, cerr := tx.CountObjectDataEdges(store.ObjectEdgeFilter{ObjectID: canon.ID, ObjectIDs: ids, Direction: dir, Layer: layer})
+			n, cerr := tx.CountObjectDataEdges(store.ObjectEdgeFilter{ObjectID: canon.ID, ObjectIDs: ids, Direction: dir, Layer: baseLayer})
 			if cerr != nil {
 				return NodeItem{}, nil, cerr
 			}
@@ -377,31 +465,42 @@ func viewNode(tx *store.ReadTx, manifest workspace.Manifest, view string, rowID 
 				item.FanOut = n
 			}
 		}
+		return item, nil, nil
 	}
 
-	if view != GraphViewRaw {
-		for _, e := range ext {
-			if view == GraphViewDiff && e.diff != EdgeDiffAdded {
-				continue
-			}
-			if len(item.ExtensionEdges) >= nodeExtensionEdgeLimit {
-				truncated = true
-				break
-			}
-			ne := NodeExtensionEdge{EdgeID: e.row.ID, Layer: e.row.Layer, Kind: e.row.Kind, Diff: e.diff,
-				Direction: store.EdgeDirectionOut, OtherID: e.row.ToObjectID}
-			if e.row.FromObjectID != canon.ID {
-				ne.Direction, ne.OtherID = store.EdgeDirectionIn, e.row.FromObjectID
-			}
-			other, ok, oerr := li.canonical(ne.OtherID)
-			if oerr != nil {
-				return NodeItem{}, nil, oerr
-			}
-			if ok {
-				ne.OtherMType, ne.OtherDisplay = other.MType, other.NameDisplay
-			}
-			item.ExtensionEdges = append(item.ExtensionEdges, ne)
+	rels, truncated, err := li.nodeRelations(view, canon.ID, store.EdgeDirectionBoth, nil, 0)
+	if err != nil {
+		return NodeItem{}, nil, err
+	}
+	extTruncated := false
+	for _, e := range rels {
+		if e.row.ToObjectID == canon.ID {
+			item.FanIn++
 		}
+		if e.row.FromObjectID == canon.ID {
+			item.FanOut++
+		}
+		ext := extensionOnly(e.layers)
+		if len(ext) == 0 {
+			continue
+		}
+		if len(item.ExtensionEdges) >= nodeExtensionEdgeLimit {
+			extTruncated = true
+			continue
+		}
+		ne := NodeExtensionEdge{EdgeID: e.row.ID, Layer: ext[0], Layers: e.layers, Kind: e.row.Kind, Diff: e.diff,
+			Direction: store.EdgeDirectionOut, OtherID: e.row.ToObjectID}
+		if e.row.FromObjectID != canon.ID {
+			ne.Direction, ne.OtherID = store.EdgeDirectionIn, e.row.FromObjectID
+		}
+		other, ok, oerr := li.canonical(ne.OtherID)
+		if oerr != nil {
+			return NodeItem{}, nil, oerr
+		}
+		if ok {
+			ne.OtherMType, ne.OtherDisplay = other.MType, other.NameDisplay
+		}
+		item.ExtensionEdges = append(item.ExtensionEdges, ne)
 	}
 
 	warnings, err := graphViewWarnings(tx, view)
@@ -409,19 +508,34 @@ func viewNode(tx *store.ReadTx, manifest workspace.Manifest, view string, rowID 
 		return NodeItem{}, nil, err
 	}
 	if truncated {
+		warnings = append(warnings, scanTruncatedWarnings(int(item.FanIn+item.FanOut))...)
+	}
+	if extTruncated {
 		warnings = append(warnings, Warning{
 			Code:    "truncated",
-			Message: fmt.Sprintf("у объекта много рёбер расширений, в карточке первые %d", nodeExtensionEdgeLimit),
+			Message: fmt.Sprintf("у объекта много связей расширений, в карточке первые %d", nodeExtensionEdgeLimit),
 			Hint:    "раскройте соседей узла в view=diff, там список полный",
 		})
 	}
 	return item, warnings, nil
 }
 
-// neighborsDiff: соседи узла в view=diff: только рёбра, добавленные
-// расширениями. Считается в памяти по рёбрам расширений (их мало), поэтому
-// курсор здесь накопленный offset, как у Radius, а не id строки.
-func (g *ObjectGraphService) neighborsDiff(ctx context.Context, op *openProject, in NeighborsInput, direction string, limit int, paramsKey string) (Response[EdgeItem], error) {
+// extensionOnly: слои расширений из перечня (всё, кроме base).
+func extensionOnly(layers []string) []string {
+	var out []string
+	for _, l := range layers {
+		if l != baseLayer {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// neighborsMerged: соседи узла в effective и diff. Связи склеиваются по всем
+// рёбрам узла сразу, поэтому страница нарезается в памяти, а курсор здесь
+// накопленный offset, как у Radius, а не id строки. Узел на входе может быть
+// любой строкой объекта: ответ всегда про канонический узел, двойника нет.
+func (g *ObjectGraphService) neighborsMerged(ctx context.Context, op *openProject, view string, in NeighborsInput, direction string, limit int, paramsKey string) (Response[EdgeItem], error) {
 	type txResult struct {
 		edges    []viewEdge
 		objects  map[int64]store.MetadataObjectRow
@@ -451,32 +565,29 @@ func (g *ObjectGraphService) neighborsDiff(ctx context.Context, op *openProject,
 		if key != "" {
 			out.afterIdx, _ = strconv.Atoi(key)
 		}
-		ext, truncated, eerr := li.extensionEdgesOf(canon.ID, direction, in.Kinds, in.MinConfidence)
+		rels, truncated, eerr := li.nodeRelations(view, canon.ID, direction, in.Kinds, in.MinConfidence)
 		if eerr != nil {
 			return out, eerr
 		}
-		var added []viewEdge
-		for _, e := range ext {
-			if e.diff == EdgeDiffAdded {
-				added = append(added, e)
-			}
+		out.total = len(rels)
+		if out.afterIdx > len(rels) {
+			out.afterIdx = len(rels)
 		}
-		out.total = len(added)
-		if out.afterIdx > len(added) {
-			out.afterIdx = len(added)
+		out.edges = rels[out.afterIdx:]
+		if len(out.edges) > limit+1 {
+			out.edges = out.edges[:limit+1]
 		}
-		out.edges = added[out.afterIdx:]
 		objects, oerr := resolveEdgeObjects(tx, rowsOfView(out.edges))
 		if oerr != nil {
 			return out, oerr
 		}
 		out.objects = objects
-		out.warnings, oerr = graphViewWarnings(tx, GraphViewDiff)
+		out.warnings, oerr = graphViewWarnings(tx, view)
 		if oerr != nil {
 			return out, oerr
 		}
 		if truncated {
-			out.warnings = append(out.warnings, diffTruncatedWarning())
+			out.warnings = append(out.warnings, scanTruncatedWarnings(out.total)...)
 		}
 		return out, nil
 	})
@@ -493,9 +604,7 @@ func (g *ObjectGraphService) neighborsDiff(ctx context.Context, op *openProject,
 	}
 	items := make([]EdgeItem, 0, len(res.edges))
 	for _, e := range res.edges {
-		item := edgeItemFrom(e.row, res.objects)
-		item.Diff = e.diff
-		items = append(items, item)
+		items = append(items, edgeItemOf(e, res.objects))
 	}
 	resp := Response[EdgeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: res.total}
 	if hasMore {
@@ -505,16 +614,24 @@ func (g *ObjectGraphService) neighborsDiff(ctx context.Context, op *openProject,
 }
 
 // godNodesDiff: топ узлов по числу связей, добавленных расширениями: какие
-// объекты расширения меняют сильнее всего. Считается в памяти по рёбрам
-// расширений всей таблицы, узлы канонические.
+// объекты расширения меняют сильнее всего. Читаются только рёбра слоёв
+// расширений (ObjectDataEdgesInLayers, по индексу), узлы канонические.
 func godNodesDiff(tx *store.ReadTx, li *layerIndex, in GodNodesInput, by string, limit int) ([]store.GodNodeRow, []Warning, error) {
-	rows, err := tx.ObjectDataEdgesOutsideLayer(baseLayer, in.Kinds, in.MinConfidence, diffScanLimit)
+	warnings, err := graphViewWarnings(tx, GraphViewDiff)
 	if err != nil {
 		return nil, nil, err
 	}
-	truncated := len(rows) > diffScanLimit
+	exts, err := extensionLayers(tx)
+	if err != nil || len(exts) == 0 {
+		return nil, warnings, err
+	}
+	rows, err := tx.ObjectDataEdgesInLayers(exts, in.Kinds, in.MinConfidence, viewScanLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	truncated := len(rows) > viewScanLimit
 	if truncated {
-		rows = rows[:diffScanLimit]
+		rows = rows[:viewScanLimit]
 	}
 	edges, err := li.project(GraphViewDiff, rows)
 	if err != nil {
@@ -569,12 +686,12 @@ func godNodesDiff(tx *store.ReadTx, li *layerIndex, in GodNodesInput, by string,
 	if len(out) > limit {
 		out = out[:limit]
 	}
-	warnings, err := graphViewWarnings(tx, GraphViewDiff)
-	if err != nil {
-		return nil, nil, err
-	}
 	if truncated {
-		warnings = append(warnings, diffTruncatedWarning())
+		warnings = append(warnings, Warning{
+			Code:    "truncated",
+			Message: fmt.Sprintf("рёбер расширений больше %d, топ посчитан по первым из них", viewScanLimit),
+			Hint:    "сузьте kinds или minConfidence",
+		})
 	}
 	return out, warnings, nil
 }

@@ -191,14 +191,15 @@ type NodeItem struct {
 // NodeExtensionEdge: одно ребро расширения в карточке узла. Концы
 // канонические (см. objectgraph_view.go), Direction считается от узла.
 type NodeExtensionEdge struct {
-	EdgeID       int64  `json:"edgeId"`
-	Layer        string `json:"layer"`
-	Kind         string `json:"kind"`
-	Direction    string `json:"direction"` // out: узел источник, in: узел цель
-	OtherID      int64  `json:"otherObjectId"`
-	OtherMType   string `json:"otherMType"`
-	OtherDisplay string `json:"otherDisplay"`
-	Diff         string `json:"diff,omitempty"`
+	EdgeID       int64    `json:"edgeId"`
+	Layer        string   `json:"layer"`
+	Kind         string   `json:"kind"`
+	Layers       []string `json:"layers,omitempty"` // все слои связи, base первой
+	Direction    string   `json:"direction"`        // out: узел источник, in: узел цель
+	OtherID      int64    `json:"otherObjectId"`
+	OtherMType   string   `json:"otherMType"`
+	OtherDisplay string   `json:"otherDisplay"`
+	Diff         string   `json:"diff,omitempty"`
 }
 
 // EdgeItem — одно ребро object_data_edge, денормализованное для показа: оба
@@ -221,6 +222,11 @@ type EdgeItem struct {
 	// Diff: added, если ребро пришло из расширения и такой связи в слое base
 	// нет. Заполняется в view=effective и view=diff.
 	Diff string `json:"diff,omitempty"`
+	// Layers: все слои, в которых есть эта связь (те же объекты, тот же вид),
+	// base первой. Заполняется в view=effective и view=diff: одна связь
+	// базы и расширения приходит одним ребром, Layer и ID у него от
+	// представителя (ребро базы, если связь есть в базе).
+	Layers []string `json:"layers,omitempty"`
 }
 
 // RadiusEdgeItem — EdgeItem плюс глубина, на которой ребро встретил обход
@@ -434,8 +440,8 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 	limit := clampLimit(in.Limit, defaultNeighborLimit, maxNeighborLimit)
 	paramsKey := fmt.Sprintf("id=%d&dir=%s&kinds=%s&layer=%s&view=%s&minc=%v&l=%d",
 		in.ObjectID, direction, strings.Join(in.Kinds, ","), in.Layer, view, in.MinConfidence, limit)
-	if view == GraphViewDiff {
-		return g.neighborsDiff(ctx, op, in, direction, limit, paramsKey)
+	if graphViewMerges(view) {
+		return g.neighborsMerged(ctx, op, view, in, direction, limit, paramsKey)
 	}
 
 	type txResult struct {
@@ -516,9 +522,7 @@ func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (
 	}
 	items := make([]EdgeItem, 0, len(res.rows))
 	for _, r := range res.rows {
-		item := edgeItemFrom(r.row, res.objects)
-		item.Diff = r.diff
-		items = append(items, item)
+		items = append(items, edgeItemOf(r, res.objects))
 	}
 	resp := Response[EdgeItem]{Generation: res.gen, Warnings: res.warnings, Items: items, TotalCount: int(res.total)}
 	if hasMore {
@@ -581,10 +585,9 @@ type RadiusInput struct {
 // radiusCandidate — одно ребро, найденное на текущем уровне обхода, прежде
 // чем решено, влезает ли его новый конец в потолок узлов.
 type radiusCandidate struct {
-	row    store.ObjectDataEdgeRow
+	edge   viewEdge
 	other  int64
 	isFrom bool // true, если other — from_object_id (значит текущий узел — to)
-	diff   string
 }
 
 // radiusTruncation — ПОЧЕМУ Radius не гарантированно вернул полный подграф:
@@ -710,9 +713,7 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 		out.truncation = truncation
 		items := make([]RadiusEdgeItem, 0, len(edges))
 		for _, e := range edges {
-			item := edgeItemFrom(e.row, objects)
-			item.Diff = e.diff
-			items = append(items, RadiusEdgeItem{EdgeItem: item, Depth: e.depth})
+			items = append(items, RadiusEdgeItem{EdgeItem: edgeItemOf(e.edge, objects), Depth: e.depth})
 		}
 		// total — размер ВСЕГО обрезанного потолком узлов результата, ДО
 		// постраничной нарезки ниже: тот же смысл, что у Neighbors
@@ -772,9 +773,8 @@ func radiusTruncationWarnings(radiusNodesCap, radiusFetchLim int, t radiusTrunca
 }
 
 type radiusEdge struct {
-	row   store.ObjectDataEdgeRow
+	edge  viewEdge
 	depth int
-	diff  string
 }
 
 // radiusBFS — сам обход: по уровням, на каждом уровне рёбра-кандидаты
@@ -803,7 +803,9 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, li *layerIndex, view st
 		visited[id] = true
 		frontier = append(frontier, id)
 	}
-	seenEdge := map[int64]bool{}
+	// Ребро уже встречено: по id строки, а в effective и diff по связи
+	// (склеенная связь приходит и с другого конца, под id представителя).
+	seenEdge := map[any]bool{}
 	var result []radiusEdge
 	var truncation radiusTruncation
 
@@ -837,19 +839,23 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, li *layerIndex, view st
 			}
 			for _, pe := range projected {
 				r := pe.row
-				if seenEdge[r.ID] {
+				var seenKey any = r.ID
+				if graphViewMerges(view) {
+					seenKey = pe.key()
+				}
+				if seenEdge[seenKey] {
 					continue
 				}
-				seenEdge[r.ID] = true
+				seenEdge[seenKey] = true
 				other, isFrom := r.ToObjectID, false
 				if r.FromObjectID != node {
 					other, isFrom = r.FromObjectID, true
 				}
-				candidates = append(candidates, radiusCandidate{row: r, other: other, isFrom: isFrom, diff: pe.diff})
+				candidates = append(candidates, radiusCandidate{edge: pe, other: other, isFrom: isFrom})
 			}
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
-			return candidates[i].row.Confidence > candidates[j].row.Confidence
+			return candidates[i].edge.row.Confidence > candidates[j].edge.row.Confidence
 		})
 		var next []int64
 		for _, c := range candidates {
@@ -862,7 +868,7 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, li *layerIndex, view st
 				visited[c.other] = true
 				next = append(next, c.other)
 			}
-			result = append(result, radiusEdge{row: c.row, depth: level, diff: c.diff})
+			result = append(result, radiusEdge{edge: c.edge, depth: level})
 		}
 		frontier = next
 	}
@@ -877,7 +883,7 @@ func (g *ObjectGraphService) radiusBFS(tx *store.ReadTx, li *layerIndex, view st
 func rowsOf(edges []radiusEdge) []store.ObjectDataEdgeRow {
 	out := make([]store.ObjectDataEdgeRow, len(edges))
 	for i, e := range edges {
-		out[i] = e.row
+		out[i] = e.edge.row
 	}
 	return out
 }
