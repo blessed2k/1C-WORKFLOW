@@ -74,6 +74,12 @@ type Store struct {
 	// ожидание очереди обязано прерываться контекстом вызова.
 	writeSem chan struct{}
 
+	// closeCtx отменяется в Close с причиной ErrStoreClosed (issue #13). От
+	// него зависят контексты идущих записей и чтений: Close прерывает их, а не
+	// рвёт соединение из-под транзакции, и отпускает стоящих в очереди.
+	closeCtx    context.Context
+	cancelClose context.CancelCauseFunc
+
 	mu               sync.Mutex
 	closed           bool
 	epoch            int
@@ -127,6 +133,7 @@ func Open(dir string, opts Options) (*Store, error) {
 		ptr:      newPointer(indexDir),
 		writeSem: make(chan struct{}, 1),
 	}
+	s.closeCtx, s.cancelClose = context.WithCancelCause(context.Background())
 	ctx := context.Background()
 	if err := s.start(ctx); err != nil {
 		s.Close()
@@ -409,19 +416,15 @@ func (s *Store) closeEpochConns() {
 // После переключения файл старой эпохи удаляется; если ОС его удерживает
 // (Windows, незавершённый читатель), он остаётся orphan-ом и будет убран при
 // следующем старте — это ожидаемый путь, а не сбой.
-func (s *Store) Rebuild(ctx context.Context, fill func(*WriteTx) error) error {
-	select {
-	case s.writeSem <- struct{}{}:
-		defer func() { <-s.writeSem }()
-	case <-ctx.Done():
-		return ctx.Err()
+func (s *Store) Rebuild(ctx context.Context, fill func(*WriteTx) error) (err error) {
+	ctx, done, err := s.acquireWriter(ctx)
+	if err != nil {
+		return err
 	}
+	defer func() { err = done(err) }()
 	s.mu.Lock()
-	old, closed := s.epoch, s.closed
+	old := s.epoch
 	s.mu.Unlock()
-	if closed {
-		return ErrStoreClosed
-	}
 
 	// Сборка идёт БЕЗ мьютекса: читатели работают на старой эпохе.
 	seq, err := s.buildEpoch(ctx, old+1, buildDeliberate, fill)
@@ -458,16 +461,65 @@ func (s *Store) Rebuild(ctx context.Context, fill func(*WriteTx) error) error {
 // Read выполняет fn в ОДНОЙ read-транзакции на весь вызов (18.1): WAL фиксирует
 // снапшот на всё время, поэтому span и текст blob не могут разъехаться, а
 // параллельный commit писателя читателю не виден.
+//
+// Close во время чтения отменяет его контекст, как и у писателя; соединение
+// закрывается уже после конца транзакции, при возврате в закрытый пул.
 func (s *Store) Read(ctx context.Context, fn func(*ReadTx) error) error {
 	pool, err := s.pool()
 	if err != nil {
 		return err
 	}
+	ctx, done := s.bindClose(ctx)
 	c, err := pool.acquire(ctx)
 	if err != nil {
+		return done(err)
+	}
+	return done(runRead(ctx, pool, c, fn))
+}
+
+// bindClose связывает контекст вызова с закрытием хранилища: Close отменяет
+// его с причиной ErrStoreClosed. done снимает связь и переводит ошибку
+// прерванного закрытием вызова в ErrStoreClosed, сохраняя исходную в тексте.
+func (s *Store) bindClose(ctx context.Context) (context.Context, func(error) error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	stop := context.AfterFunc(s.closeCtx, func() { cancel(ErrStoreClosed) })
+	return ctx, func(err error) error {
+		stop()
+		closedMid := err != nil && errors.Is(context.Cause(ctx), ErrStoreClosed)
+		cancel(nil)
+		if closedMid && !errors.Is(err, ErrStoreClosed) {
+			return fmt.Errorf("%w: вызов прерван закрытием: %v", ErrStoreClosed, err)
+		}
 		return err
 	}
-	return runRead(ctx, pool, c, fn)
+}
+
+// acquireWriter занимает очередь писателя (ADR-014: писатель один). Ожидание
+// прерывается и контекстом вызова, и закрытием хранилища: стоящий в очереди
+// после Close получает ErrStoreClosed, а не ждёт конца чужой записи. Отданный
+// контекст отменяется закрытием; done освобождает очередь, и только после
+// этого Close может закрыть соединение писателя.
+func (s *Store) acquireWriter(ctx context.Context) (context.Context, func(error) error, error) {
+	select {
+	case s.writeSem <- struct{}{}:
+	case <-s.closeCtx.Done():
+		return nil, nil, ErrStoreClosed
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	}
+	s.mu.Lock()
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		<-s.writeSem
+		return nil, nil, ErrStoreClosed
+	}
+	ctx, done := s.bindClose(ctx)
+	return ctx, func(err error) error {
+		err = done(err)
+		<-s.writeSem
+		return err
+	}, nil
 }
 
 // pool отдаёт текущий пул читателей. Мьютекс держится ровно на чтение поля:
@@ -533,23 +585,22 @@ func runRead(ctx context.Context, pool *readerPool, c *conn, fn func(*ReadTx) er
 // Store сам доводит транзакцию до конца по разделу 15: учёт blob по затронутым
 // хэшам, GC по TTL, reconciliation (5a/5b) и current_generation+1. Шаги (1)-(4)
 // — дело вызывающего: только он знает affected set.
-func (s *Store) Write(ctx context.Context, fn func(*WriteTx) error) error {
-	select {
-	case s.writeSem <- struct{}{}:
-		defer func() { <-s.writeSem }()
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	s.mu.Lock()
-	w, closed := s.writer, s.closed
-	s.mu.Unlock()
-	if closed || w == nil {
-		return ErrStoreClosed
-	}
-	if err := runWriteTx(ctx, w, &s.opts, fn); err != nil {
+//
+// Close во время записи отменяет её контекст и ждёт, пока транзакция
+// зафиксируется или откатится; прерванная так запись возвращает ErrStoreClosed.
+func (s *Store) Write(ctx context.Context, fn func(*WriteTx) error) (err error) {
+	ctx, done, err := s.acquireWriter(ctx)
+	if err != nil {
 		return err
 	}
-	return nil
+	defer func() { err = done(err) }()
+	s.mu.Lock()
+	w := s.writer
+	s.mu.Unlock()
+	if w == nil {
+		return ErrStoreClosed
+	}
+	return runWriteTx(ctx, w, &s.opts, fn)
 }
 
 // runWriteTx — тело write-транзакции, общее для Write и сборки эпохи.
@@ -709,15 +760,30 @@ func (s *Store) Status(ctx context.Context) (StoreStatus, error) {
 	return st, err
 }
 
-// Close закрывает пул читателей и соединение писателя. Арендованные читатели
-// закрываются при возврате: обрывать чужой выполняющийся запрос нельзя.
+// Close закрывает пул читателей и соединение писателя (issue #13).
+//
+// Идущие записи и чтения получают отмену контекста, стоящие в очереди
+// писателя отпускаются с ErrStoreClosed. Соединение писателя закрывается
+// только после того, как текущая транзакция зафиксирована или откатилась:
+// закрыть его под транзакцией значит отдать её хвост (закрытие выражений,
+// COMMIT) закрытому хэндлу sqlite. Арендованные читатели закрываются при
+// возврате в пул, поэтому их Close не ждёт.
 func (s *Store) Close() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		return nil
 	}
 	s.closed = true
+	s.cancelClose(ErrStoreClosed)
+	s.mu.Unlock()
+
+	// Очередь писателя занимается без контекста: держатель уже отменён и
+	// обязан выйти, а освобождает очередь он только после конца транзакции.
+	s.writeSem <- struct{}{}
+	defer func() { <-s.writeSem }()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.closeEpochConns()
 	return nil
 }

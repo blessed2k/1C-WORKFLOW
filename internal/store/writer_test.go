@@ -59,10 +59,9 @@ func TestWritesAreSerialized(t *testing.T) {
 // Ожидание очереди писателя прерывается контекстом: отменённый вызов не должен
 // стоять в очереди за чужой длинной записью.
 //
-// Фоновая запись обязана завершиться до выхода из теста: t.Cleanup закрывает
-// хранилище, а Close под идущей транзакцией писателя рвёт соединение, и её
-// хвост (закрытие выражений, COMMIT) падает в sqlite на уже закрытом хэндле
-// (issue #12).
+// Фоновая запись завершается до выхода из теста: так проверка ошибки
+// удерживающей записи не зависит от того, успел ли t.Cleanup её закрыть
+// (issue #12; Close под идущей записью с issue #13 отменяет её и ждёт отката).
 func TestWriteWaitIsContextAware(t *testing.T) {
 	s := openTestStore(t, Options{})
 	release := make(chan struct{})
@@ -196,5 +195,263 @@ func TestTxIsUnusableAfterCallback(t *testing.T) {
 	}
 	if _, err := escaped.GenerationNumber(); !errors.Is(err, ErrTxDone) {
 		t.Fatalf("завершённая транзакция ответила %v, ожидалась ErrTxDone", err)
+	}
+}
+
+// openClosableStore открывает хранилище в своём каталоге и отдаёт каталог:
+// тестам закрытия нужно переоткрыть его после Close и проверить, что запись
+// либо зафиксирована целиком, либо откатилась.
+func openClosableStore(t *testing.T) (*Store, string) {
+	t.Helper()
+	root := t.TempDir()
+	s, err := Open(root, Options{ProjectID: "project", StateDirName: testStateDir})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s, root
+}
+
+// reopenedMeta переоткрывает хранилище и читает ключ meta и номер поколения.
+func reopenedMeta(t *testing.T, root, key string) (string, int64) {
+	t.Helper()
+	s, err := Open(root, Options{ProjectID: "project", StateDirName: testStateDir})
+	if err != nil {
+		t.Fatalf("повторное Open: %v", err)
+	}
+	defer s.Close()
+	var v string
+	var gen int64
+	if err := s.Read(context.Background(), func(tx *ReadTx) error {
+		var err error
+		if v, err = tx.Meta(key); err != nil {
+			return err
+		}
+		gen, err = tx.GenerationNumber()
+		return err
+	}); err != nil {
+		t.Fatalf("чтение после переоткрытия: %v", err)
+	}
+	return v, gen
+}
+
+// Close во время идущей записи (issue #13): соединение писателя закрывается
+// только после того, как транзакция зафиксирована или откатилась. Раньше Close
+// рвал соединение под транзакцией, и её хвост (закрытие выражений, COMMIT)
+// падал в sqlite на закрытом хэндле.
+//
+// Два случая: тело записи не слушает контекст (Close обязан дождаться его),
+// и тело ждёт отмены (Close обязан её прислать, иначе ждал бы вечно).
+func TestCloseDuringWrite(t *testing.T) {
+	cases := []struct {
+		name string
+		// honorsCancel: тело записи выходит по отмене контекста транзакции.
+		honorsCancel bool
+	}{
+		{name: "тело не слушает контекст", honorsCancel: false},
+		{name: "тело выходит по отмене", honorsCancel: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, root := openClosableStore(t)
+			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			// Страховка от зависания теста целиком: краснеть обязана проверка
+			// ниже, а не таймаут пакета.
+			safety := time.AfterFunc(5*time.Second, releaseOnce)
+			defer safety.Stop()
+
+			started := make(chan struct{})
+			var fnReturned atomic.Bool
+			writeDone := make(chan error, 1)
+			go func() {
+				writeDone <- s.Write(context.Background(), func(tx *WriteTx) error {
+					if err := tx.SetMeta("issue13", "записано"); err != nil {
+						return err
+					}
+					close(started)
+					if tc.honorsCancel {
+						select {
+						case <-tx.ctx.Done():
+						case <-release:
+						}
+						fnReturned.Store(true)
+						return tx.ctx.Err()
+					}
+					<-release
+					fnReturned.Store(true)
+					return nil
+				})
+			}()
+			<-started
+
+			closeDone := make(chan error, 1)
+			go func() { closeDone <- s.Close() }()
+
+			if !tc.honorsCancel {
+				// Тело держит транзакцию: Close обязан ждать, а не рвать
+				// соединение из-под неё.
+				select {
+				case <-closeDone:
+					t.Fatal("Close вернулся, пока тело записи ещё держит транзакцию")
+				case <-time.After(50 * time.Millisecond):
+				}
+				releaseOnce()
+			}
+
+			select {
+			case err := <-closeDone:
+				if err != nil {
+					t.Fatalf("Close: %v", err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("Close не вернулся: запись не отменена или не дождана")
+			}
+			if !fnReturned.Load() {
+				t.Fatal("Close вернулся раньше, чем тело записи отработало")
+			}
+			wErr := <-writeDone
+			if tc.honorsCancel && !errors.Is(wErr, ErrStoreClosed) {
+				t.Fatalf("прерванная закрытием запись вернула %v, ожидалась ErrStoreClosed", wErr)
+			}
+
+			// Атомарность: либо запись зафиксирована целиком (и Write вернул
+			// nil), либо откатилась и не оставила ни строки, ни поколения.
+			v, gen := reopenedMeta(t, root, "issue13")
+			switch {
+			case wErr == nil && (v != "записано" || gen != 2):
+				t.Fatalf("Write вернул nil, а после переоткрытия meta=%q, поколение %d", v, gen)
+			case wErr != nil && (v != "" || gen != 1):
+				t.Fatalf("Write вернул %v, а после переоткрытия meta=%q, поколение %d", wErr, v, gen)
+			}
+		})
+	}
+}
+
+// Запись после Close и запись, стоявшая в очереди в момент Close, получают
+// ErrStoreClosed, а не падают и не виснут (issue #13). Тело такой записи не
+// вызывается.
+func TestWriteAfterClose(t *testing.T) {
+	t.Run("после закрытия", func(t *testing.T) {
+		s, _ := openClosableStore(t)
+		if err := s.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		called := false
+		if err := s.Write(context.Background(), func(tx *WriteTx) error {
+			called = true
+			return nil
+		}); !errors.Is(err, ErrStoreClosed) {
+			t.Fatalf("Write после Close вернул %v, ожидалась ErrStoreClosed", err)
+		}
+		if err := s.Rebuild(context.Background(), func(tx *WriteTx) error {
+			called = true
+			return nil
+		}); !errors.Is(err, ErrStoreClosed) {
+			t.Fatalf("Rebuild после Close вернул %v, ожидалась ErrStoreClosed", err)
+		}
+		if called {
+			t.Fatal("тело записи вызвано на закрытом хранилище")
+		}
+		if err := s.Close(); err != nil {
+			t.Fatalf("повторный Close: %v", err)
+		}
+	})
+
+	t.Run("в очереди за идущей записью", func(t *testing.T) {
+		s, _ := openClosableStore(t)
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		safety := time.AfterFunc(5*time.Second, releaseOnce)
+		defer safety.Stop()
+
+		started := make(chan struct{})
+		holderDone := make(chan error, 1)
+		go func() {
+			holderDone <- s.Write(context.Background(), func(tx *WriteTx) error {
+				close(started)
+				<-release
+				return nil
+			})
+		}()
+		<-started
+
+		queuedDone := make(chan error, 1)
+		var queuedCalled atomic.Bool
+		go func() {
+			queuedDone <- s.Write(context.Background(), func(tx *WriteTx) error {
+				queuedCalled.Store(true)
+				return nil
+			})
+		}()
+		closeDone := make(chan error, 1)
+		go func() { closeDone <- s.Close() }()
+
+		// Стоящая в очереди запись отпускается самим закрытием, пока
+		// удерживающая ещё идёт: ждать её конца незачем.
+		select {
+		case err := <-queuedDone:
+			if !errors.Is(err, ErrStoreClosed) {
+				t.Fatalf("запись из очереди вернула %v, ожидалась ErrStoreClosed", err)
+			}
+		case <-release:
+			t.Fatal("запись из очереди не отпущена закрытием до конца удерживающей")
+		}
+		releaseOnce()
+		if err := <-closeDone; err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		<-holderDone
+		if queuedCalled.Load() {
+			t.Fatal("тело записи из очереди вызвано после Close")
+		}
+	})
+}
+
+// Читатель, чей запрос идёт в момент Close, ведёт себя так же, как писатель
+// (issue #13): его контекст отменяется, соединение закрывается после конца
+// транзакции, а сам Read возвращает ErrStoreClosed, не падая.
+func TestCloseDuringRead(t *testing.T) {
+	s, _ := openClosableStore(t)
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	safety := time.AfterFunc(5*time.Second, releaseOnce)
+	defer safety.Stop()
+
+	started := make(chan struct{})
+	readDone := make(chan error, 1)
+	go func() {
+		readDone <- s.Read(context.Background(), func(tx *ReadTx) error {
+			if _, err := tx.GenerationNumber(); err != nil {
+				return err
+			}
+			close(started)
+			select {
+			case <-tx.ctx.Done():
+			case <-release:
+			}
+			// Обращение к соединению после Close: оно ещё принадлежит
+			// читателю и обязано быть живым.
+			_, err := tx.c.queryInt(context.WithoutCancel(tx.ctx), `SELECT COUNT(*) FROM meta`)
+			if err != nil {
+				return err
+			}
+			return tx.ctx.Err()
+		})
+	}()
+	<-started
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case err := <-readDone:
+		if !errors.Is(err, ErrStoreClosed) {
+			t.Fatalf("прерванное закрытием чтение вернуло %v, ожидалась ErrStoreClosed", err)
+		}
+	case <-release:
+		t.Fatal("чтение не прервано закрытием")
+	}
+	if err := s.Read(context.Background(), func(*ReadTx) error { return nil }); !errors.Is(err, ErrStoreClosed) {
+		t.Fatalf("Read после Close вернул %v, ожидалась ErrStoreClosed", err)
 	}
 }
