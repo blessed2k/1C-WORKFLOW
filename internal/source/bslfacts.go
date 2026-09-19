@@ -2,6 +2,7 @@ package source
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
@@ -128,4 +129,111 @@ func equalsAny(word string, words ...string) bool {
 		}
 	}
 	return false
+}
+
+// movementUse is one use of the movements collection of a document
+// (Движения, RegisterRecords), as the parser reports it.
+type movementUse struct {
+	register string // the segment after the collection: a register or a method of the collection
+	member   string // the segment after the register, "" when absent
+	line     int    // 1-based line of the use
+	call     bool   // the last segment is called: Движения.X.Добавить(
+	assign   bool   // the last segment is assigned: Движения.X.Записывать =
+	value    string // with assign, the first word of the assigned value
+	boundVar string // Запись in "Запись = Движения.X.Добавить()", "" otherwise
+}
+
+// movementUses lists the uses of the movements collection in the module. Only
+// the collection of the module's own object counts (a use that starts the
+// expression), exactly as for find_register_writes in the index: comments and
+// query texts in string literals are not code and never match.
+func movementUses(mod *bsl.Module) []movementUse {
+	src := string(mod.Source())
+	var out []movementUse
+	for _, ra := range mod.RegisterAccesses {
+		if ra.Kind != bsl.AccessMovements {
+			continue
+		}
+		u := movementUse{register: mod.Name(ra.NameSpan), line: ra.Span.StartLine}
+		if segments := strings.Split(strings.Join(strings.Fields(mod.Name(ra.Span)), ""), "."); len(segments) == 3 {
+			u.member = segments[2]
+		}
+		after := strings.TrimLeft(src[ra.Span.EndByte:], " \t")
+		switch {
+		case strings.HasPrefix(after, "("):
+			u.call = true
+		case strings.HasPrefix(after, "="):
+			u.assign = true
+			if value := strings.FieldsFunc(after[1:], func(r rune) bool { return !isIdentRune(r) }); len(value) > 0 {
+				u.value = value[0]
+			}
+		}
+		if u.fills() {
+			u.boundVar = assignedVariable(src[:ra.Span.StartByte])
+		}
+		out = append(out, u)
+	}
+	return out
+}
+
+// assignedVariable returns Запись when the line ends with "Запись =" right
+// before the use, that is when the use is the whole right side of an
+// assignment at the start of a statement.
+func assignedVariable(before string) string {
+	line := before[strings.LastIndexByte(before, '\n')+1:]
+	left, ok := strings.CutSuffix(strings.TrimSpace(line), "=")
+	if !ok {
+		return ""
+	}
+	name := strings.TrimSpace(left)
+	if name == "" || strings.IndexFunc(name, func(r rune) bool { return !isIdentRune(r) }) >= 0 {
+		return ""
+	}
+	return name
+}
+
+// isIdentRune reports whether r can be part of a BSL identifier.
+func isIdentRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// memberIs reports whether the segment after the register is one of words.
+func (u movementUse) memberIs(words ...string) bool {
+	return u.member != "" && equalsAny(u.member, words...)
+}
+
+// setsWriteFlag: Движения.X.Записывать = Истина.
+func (u movementUse) setsWriteFlag() bool {
+	return u.assign && u.memberIs("Записывать", "Write") && equalsAny(u.value, "Истина", "True")
+}
+
+// writesSet: Движения.X.Записать(), as good as raising the flag.
+func (u movementUse) writesSet() bool {
+	return u.call && u.memberIs("Записать", "Write")
+}
+
+// writesAll: Движения.Записать() writes every set of the document at once.
+func (u movementUse) writesAll() bool {
+	return u.call && u.member == "" && equalsAny(u.register, "Записать", "Write")
+}
+
+// fills: the set gets records, Движения.X.Добавить() or Движения.X.Загрузить().
+func (u movementUse) fills() bool {
+	return u.call && u.memberIs("Добавить", "Загрузить", "Add", "Load")
+}
+
+// forms: the use forms movements. Движения.X.ДополнительныеСвойства.Вставить()
+// is NOT forming: it passes options to the mechanism that will post the
+// document, and counting it as inline posting turns a delegated document into
+// a false positive.
+func (u movementUse) forms() bool {
+	return (u.call || u.assign) && u.memberIs(
+		"Добавить", "Загрузить", "Очистить", "Записывать", "Записать", "Прочитать",
+		"Add", "Load", "Clear", "Write", "Read")
+}
+
+// isCollectionMethod: the segment after the collection is a method of the
+// collection itself (Движения.Записать()), not a register.
+func (u movementUse) isCollectionMethod() bool {
+	return movCollectionMethods[strings.ToLower(u.register)]
 }

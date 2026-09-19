@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
+	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
 )
 
 // PostingReport is a review of how a document is posted. Posting is where the
@@ -38,14 +41,9 @@ const (
 	postingAbsent    = "absent"    // no posting handler at all
 )
 
+// Movements (Движения, RegisterRecords) and the handlers themselves come from
+// the BSL parser, see movementUses; the rest of the rules stay line-based.
 var (
-	rePostingHandler = regexp.MustCompile(`(?i)^\s*Процедура\s+(ОбработкаПроведения|ОбработкаУдаленияПроведения)\s*\(`)
-	// Forming movements is Добавить/Загрузить/Записывать/Очистить on a record set.
-	// Движения.X.ДополнительныеСвойства.Вставить() is NOT forming: it passes
-	// options to the mechanism that will post the document, and counting it as
-	// inline posting turns a delegated document into a false positive.
-	reMovementsForm = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])Движения\.[\p{L}\d_]+\.(?:Добавить|Загрузить|Очистить|Записывать|Записать|Прочитать)\s*[\(=]`)
-	reMovementsFill = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])Движения\.([\p{L}\d_]+)\.(?:Добавить|Загрузить)\s*\(`)
 	// Delegation is recognised by the METHOD name, not the module name. Keying on
 	// the module matched exactly one call in УТ (ПроведениеДокументов....) and left
 	// 38 documents classified as "no movements at all", a lie on every seventh
@@ -62,12 +60,7 @@ var (
 	reLoopStart   = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:Для|Пока)[^\p{L}\d_].*[^\p{L}\d_]Цикл(?:[^\p{L}\d_]|$)`)
 	reLoopEnd     = regexp.MustCompile(`(?i)^\s*КонецЦикла`)
 	reQueryRun    = regexp.MustCompile(`(?i)\.(?:Выполнить|ВыполнитьПакет)\s*\(`)
-	reWriteFlag   = regexp.MustCompile(`(?i)Движения\.([\p{L}\d_]+)\.Записывать\s*=\s*Истина`)
-	// Writing a set explicitly is as good as raising the flag, and Движения.Записать()
-	// writes them all at once.
-	reWriteCall = regexp.MustCompile(`(?i)Движения\.([\p{L}\d_]+)\.Записать\s*\(`)
-	reWriteAll  = regexp.MustCompile(`(?i)Движения\.Записать\s*\(`)
-	reStringLit = regexp.MustCompile(`"[^"]*"`)
+	reStringLit   = regexp.MustCompile(`"[^"]*"`)
 )
 
 // stripLiterals blanks string literals, so that BSL text quoted inside a query
@@ -97,14 +90,16 @@ func (s *XMLSource) PostingReview(ctx context.Context, name string) (*PostingRep
 		out.Note = "модуль объекта отсутствует в выгрузке: проведение выполняется целиком механизмами конфигурации"
 		return out, nil
 	}
-	lines := strings.Split(string(stripBOM(data)), "\n")
+	text := string(stripBOM(data))
+	lines := strings.Split(text, "\n")
+	mod := parseModule(text)
 
-	handlers := postingHandlerBodies(lines)
+	handlers := postingHandlerBodies(mod, lines)
 	if len(handlers) > 0 {
 		// Follow the calls into the module's own procedures before classifying:
 		// the style and every rule below read the handler body, and posting is
 		// routinely split out of the handler into private procedures.
-		procs := moduleProcedures(lines)
+		procs := moduleProcedures(mod, lines)
 		for i := range handlers {
 			handlers[i] = expandLocalCalls(handlers[i], procs)
 		}
@@ -129,7 +124,7 @@ func (s *XMLSource) PostingReview(ctx context.Context, name string) (*PostingRep
 	}
 
 	// The flag may be set anywhere in the module, not only inside the handler.
-	moduleText := stripLiterals(strings.Join(lines, "\n"))
+	moduleText := text
 	var movements *MovementsReport
 	if out.Style == postingInline {
 		movements, _ = s.Movements(ctx, name)
@@ -154,30 +149,43 @@ type handlerBody struct {
 	lineNos []int
 }
 
-// postingHandlerBodies extracts ОбработкаПроведения and ОбработкаУдаленияПроведения.
-func postingHandlerBodies(lines []string) []handlerBody {
+// postingHandlers names the posting handlers in both spellings of the language.
+var postingHandlers = map[string]bool{
+	"обработкапроведения": true, "обработкаудаленияпроведения": true,
+	"posting": true, "undoposting": true,
+}
+
+// postingHandlerBodies extracts ОбработкаПроведения and ОбработкаУдаленияПроведения
+// (Posting and UndoPosting).
+func postingHandlerBodies(mod *bsl.Module, lines []string) []handlerBody {
 	var out []handlerBody
-	for i := 0; i < len(lines); i++ {
-		m := rePostingHandler.FindStringSubmatch(lines[i])
-		if m == nil {
+	for _, m := range mod.Methods {
+		if m.Kind != domain.SymbolProcedure || !postingHandlers[strings.ToLower(m.Name)] {
 			continue
 		}
-		h := handlerBody{name: m[1], start: i + 1}
-		for j := i; j < len(lines); j++ {
-			// A module truncated in the export has no КонецПроцедуры: stop at the
-			// next declaration, or the defects of a neighbour get blamed on posting.
-			if j > i && reMethodHead.MatchString(lines[j]) {
-				break
-			}
-			h.lines = append(h.lines, lines[j])
-			h.lineNos = append(h.lineNos, j+1)
-			if j > i && isMethodEnd(lines[j]) {
-				break
-			}
+		start, body := methodLines(mod, m, lines)
+		h := handlerBody{name: m.Name, start: start, lines: body}
+		for k := range body {
+			h.lineNos = append(h.lineNos, start+k)
 		}
 		out = append(out, h)
 	}
 	return out
+}
+
+// methodLines returns the 1-based line of the declaration of m and its lines
+// up to the closing keyword. A module truncated in the export has no
+// КонецПроцедуры: the parser closes the method at the next declaration, whose
+// line is not part of it, or the defects of a neighbour get blamed on posting.
+func methodLines(mod *bsl.Module, m bsl.Method, lines []string) (int, []string) {
+	start, end := m.NameSpan.StartLine, m.Span.EndLine
+	if !m.Complete && m.Span.EndByte < len(mod.Source()) {
+		end--
+	}
+	if start < 1 || end > len(lines) || end < start {
+		return start, nil
+	}
+	return start, lines[start-1 : end]
 }
 
 // maxNestedDepth bounds how far the expansion follows calls inside the module.
@@ -198,24 +206,11 @@ type moduleProcedure struct {
 
 // moduleProcedures indexes every procedure and function of the module by
 // lower-cased name.
-func moduleProcedures(lines []string) map[string]moduleProcedure {
+func moduleProcedures(mod *bsl.Module, lines []string) map[string]moduleProcedure {
 	out := map[string]moduleProcedure{}
-	for i := 0; i < len(lines); i++ {
-		m := reMethodHead.FindStringSubmatch(lines[i])
-		if m == nil {
-			continue
-		}
-		p := moduleProcedure{start: i + 1}
-		for j := i; j < len(lines); j++ {
-			if j > i && reMethodHead.MatchString(lines[j]) {
-				break
-			}
-			p.lines = append(p.lines, lines[j])
-			if j > i && isMethodEnd(lines[j]) {
-				break
-			}
-		}
-		out[strings.ToLower(m[2])] = p
+	for _, m := range mod.Methods {
+		start, body := methodLines(mod, m, lines)
+		out[strings.ToLower(m.Name)] = moduleProcedure{start: start, lines: body}
 	}
 	return out
 }
@@ -279,19 +274,20 @@ func postingStyle(handlers []handlerBody) string {
 	return style
 }
 
-// handlerStyle classifies one handler.
+// handlerStyle classifies one handler. The expanded body is a run of whole
+// procedures, so it parses as a module of its own.
 func handlerStyle(h handlerBody) string {
-	style := postingNone
-	for _, raw := range h.lines {
-		line := stripLineComment(raw)
-		if reMovementsForm.MatchString(line) {
+	for _, u := range movementUses(parseModule(strings.Join(h.lines, "\n"))) {
+		if u.forms() {
 			return postingInline
 		}
-		if reDelegate.MatchString(line) {
-			style = postingDelegated
+	}
+	for _, raw := range h.lines {
+		if reDelegate.MatchString(stripLineComment(raw)) {
+			return postingDelegated
 		}
 	}
-	return style
+	return postingNone
 }
 
 // reviewHandler applies the rules that make sense for the posting style.
@@ -311,6 +307,8 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 		readsBalance = -1 // line offset of the first balance read
 		written      = map[string]bool{}
 		filled       = map[string]bool{} // register sets actually filled here
+		writesAll    bool                // Движения.Записать() somewhere in the module
+		flagged      bool                // some Записывать = Истина somewhere in the module
 		loopDepth    int
 		queryInLoop  int
 	)
@@ -324,16 +322,6 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 		if readsBalance < 0 && reBalanceRead.MatchString(line) {
 			readsBalance = i
 		}
-		for _, m := range reWriteFlag.FindAllStringSubmatch(line, -1) {
-			written[strings.ToLower(m[1])] = true
-		}
-		// Writing the set explicitly is as good as the flag.
-		for _, m := range reWriteCall.FindAllStringSubmatch(line, -1) {
-			written[strings.ToLower(m[1])] = true
-		}
-		for _, m := range reMovementsFill.FindAllStringSubmatch(line, -1) {
-			filled[strings.ToLower(m[1])] = true
-		}
 		if reLoopEnd.MatchString(line) && loopDepth > 0 {
 			loopDepth--
 		}
@@ -343,6 +331,21 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 		if loopDepth > 0 && queryInLoop == 0 && reQueryRun.MatchString(line) {
 			queryInLoop = i
 		}
+	}
+
+	// The expanded body is a run of whole procedures and parses as a module of
+	// its own. Writing the set explicitly is as good as the flag.
+	for _, u := range movementUses(parseModule(strings.Join(h.lines, "\n"))) {
+		switch {
+		case u.setsWriteFlag(), u.writesSet():
+			written[strings.ToLower(u.register)] = true
+		case u.fills():
+			filled[strings.ToLower(u.register)] = true
+		}
+	}
+	for _, u := range movementUses(parseModule(moduleText)) {
+		writesAll = writesAll || u.writesAll()
+		flagged = flagged || u.setsWriteFlag()
 	}
 
 	if queryInLoop > 0 {
@@ -371,8 +374,7 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 			}
 			key := strings.ToLower(short)
 			// Движения.Записать() пишет все наборы сразу, флаг тогда не нужен.
-			if filled[key] && !written[key] && !reWriteAll.MatchString(moduleText) &&
-				!reWriteFlag.MatchString(moduleText) {
+			if filled[key] && !written[key] && !writesAll && !flagged {
 				out = append(out, PostingFinding{
 					Code:    "NoWriteFlag",
 					Message: fmt.Sprintf("для %s не найдено Движения.%s.Записывать = Истина: набор заполняется, но может не записаться", r.Register, short),

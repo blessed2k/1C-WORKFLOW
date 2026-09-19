@@ -137,3 +137,69 @@ func TestExtensionPointsFromParser(t *testing.T) {
 		t.Errorf("summary = %q, implemented = %v", p.Summary, p.Implemented)
 	}
 }
+
+func TestMovementsRegisterRecords(t *testing.T) {
+	s := NewXMLSource(writeParseDump(t))
+	rep, err := s.Movements(context.Background(), "ПеремещениеИмущества")
+	if err != nil {
+		t.Fatalf("Movements: %v", err)
+	}
+	byName := map[string]RegisterMovement{}
+	for _, r := range rep.Registers {
+		byName[r.Register] = r
+	}
+	if len(byName) != 2 {
+		t.Fatalf("registers = %+v", rep.Registers)
+	}
+	stock := byName["РегистрНакопления.ИмуществоНаСкладах"]
+	if !stock.Declared || !stock.UsedInCode || !stock.WriteFlag ||
+		strings.Join(stock.FieldsSet, ",") != "Количество,Период" {
+		t.Errorf("ИмуществоНаСкладах = %+v", stock)
+	}
+	transit := byName["РегистрНакопления.ИмуществоВПути"]
+	if !transit.Declared || transit.UsedInCode || transit.WriteFlag {
+		t.Errorf("ИмуществоВПути = %+v", transit)
+	}
+}
+
+func TestPostingReviewRegisterRecords(t *testing.T) {
+	s := NewXMLSource(writeParseDump(t))
+	ctx := context.Background()
+
+	rep, err := s.PostingReview(ctx, "ПеремещениеИмущества")
+	if err != nil {
+		t.Fatalf("PostingReview: %v", err)
+	}
+	if rep.Style != postingInline || strings.Join(rep.Handlers, ",") != "Posting" {
+		t.Fatalf("style = %q, handlers = %v", rep.Style, rep.Handlers)
+	}
+	if findingCodes(rep)["NoWriteFlag"] {
+		t.Errorf("the Write flag is raised, NoWriteFlag is a false positive: %+v", rep.Findings)
+	}
+
+	rep, err = s.PostingReview(ctx, "СписаниеИмущества")
+	if err != nil {
+		t.Fatalf("PostingReview: %v", err)
+	}
+	if rep.Style != postingInline || !findingCodes(rep)["NoWriteFlag"] {
+		t.Errorf("a filled set that is never written must be reported: style = %q, findings = %+v", rep.Style, rep.Findings)
+	}
+}
+
+func TestWritePathRegisterRecords(t *testing.T) {
+	s := NewXMLSource(writeParseDump(t))
+	rep, err := s.WritePath(context.Background(), "Document", "ПеремещениеИмущества")
+	if err != nil {
+		t.Fatalf("WritePath: %v", err)
+	}
+	for _, step := range rep.Steps {
+		if step.Kind == "movements" && step.Source == "РегистрНакопления.ИмуществоНаСкладах" {
+			if !strings.Contains(step.Detail, "Записывать = Истина найдено") ||
+				!strings.Contains(step.Detail, "Количество, Период") {
+				t.Errorf("movement step = %+v", step)
+			}
+			return
+		}
+	}
+	t.Errorf("no movement step for ИмуществоНаСкладах: %+v", rep.Steps)
+}
