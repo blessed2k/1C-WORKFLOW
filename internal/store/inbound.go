@@ -64,7 +64,7 @@ func (k inboundKind) name() string { return k.table + "." + k.column }
 
 // inboundKinds: ВСЕ столбцы схемы с ON DELETE SET NULL на symbol,
 // metadata_object и metadata_member и мягкие указатели на них без REFERENCES
-// (noFK). Новый такой столбец обязан попасть сюда, иначе правка файла-цели
+// (noFK: владелец модуля и формы). Новый такой столбец обязан попасть сюда, иначе правка файла-цели
 // снова молча оборвёт его (закреплено TestInboundKindsCoverSetNullColumns).
 var inboundKinds = []inboundKind{
 	{table: "reference", column: "target_symbol_id", target: nodeSymbol, owner: "t.file_id", targetClass: "symbol"},
@@ -88,6 +88,12 @@ var inboundKinds = []inboundKind{
 	// перепишет сама публикация XML.
 	{table: "module", column: "owner_object_id", target: nodeObject, noFK: true,
 		owner: "COALESCE((SELECT mc.file_id FROM module_code mc WHERE mc.module_id = t.id), 0)"},
+	// Владельца формы пишут оба аспекта: объявление в XML объекта и
+	// структура из Form.xml (publishFormStructure). Файл-владелец указателя
+	// здесь Form.xml; форма из одного объявления снимается всегда, указатель
+	// перепишет публикация XML объекта.
+	{table: "form", column: "owner_object_id", target: nodeObject, noFK: true,
+		owner: "COALESCE((SELECT fs.file_id FROM form_structure fs WHERE fs.form_id = t.id), 0)"},
 }
 
 // softNullSQL обнуляет указатели вида k на узлы, которые удаление файлов
