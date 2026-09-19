@@ -166,12 +166,14 @@ var registerReadMethods = []string{
 // выводится по имени метода платформы — эвристика, confidence < ConfidenceExact.
 func (p *parser) collectRegisterAccess(i int) {
 	t := p.toks[i]
+	if eqAny(t.lit, "Движения", "RegisterRecords") {
+		if start, ok := p.movementsStart(i); ok {
+			p.collectMovementAccess(i, start)
+		}
+		return
+	}
 	if i > 0 && isPunct(p.toks[i-1], '.') {
 		return // сегмент чужой цепочки, не начало обращения
-	}
-	if eqAny(t.lit, "Движения", "RegisterRecords") {
-		p.collectMovementAccess(i)
-		return
 	}
 	if metaType, ok := lookupCollection(string(t.lit)); ok && isRegisterCollection(metaType) {
 		p.collectDirectRegisterAccess(i, metaType)
@@ -274,11 +276,28 @@ func (p *parser) collectBoundRegisterAccess(i int) {
 	})
 }
 
-// collectMovementAccess разбирает Движения.Регистр[.Метод] — коллекцию
-// движений документа. MetaType пуст: это не менеджер объекта метаданных,
-// а свойство объекта документа (см. комментарий RegisterAccess.MetaType).
-func (p *parser) collectMovementAccess(i int) {
-	t := p.toks[i]
+// movementsStart решает, чья коллекция Движения стоит на позиции i, и
+// возвращает индекс токена, с которого начинается обращение. Своя коллекция
+// модуля: Движения в начале выражения либо ЭтотОбъект.Движения
+// (ThisObject.RegisterRecords), и тогда обращение начинается с ЭтотОбъект.
+// Движения чужого объекта (Документ.Движения, Форма.ЭтотОбъект.Движения)
+// движениями этого модуля не являются.
+func (p *parser) movementsStart(i int) (int, bool) {
+	if i == 0 || !isPunct(p.toks[i-1], '.') {
+		return i, true
+	}
+	if i >= 2 && p.toks[i-2].kind == tokIdent && eqAny(p.toks[i-2].lit, "ЭтотОбъект", "ThisObject") &&
+		(i == 2 || !isPunct(p.toks[i-3], '.')) {
+		return i - 2, true
+	}
+	return 0, false
+}
+
+// collectMovementAccess разбирает [ЭтотОбъект.]Движения.Регистр[.Метод]:
+// коллекцию движений документа; start: первый токен обращения. MetaType
+// пуст: это не менеджер объекта метаданных, а свойство объекта документа
+// (см. комментарий RegisterAccess.MetaType).
+func (p *parser) collectMovementAccess(i, start int) {
 	if i+2 >= len(p.toks) || !isPunct(p.toks[i+1], '.') || p.toks[i+2].kind != tokIdent {
 		return
 	}
@@ -290,7 +309,7 @@ func (p *parser) collectMovementAccess(i int) {
 	p.mod.RegisterAccesses = append(p.mod.RegisterAccesses, RegisterAccess{
 		MetaType:   "",
 		NameSpan:   p.li.Span(regTok.sp.start, regTok.sp.end),
-		Span:       p.li.Span(t.sp.start, end),
+		Span:       p.li.Span(p.toks[start].sp.start, end),
 		Mode:       ModeMovement,
 		Kind:       AccessMovements,
 		Static:     true,

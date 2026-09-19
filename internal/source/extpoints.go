@@ -1,13 +1,16 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // ExtensionPointsReport lists the legal places to put custom code in a
@@ -65,25 +68,53 @@ func (s *XMLSource) ExtensionPoints(ctx context.Context, query string, limit int
 		point ExtensionPoint
 		score int
 	}
-	var found []scored
+	var modules []string
 	for _, e := range entries {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+		if e.IsDir() && isOverridableModule(e.Name()) {
+			modules = append(modules, e.Name())
 		}
-		if !e.IsDir() || !isOverridableModule(e.Name()) {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(s.root, "CommonModules", e.Name(), "Ext", "Module.bsl"))
-		if err != nil {
-			continue
-		}
-		for _, p := range parseExportedProcedures(string(stripBOM(data))) {
-			p.Module = e.Name()
-			p.Context = moduleContext(e.Name())
-			if score := scorePoint(p, terms); score > 0 {
-				found = append(found, scored{point: p, score: score})
+	}
+	// Reading and parsing the modules is independent per module, and opening a
+	// file costs more than parsing it: a few workers keep the call as fast as
+	// the line-based scan it replaced. Results land in module order, so the
+	// answer does not depend on the scheduling.
+	perModule := make([][]scored, len(modules))
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for w := 0; w < min(runtime.GOMAXPROCS(0), maxExtPointWorkers, len(modules)); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				data, err := os.ReadFile(filepath.Join(s.root, "CommonModules", modules[i], "Ext", "Module.bsl"))
+				if err != nil {
+					continue
+				}
+				for _, p := range parseExportedProcedures(stripBOM(data)) {
+					p.Module = modules[i]
+					p.Context = moduleContext(modules[i])
+					if score := scorePoint(p, terms); score > 0 {
+						perModule[i] = append(perModule[i], scored{point: p, score: score})
+					}
+				}
 			}
+		}()
+	}
+	var cancelled error
+	for i := range modules {
+		if cancelled = ctx.Err(); cancelled != nil {
+			break
 		}
+		next <- i
+	}
+	close(next)
+	wg.Wait()
+	if cancelled != nil {
+		return nil, cancelled
+	}
+	var found []scored
+	for _, list := range perModule {
+		found = append(found, list...)
 	}
 	// Best match first; ties broken by name so the output is stable.
 	sort.SliceStable(found, func(i, j int) bool {
@@ -105,6 +136,9 @@ func (s *XMLSource) ExtensionPoints(ctx context.Context, query string, limit int
 	}
 	return out, nil
 }
+
+// maxExtPointWorkers bounds the goroutines reading overridable modules.
+const maxExtPointWorkers = 8
 
 // isOverridableModule reports whether a common module is an extension point of
 // БСП. The convention is the name suffix; both spellings appear in exports.
@@ -195,97 +229,72 @@ func scorePoint(p ExtensionPoint, terms []string) int {
 //
 // A declaration may span several lines: when the parameters are wrapped, the
 // Экспорт keyword ends up on a later line. Looking for it on the header line
-// alone lost 197 of the 3320 points in УТ, silently — including the whole
-// "интеграция с сайтом" group.
-func parseExportedProcedures(module string) []ExtensionPoint {
-	lines := strings.Split(module, "\n")
+// alone lost 197 of the 3320 points in УТ, silently, including the whole
+// "интеграция с сайтом" group. The parser reads the declaration whole, with
+// comments and string literals already cut, in both spellings of the language.
+func parseExportedProcedures(src []byte) []ExtensionPoint {
+	mod := parseDeclarations(src)
 	var out []ExtensionPoint
-	for i := 0; i < len(lines); i++ {
-		line := strings.TrimRight(lines[i], "\r")
-		h := reMethodHead.FindStringSubmatch(line)
-		if h == nil {
+	for _, m := range mod.Methods {
+		if !m.Export {
 			continue
 		}
-		decl, end := declaration(lines, i)
-		if !reExportKeyword.MatchString(decl) {
-			continue
-		}
+		lineStart := bytes.LastIndexByte(src[:m.NameSpan.StartByte], '\n') + 1
 		out = append(out, ExtensionPoint{
-			Procedure:   h[2],
-			Line:        i + 1,
-			Signature:   strings.Join(strings.Fields(decl), " "),
-			Summary:     docSummary(lines, i),
-			Implemented: hasBody(lines, end),
+			Procedure:   m.Name,
+			Line:        m.NameSpan.StartLine,
+			Signature:   declarationOf(mod, m).signature(),
+			Summary:     docSummary(src, lineStart),
+			Implemented: hasBody(spanText(mod, m.BodySpan.StartByte, m.BodySpan.EndByte)),
 		})
 	}
 	return out
 }
 
-// reExportKeyword matches the Экспорт keyword as a word, outside a comment. The
-// declaration text passed to it is already comment-free.
-var reExportKeyword = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:Экспорт|Export)(?:[^\p{L}\d_]|$)`)
-
-// declaration collects the whole declaration starting at line i: the header plus
-// any wrapped parameter lines, up to and including the line that closes the
-// parameter list. Comments are stripped, so a trailing "// не экспорт" cannot be
-// mistaken for the keyword. Returns the text and the index of its last line.
-func declaration(lines []string, i int) (string, int) {
-	var b strings.Builder
-	depth := 0
-	for j := i; j < len(lines) && j < i+20; j++ {
-		line := stripLineComment(strings.TrimRight(lines[j], "\r"))
-		b.WriteString(line)
-		b.WriteByte(' ')
-		depth += strings.Count(line, "(") - strings.Count(line, ")")
-		if depth <= 0 && strings.Contains(line, ")") {
-			return b.String(), j
-		}
-	}
-	return b.String(), i
-}
-
 // docSummary returns the first meaningful line of the comment block directly
-// above the declaration at index i.
-func docSummary(lines []string, i int) string {
-	var block []string
-	for j := i - 1; j >= 0; j-- {
-		text := strings.TrimSpace(strings.TrimRight(lines[j], "\r"))
-		if text == "" && len(block) == 0 {
-			continue // one blank line between the comment and the declaration
+// above the declaration line that starts at offset lineStart of src. The lines
+// above are walked back one by one, as bytes: a БСП module carries a long doc
+// comment over every point, and a string per comment line cost more than
+// parsing the module.
+func docSummary(src []byte, lineStart int) string {
+	var top []byte // the topmost meaningful line of the block seen so far
+	inBlock := false
+	for end := lineStart; end > 0; {
+		start := bytes.LastIndexByte(src[:end-1], '\n') + 1
+		text := bytes.TrimSpace(src[start : end-1])
+		end = start
+		if len(text) == 0 && !inBlock {
+			continue // blank lines between the comment and the declaration
 		}
-		if !strings.HasPrefix(text, "//") {
+		comment, ok := bytes.CutPrefix(text, []byte("//"))
+		if !ok {
 			break
 		}
-		block = append([]string{strings.TrimSpace(strings.TrimPrefix(text, "//"))}, block...)
-	}
-	for _, text := range block {
-		if text == "" || strings.HasPrefix(text, "//") {
+		inBlock = true
+		comment = bytes.TrimSpace(comment)
+		if len(comment) == 0 || bytes.HasPrefix(comment, []byte("//")) {
 			continue // blank line or a //////// separator
 		}
-		// A block that opens with a section header carries no description at all:
-		// what follows is a parameter, not a summary of the point.
-		if strings.HasPrefix(text, "Параметры") || strings.HasPrefix(text, "Возвращаемое") {
-			return ""
-		}
-		return text
+		top = comment
 	}
-	return ""
+	// A block that opens with a section header carries no description at all:
+	// what follows is a parameter, not a summary of the point.
+	if bytes.HasPrefix(top, []byte("Параметры")) || bytes.HasPrefix(top, []byte("Возвращаемое")) {
+		return ""
+	}
+	return string(top)
 }
 
-// hasBody reports whether the method whose declaration ends at index i has any
-// logic in it, as opposed to being an empty БСП stub.
+// hasBody reports whether a method body has any logic in it, as opposed to
+// being an empty БСП stub.
 //
 // A bare "Возврат;" is a stub too: it is how БСП writes an empty procedure that
 // must not fall through. Counting it as implemented mislabelled 195 points in
 // УТ, each of them telling the caller to go and read code that is not there.
 // A function returning a value ("Возврат Ложь;") is logic and stays implemented.
-func hasBody(lines []string, i int) bool {
-	for j := i + 1; j < len(lines); j++ {
-		raw := strings.TrimRight(lines[j], "\r")
-		if isMethodEnd(raw) || reMethodHead.MatchString(raw) {
-			return false
-		}
-		text := strings.TrimSpace(stripLineComment(raw))
+func hasBody(body string) bool {
+	for _, raw := range strings.Split(body, "\n") {
+		text := strings.TrimSpace(stripLineComment(strings.TrimRight(raw, "\r")))
 		if text == "" || reBareReturn.MatchString(text) {
 			continue
 		}
@@ -295,4 +304,4 @@ func hasBody(lines []string, i int) bool {
 }
 
 // reBareReturn matches a return with no value.
-var reBareReturn = regexp.MustCompile(`(?i)^(?:Возврат|Return)\s*;?$`)
+var reBareReturn = regexp.MustCompile(`(?i)^(?:` + wordAlt("Возврат") + `)\s*;?$`)

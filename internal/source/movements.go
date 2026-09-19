@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
 )
 
 // MovementsReport describes which registers a document posts to: the declared
@@ -27,20 +29,16 @@ type RegisterMovement struct {
 	FieldsSet  []string `json:"fieldsSet,omitempty" jsonschema:"record fields assigned in code"`
 }
 
-// Movement-code regexes: case-insensitive (BSL is), Cyrillic needs \p{L}.
+// Record-field assignments stay line-based: the parser reports register
+// accesses, not assignments. Case-insensitive (BSL is), Cyrillic needs \p{L}.
 var (
-	reMovUse    = regexp.MustCompile(`(?i)Движения\.([\p{L}\d_]+)`)
-	reMovWrite  = regexp.MustCompile(`(?i)Движения\.([\p{L}\d_]+)\.Записывать\s*=\s*Истина`)
-	reMovBind   = regexp.MustCompile(`(?i)^\s*([\p{L}\d_]+)\s*=\s*Движения\.([\p{L}\d_]+)\.Добавить\s*\(\s*\)`)
 	reMovAssign = regexp.MustCompile(`^\s*([\p{L}\d_]+)\.([\p{L}\d_]+)\s*=[^=]`)
 	reAnyAssign = regexp.MustCompile(`^\s*([\p{L}\d_]+)\s*=[^=]`)
 )
 
 // movCollectionMethods are methods of the record-set collection (НаборыДвижений)
 // that must not be mistaken for register names.
-var movCollectionMethods = map[string]bool{
-	"записать": true, "найти": true, "получить": true, "количество": true, "индекс": true,
-}
+var movCollectionMethods = bilingualSet("Записать", "Найти", "Получить", "Количество", "Индекс")
 
 // regInfo accumulates per-register facts.
 type regInfo struct {
@@ -56,13 +54,25 @@ func (s *XMLSource) Movements(_ context.Context, name string) (*MovementsReport,
 	if name == "" {
 		return nil, fmt.Errorf("document name is required")
 	}
+	// The object module is optional: without it the report is the metadata alone.
+	var mod *bsl.Module
+	if data, err := os.ReadFile(filepath.Join(s.root, "Documents", name, "Ext", "ObjectModule.bsl")); err == nil {
+		mod = parseModule(stripBOM(data))
+	}
+	return s.movements(name, mod)
+}
+
+// movements builds the report from the metadata of the document and its
+// already parsed object module (nil when there is none), so a caller that has
+// parsed the module does not parse it again.
+func (s *XMLSource) movements(name string, mod *bsl.Module) (*MovementsReport, error) {
 	var root xmlObjectRoot
 	if err := readXML(filepath.Join(s.root, "Documents", name+".xml"), &root); err != nil {
 		return nil, err
 	}
 	out := &MovementsReport{Document: "Документ." + name, Registers: []RegisterMovement{}}
 
-	regs := map[string]*regInfo{}    // key: lower(full name)
+	regs := map[string]*regInfo{}       // key: lower(full name)
 	shortIdx := map[string][]*regInfo{} // key: lower(short name)
 	ensure := func(full string) *regInfo {
 		k := strings.ToLower(full)
@@ -103,16 +113,36 @@ func (s *XMLSource) Movements(_ context.Context, name string) (*MovementsReport,
 		shortIdx[k] = append(shortIdx[k], r)
 	}
 
-	// Code facts from the object module (optional): a line-by-line pass with
+	// Code facts from the object module. Which registers are used
+	// and flagged comes from the parser, in both spellings (Движения and
+	// RegisterRecords), with comments and query texts already out of the way.
+	// Record fields are then collected by a line-by-line pass with
 	// variable-to-register bindings, so fields do not leak between registers
 	// when one variable is reused, and commented-out code is ignored.
-	if data, err := os.ReadFile(filepath.Join(s.root, "Documents", name, "Ext", "ObjectModule.bsl")); err == nil {
+	if mod != nil {
+		text := string(mod.Source())
+		bindAt := map[int]movementUse{} // line -> "Запись = Движения.X.Добавить()"
+		for _, u := range movementUses(mod) {
+			if u.isCollectionMethod() {
+				continue
+			}
+			for _, r := range byShort(u.register) {
+				r.used = true
+				if u.setsWriteFlag() {
+					r.write = true
+				}
+			}
+			if u.boundVar != "" {
+				bindAt[u.line] = u
+			}
+		}
+
 		binding := map[string]string{} // lower(var) -> short register name
-		for _, raw := range strings.Split(string(stripBOM(data)), "\n") {
+		for i, raw := range strings.Split(text, "\n") {
 			line := stripLineComment(strings.TrimRight(raw, "\r"))
 
-			if m := reMovBind.FindStringSubmatch(line); m != nil {
-				binding[strings.ToLower(m[1])] = m[2]
+			if u, ok := bindAt[i+1]; ok {
+				binding[strings.ToLower(u.boundVar)] = u.register
 			} else if m := reAnyAssign.FindStringSubmatch(line); m != nil {
 				delete(binding, strings.ToLower(m[1])) // variable rebound elsewhere
 			}
@@ -121,19 +151,6 @@ func (s *XMLSource) Movements(_ context.Context, name string) (*MovementsReport,
 					for _, r := range byShort(short) {
 						r.fields[m[2]] = true
 					}
-				}
-			}
-			for _, m := range reMovUse.FindAllStringSubmatch(line, -1) {
-				if movCollectionMethods[strings.ToLower(m[1])] {
-					continue
-				}
-				for _, r := range byShort(m[1]) {
-					r.used = true
-				}
-			}
-			for _, m := range reMovWrite.FindAllStringSubmatch(line, -1) {
-				for _, r := range byShort(m[1]) {
-					r.write = true
 				}
 			}
 		}
