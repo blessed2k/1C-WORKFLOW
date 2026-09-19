@@ -723,7 +723,19 @@ effective view»). `lastReindexCounts`/`lastFullSeconds`/
 **Вход**: `objectId` или `objectType`+`objectName`, `component`, `direction` (`in`,
 `out`, `both` по умолчанию; синонимы `callers` и `callees`), `kinds`, `depth` (по умолчанию 2,
 больше 2 даёт ошибку), `minConfidence`, `project` (корень другого зарегистрированного
-проекта, только для этого вызова), `limit` (по умолчанию 50, не больше 200), `cursor`.
+проекта, только для этого вызова), `limit` (по умолчанию 50, не больше 200), `cursor`,
+`crossProjects` (корни других зарегистрированных проектов для сшивки HTTP-вызовов).
+
+**HTTP-связи (веха В2, ADR-039)**: `crossProjects` или `kinds=["http-call"]` добавляют к
+ответу блок `httpLinks`: `links` (вид `http-call`, концы «проект, id, тип, имя», методы
+сервиса с обработчиками, места вызова, `confidence`, `reason`), внешние связи без конца с
+`externalHost` (сервер не сопоставлен проекту в `.mcp1c/http-hosts.json` или путь известен
+целиком и сервиса по нему нет) и `badges`: `has-dynamic-http` (адрес вычисляется, причина в
+`reasons`: `dynamic-path`, `connection-from-parameter`, `request-from-parameter`) и
+`has-unresolved-http` (путь известен частью без совпадения или база не открыта), с
+`confidence`. Бейдж ставится вызывающим напрямую, иначе модулю вызова. Связи считаются при
+чтении, в `items` и радиус не входят: `kinds` только из `http-call` даёт предупреждение
+`http_call_not_in_radius`.
 
 **Известные ограничения**: уверенность рёбер из кода снижается на длинных цепочках и на
 цепочках через процедуры-хабы (флаги `--graph-*`, по умолчанию глубина 6, хаб от 50

@@ -20,4 +20,6 @@ package index
 //     сменились ключи зависимостей.
 // 4 - движения своего объекта через ЭтотОбъект.Движения (ThisObject.RegisterRecords)
 //     в выходе parse/bsl (issue #1): register_access получает их наравне с Движения.
-const ParserVersion = 4
+// 5 - HTTP-вызовы в выходе parse/bsl (Module.HTTPCalls) и HTTP-сервисы
+//     (RootURL, шаблоны, методы) в выходе parse/meta: веха В2, issue #6.
+const ParserVersion = 5

@@ -79,7 +79,7 @@ func TestSchemaContainsEveryTableOfSection15(t *testing.T) {
 		"blob", "call_edge", "component", "dependency_edge", "diagnostic",
 		"event_subscription", "form", "form_command", "form_declaration",
 		"form_element", "form_structure", "fts_symbols", "generation_log",
-		"handler_binding", "meta", "metadata_member", "metadata_object", "module",
+		"handler_binding", "http_call", "http_endpoint", "meta", "metadata_member", "metadata_object", "module",
 		"module_code", "module_context", "node", "object_badge",
 		"object_data_edge", "object_data_edge_dep", "parameter", "query",
 		"query_reference", "reference", "reference_candidate", "register_access",

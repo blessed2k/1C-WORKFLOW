@@ -167,6 +167,7 @@
     <button id="layoutBtn" title="Разложить заново вокруг фокусного узла">Раскладка заново</button>
     <button id="resetBtn" title="Убрать всё с карты">Очистить</button>
     <button id="godBtn" title="Самые связанные объекты">God-node</button>
+    <button id="httpBtn" title="HTTP-вызовы между открытыми базами: сшивка по пути и маппингу хостов (.mcp1c/http-hosts.json)">HTTP-связи</button>
   </div>
 </header>
 <div id="filters">
@@ -182,6 +183,7 @@
   <label class="kind"><input type="checkbox" data-kind="writes-declared" checked><span class="swatch" style="background:#e0a72e"></span>движения <code>writes-declared</code></label>
   <label class="kind"><input type="checkbox" data-kind="reads-register" checked><span class="swatch dashed" style="border-color:#5bd67d"></span>читает регистр <code>reads-register</code></label>
   <label class="kind"><input type="checkbox" data-kind="reads-query" checked><span class="swatch dashed" style="border-color:#b085f5"></span>читает запросом <code>reads-query</code></label>
+  <label class="kind"><input type="checkbox" data-kind="http-call" checked><span class="swatch dashed" style="border-color:#7dcfff"></span>HTTP между базами <code>http-call</code></label>
   <span class="conf"><span class="muted">confidence &ge;</span>
   <input id="minConfidence" type="range" min="0" max="1" step="0.05" value="0">
   <span id="minConfidenceLabel">0.00</span></span>
@@ -223,6 +225,7 @@
         <div>Сплошная линия: запись, пунктир: чтение. Бледнее: ниже confidence.</div>
         <div><b>12/85</b> на узле: на карте 12 связей из 85.</div>
         <div>⚡ динамика не даёт рёбер, ✂ атрибуция упёрлась в потолок, ⏳ связь могла устареть.</div>
+        <div><b>HTTP-связи</b>: пунктир к сервису другой базы (узел в пунктирной рамке, [проект] в имени) или к ромбу «внешний HTTP», если хост не сопоставлен проекту. ⚡H: HTTP-вызов с вычисляемым адресом, ребра нет. ?H: адресат не определён (путь известен частью или база не открыта).</div>
       </div>
       <div id="legendLayers" class="legend-notes">
         <div><b>raw</b>: только базовая конфигурация. <b>effective</b>: с расширениями, заимствованный объект показан одним узлом. <b>diff</b>: только связи, которые добавили расширения.</div>

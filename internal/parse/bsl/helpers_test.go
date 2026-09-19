@@ -53,6 +53,9 @@ func checkSpans(t *testing.T, src []byte, mod *Module, diags []domain.Diagnostic
 		check("обращение к регистру", ra.Span)
 		check("имя регистра", ra.NameSpan)
 	}
+	for _, c := range mod.HTTPCalls {
+		check("HTTP-вызов", c.Span)
+	}
 	for _, r := range mod.Regions {
 		check("область", r.Span)
 		check("заголовок области", r.HeaderSpan)

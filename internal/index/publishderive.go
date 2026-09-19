@@ -20,6 +20,26 @@ func publishDerivedModuleFacts(tx *store.WriteTx, in publishInput, ts *txState, 
 	if err := publishQueries(tx, ts, rel, st, lp.queries); err != nil {
 		return fmt.Errorf("query: %w", err)
 	}
+	if err := publishHTTPCalls(tx, ts, st, lp.httpCalls); err != nil {
+		return fmt.Errorf("http_call: %w", err)
+	}
+	return nil
+}
+
+// publishHTTPCalls вставляет исходящие HTTP-вызовы модуля (веха В2).
+// Сшивка с сервисами идёт при чтении, через границу индексов (ADR-039).
+func publishHTTPCalls(tx *store.WriteTx, ts *txState, st modulePublishState, plans []httpCallPlan) error {
+	for _, p := range plans {
+		row := p.row
+		row.FileID = st.fileID
+		if p.symbolKey != "" {
+			row.SymbolID = ts.nodes.byKey[p.symbolKey]
+		}
+		if err := tx.InsertHTTPCall(row); err != nil {
+			return err
+		}
+		ts.counts.httpCall++
+	}
 	return nil
 }
 

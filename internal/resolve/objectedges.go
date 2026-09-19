@@ -69,6 +69,14 @@ type ObjectEdgeGraph interface {
 	SymbolOwner(symbolID int64) (SymbolOwner, bool)
 }
 
+// CallerPrefetcher: необязательная возможность графа поднять вызывающих
+// целого фронта обхода (и владельцев их модулей) одним запросом, а не по
+// запросу на символ. Обход зовёт её перед каждым уровнем; реализация без неё
+// отвечает на CallersOf/SymbolOwner по одному, как раньше.
+type CallerPrefetcher interface {
+	PrefetchCallers(symbolIDs []int64)
+}
+
 // ObjectEdgeTunables — пороги атрибуции (§5). Порог не режет ребро: его
 // превышение снижает confidence, ребро остаётся (история 15).
 type ObjectEdgeTunables struct {
@@ -225,6 +233,9 @@ type ownerHit struct {
 	confidence float64
 	chain      []ChainStep
 	files      []int64
+	// penalized: цепочка прошла через хаб или длиннее порога глубины
+	// (штрафы ObjectEdgeTunables). Рёбрам не важно, бейджам HTTP важно.
+	penalized bool
 }
 
 // add приписывает одну строку register_access: статическую с разрешённым
@@ -396,6 +407,7 @@ type walkState struct {
 	symbolID   int64
 	confidence float64
 	chain      []ChainStep
+	penalized  bool
 }
 
 // walk идёт ВВЕРХ по статическим рёбрам графа вызовов от места факта до
@@ -418,6 +430,13 @@ func (a *edgeAccumulator) walk(row store.RegisterAccessRow) (hits []ownerHit, tr
 			truncated = true // остались неразвёрнутые вершины: обход не полон
 			break
 		}
+		if pf, ok := a.graph.(CallerPrefetcher); ok {
+			ids := make([]int64, len(frontier))
+			for i, st := range frontier {
+				ids[i] = st.symbolID
+			}
+			pf.PrefetchCallers(ids)
+		}
 		var next []walkState
 		for _, cur := range frontier {
 			owner, known := a.graph.SymbolOwner(cur.symbolID)
@@ -426,7 +445,7 @@ func (a *edgeAccumulator) walk(row store.RegisterAccessRow) (hits []ownerHit, tr
 			}
 			if owner.ownsData() {
 				hits = append(hits, ownerHit{objectID: owner.OwnerObjectID, confidence: cur.confidence,
-					chain: reverseChain(cur.chain), files: chainFiles(cur.chain)})
+					chain: reverseChain(cur.chain), files: chainFiles(cur.chain), penalized: cur.penalized})
 				continue // дальше владельца цепочка не идёт: он и есть ответ
 			}
 			states, cut := a.expand(cur, best)
@@ -460,6 +479,7 @@ func (a *edgeAccumulator) expand(cur walkState, best map[int64]float64) ([]walkS
 			continue // символ без модуля: ни файла для зависимости, ни владельца
 		}
 		conf := minConfidence(cur.confidence, call.Confidence)
+		penalized := cur.penalized || hub || len(cur.chain) > a.tunables.ChainDepth
 		if hub {
 			// Процедуру зовут слишком многие, чтобы цепочка через неё что-то
 			// объясняла: достоверность падает, ребро остаётся (R16).
@@ -476,7 +496,7 @@ func (a *edgeAccumulator) expand(cur walkState, best map[int64]float64) ([]walkS
 		best[call.CallerID] = conf
 		step := ChainStep{SymbolID: call.CallerID, FileID: ownerInfo.FileID, Confidence: call.Confidence}
 		out = append(out, walkState{symbolID: call.CallerID, confidence: conf,
-			chain: append(copyChain(cur.chain), step)})
+			chain: append(copyChain(cur.chain), step), penalized: penalized})
 	}
 	return out, truncated
 }

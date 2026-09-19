@@ -133,6 +133,11 @@ type xmlChildProps struct {
 	Name     string  `xml:"Name"`
 	Type     xmlType `xml:"Type"`
 	Indexing string  `xml:"Indexing"`
+
+	// HTTP-сервис: шаблон URL (<URLTemplate>) и его метод (<Method>).
+	Template   string `xml:"Template"`
+	HTTPMethod string `xml:"HTTPMethod"`
+	Handler    string `xml:"Handler"`
 }
 
 func (e xmlChildElem) indexed() bool {

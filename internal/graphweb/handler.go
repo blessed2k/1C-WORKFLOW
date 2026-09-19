@@ -52,6 +52,8 @@ func NewHandler(projects []ProjectHandle) http.Handler {
 	mux.HandleFunc("GET /api/godnodes", h.handleGodNodes)
 	mux.HandleFunc("GET /api/edge/{id}/evidence", h.handleEdgeEvidence)
 	mux.HandleFunc("GET /api/search", h.handleSearch)
+	// В2: HTTP-связи между открытыми проектами (crosslinks.go, ADR-039).
+	mux.HandleFunc("GET /api/crosslinks", h.handleCrosslinks)
 	registerAssets(mux) // тикет 10: SPA — GET / и GET /assets/cytoscape.min.js (assets.go)
 	return mux
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/app"
+	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/graphweb"
 	"github.com/blessed2k/1C-WORKFLOW/internal/syntax"
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
@@ -62,7 +63,7 @@ func (l *projectRootList) Set(v string) error {
 func runGraph(args []string) int {
 	fs := flag.NewFlagSet("mcp1c graph", flag.ContinueOnError)
 	var projectRoots projectRootList
-	fs.Var(&projectRoots, "project", "корень проекта (workspace с уже собранным индексом); флаг повторяемый")
+	fs.Var(&projectRoots, "project", "корень workspace с уже собранным индексом, либо <workspace>#<id проекта>, если в его реестре несколько проектов; флаг повторяемый")
 	listen := fs.String("listen", "127.0.0.1:0", "адрес, на котором слушать — обязан быть на 127.0.0.1")
 	noOpen := fs.Bool("no-open", false, "не открывать карту в браузере автоматически")
 	var opts options
@@ -165,7 +166,8 @@ func newProjectsFactory(builtins *syntax.Index) func(root string) (*app.Projects
 func dedupeRoots(roots []string) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(roots))
-	for _, root := range roots {
+	for _, spec := range roots {
+		root, id := splitProjectSpec(spec)
 		key := root
 		if abs, err := filepath.Abs(root); err == nil {
 			key = abs
@@ -173,13 +175,28 @@ func dedupeRoots(roots []string) []string {
 		if runtime.GOOS == "windows" {
 			key = strings.ToLower(key)
 		}
+		key += "#" + id
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		out = append(out, root)
+		out = append(out, spec)
 	}
 	return out
+}
+
+// splitProjectSpec разбирает значение --project: корень workspace или
+// <workspace>#<id проекта> (milestone V2: two bases registered in one
+// workspace on one map). A path that exists as is wins over the split, so a
+// directory with '#' in its name keeps working.
+func splitProjectSpec(spec string) (root, id string) {
+	if _, err := os.Stat(spec); err == nil {
+		return spec, ""
+	}
+	if i := strings.LastIndex(spec, "#"); i > 0 && i < len(spec)-1 {
+		return spec[:i], spec[i+1:]
+	}
+	return spec, ""
 }
 
 // openGraphProjects валидирует и открывает каждый --project корень ДО того,
@@ -189,7 +206,8 @@ func dedupeRoots(roots []string) []string {
 // проектов хуже честного отказа целиком.
 func openGraphProjects(ctx context.Context, roots []string, newProjects func(string) (*app.Projects, error), radiusCap int) ([]graphweb.ProjectHandle, int) {
 	handles := make([]graphweb.ProjectHandle, 0, len(roots))
-	for _, root := range roots {
+	for _, spec := range roots {
+		root, projectID := splitProjectSpec(spec)
 		info, statErr := os.Stat(root)
 		if statErr != nil {
 			fmt.Fprintf(os.Stderr, "mcp1c graph: каталог проекта %q не найден: %v\n", root, statErr)
@@ -205,8 +223,17 @@ func openGraphProjects(ctx context.Context, roots []string, newProjects func(str
 			return nil, 1
 		}
 
-		root := root
-		open := func(ctx context.Context) (*app.Projects, error) { return newProjects(root) }
+		open := func(ctx context.Context) (*app.Projects, error) {
+			p, err := newProjects(root)
+			if err != nil || projectID == "" {
+				return p, err
+			}
+			if err := p.UseProject(domain.ProjectID(projectID)); err != nil {
+				p.Close()
+				return nil, err
+			}
+			return p, nil
+		}
 
 		p, err := open(ctx)
 		if err != nil {

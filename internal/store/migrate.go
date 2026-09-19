@@ -69,6 +69,12 @@ var migrations = []migration{{
 }, {
 	to:               4,
 	needsFullRebuild: true,
+}, {
+	// Шаг до 5: таблицы фактов HTTP (веха В2, ADR-039) создаются тем же
+	// текстом, что и на новой эпохе; наполнить их может только парсер.
+	to:               5,
+	needsFullRebuild: true,
+	statements:       append(splitStatements(httpTables), splitStatements(httpIndexes)...),
 }}
 
 // errSchemaFromFuture — БД собрана более новой версией пакета. По разделу 15

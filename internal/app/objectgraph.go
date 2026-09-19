@@ -743,7 +743,27 @@ func (g *ObjectGraphService) Radius(ctx context.Context, in RadiusInput) (Respon
 		resp.NextCursor = EncodeCursor(res.gen, strconv.Itoa(res.afterIdx+limit), paramsKey)
 	}
 	resp.Warnings = append(resp.Warnings, radiusTruncationWarnings(g.radiusNodesCap, g.radiusFetchLimit, res.truncation)...)
+	if w, ok := httpOnlyKindsWarning(in.Kinds); ok {
+		resp.Warnings = append(resp.Warnings, w)
+	}
 	return withSnapshot(resp, snap), nil
+}
+
+// httpOnlyKindsWarning: радиус строится по object_data_edge, а рёбра
+// http-call в него не входят (ADR-039, отдельный слой). Отбор только по
+// http-call дал бы пустоту, неотличимую от «связей нет».
+func httpOnlyKindsWarning(kinds []string) (Warning, bool) {
+	if len(kinds) == 0 {
+		return Warning{}, false
+	}
+	for _, k := range kinds {
+		if k != EdgeHTTPCall {
+			return Warning{}, false
+		}
+	}
+	return Warning{Code: "http_call_not_in_radius",
+		Message: "рёбра http-call не входят в радиус по данным: это отдельный слой HTTP-связей между базами",
+		Hint:    "HTTP-связи объекта отдаёт блок httpLinks object_graph (crossProjects или kinds=[http-call]) и /api/crosslinks карты"}, true
 }
 
 // radiusTruncationWarnings строит предупреждения об обрезании радиуса.

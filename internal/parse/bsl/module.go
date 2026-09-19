@@ -272,8 +272,10 @@ type Module struct {
 	ManagerRefs      []ManagerRef
 	Queries          []QueryLiteral
 	RegisterAccesses []RegisterAccess
-	Regions          []Region
-	Preprocs         []Preproc
+	// HTTPCalls: исходящие HTTP-вызовы (httpcalls.go, веха В2).
+	HTTPCalls []HTTPCall
+	Regions   []Region
+	Preprocs  []Preproc
 
 	src   []byte
 	lines *LineIndex

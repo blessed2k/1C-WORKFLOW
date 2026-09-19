@@ -19,7 +19,9 @@ package store
 // обрывы и обязаны пересобраться (шаг миграции без DDL, needsFullRebuild).
 // 4: DDL прежний; инкремент перестал сносить каскадом строки нетронутых файлов
 // (права ролей, рёбра и бейджи объектного графа, ADR-038), тот же шаг без DDL.
-const SchemaVersion = 4
+// 5: факты HTTP-вызовов и HTTP-сервисов (http_call, http_endpoint), веха В2,
+// ADR-039; таблицы пустые до полной пересборки.
+const SchemaVersion = 5
 
 // createScript — схема раздела 15 архитектуры целиком: единое пространство id в
 // node, aspect-модель (module_context/module_code, form_declaration/form_structure),
@@ -30,7 +32,7 @@ const SchemaVersion = 4
 // что выбор каскада здесь — архитектурное решение, а не деталь: ownership и
 // containment сносят факт вместе с источником, soft target обнуляется и требует
 // переразрешения, stable identity reference (blob) не трогается вовсе.
-const createScript = createScriptBase + objectGraphTables
+const createScript = createScriptBase + objectGraphTables + httpTables
 
 const createScriptBase = `
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -377,7 +379,7 @@ CREATE VIRTUAL TABLE fts_symbols USING fts5(name, signature, doc, tokenize='unic
 // обязателен, а не желателен: по нему идёт и fingerprint, и весь учёт blob, без
 // него проверка «есть ли ещё ссылки на этот хэш» вырождается в полный скан
 // source_file на каждую строку blob.
-const indexScript = indexScriptBase + objectGraphIndexes
+const indexScript = indexScriptBase + objectGraphIndexes + httpIndexes
 
 const indexScriptBase = `
 CREATE INDEX idx_sf_hash ON source_file(content_hash);
