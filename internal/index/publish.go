@@ -199,6 +199,15 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	// DELETE сравнивать «было» будет не с чем, а сравнить обязательно —
 	// связь, снесённая по файловой зависимости и не восстановленная
 	// атрибуцией этого же прогона, иначе исчезла бы с карты молча.
+	// Входящие указатели на узлы сносимых файлов из строк НЕТРОНУТЫХ файлов
+	// снимаются до удаления и возвращаются после прохода 1 (ADR-037): узел
+	// с неизменной identity получает прежний id, а ссылка на него остаётся
+	// верной, хотя её файл в переопубликование не попал.
+	inbound, err := tx.InboundPointers(staleIDs...)
+	if err != nil {
+		return out, fmt.Errorf("входящие указатели: %w", err)
+	}
+
 	staleEdges, err := tx.ObjectDataEdgesDependingOnFiles(staleIDs...)
 	if err != nil {
 		return out, fmt.Errorf("состав сносимых объектных рёбер: %w", err)
@@ -304,6 +313,13 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	})
 	if err != nil {
 		return out, err
+	}
+
+	// Все строки-узлы этой транзакции вставлены: указатели нетронутых файлов
+	// на узлы, пережившие правку, возвращаются до прохода 2, чтобы и он, и
+	// публикация производных фактов видели согласованную базу (ADR-037).
+	if _, err := tx.RestoreInboundPointers(inbound); err != nil {
+		return out, fmt.Errorf("возврат входящих указателей: %w", err)
 	}
 
 	// Проход 2: ссылки и derive-факты — цели уже существуют (свои и чужие

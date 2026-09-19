@@ -14,7 +14,10 @@ package store
 // а не попытка «как-нибудь открыть».
 //
 // 2 — слой у register_access и таблицы объектного графа (§2 спецификации В1).
-const SchemaVersion = 2
+// 3 — DDL прежний; инкремент перестал обрывать указатели нетронутых файлов на
+// пересоздаваемые узлы (ADR-037), а индексы версии 2 могли накопить такие
+// обрывы и обязаны пересобраться (шаг миграции без DDL, needsFullRebuild).
+const SchemaVersion = 3
 
 // createScript — схема раздела 15 архитектуры целиком: единое пространство id в
 // node, aspect-модель (module_context/module_code, form_declaration/form_structure),
