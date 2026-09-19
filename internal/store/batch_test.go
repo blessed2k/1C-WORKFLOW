@@ -308,3 +308,35 @@ func TestBatchFlushCancelledContext(t *testing.T) {
 	}
 	assertValid(t, s, "после отмены посреди сброса пакета")
 }
+
+// TestBatchFlushedBeforeDelete: удаление файла в той же транзакции, где в
+// буфере ещё лежат строки его символа (параметры, строка FTS), сначала
+// сбрасывает буфер. Иначе каскад удаления прошёл бы мимо строк в буфере, а
+// поздний сброс вставил бы их к уже удалённому символу.
+func TestBatchFlushedBeforeDelete(t *testing.T) {
+	s, f := seeded(t)
+	err := s.Write(context.Background(), func(tx *WriteTx) error {
+		id, err := tx.InsertSymbol(Symbol{
+			IdentityKey: "symbol:cfg:CommonModules/X/удаляемый", ComponentID: fxComponent,
+			UID: "uid-удаляемый", ModuleID: f.moduleID, OriginFileID: f.fileModuleBSL,
+			Kind: "procedure", NameNorm: "удаляемый", NameDisplay: "Удаляемый",
+		})
+		if err != nil {
+			return err
+		}
+		if err := tx.InsertParameter(id, Parameter{Ord: 0, Name: "Висящий"}); err != nil {
+			return err
+		}
+		return tx.DeleteSourceFiles(f.fileModuleBSL)
+	})
+	if err != nil {
+		t.Fatalf("запись: %v", err)
+	}
+	if n := countRows(t, s, "parameter", "name='Висящий'"); n != 0 {
+		t.Errorf("параметр удалённого символа пережил удаление файла: %d", n)
+	}
+	if n := countRows(t, s, "fts_symbols", "rowid NOT IN (SELECT id FROM symbol)"); n != 0 {
+		t.Errorf("строк FTS без символа: %d", n)
+	}
+	assertValid(t, s, "после удаления файла с буфером в транзакции")
+}
