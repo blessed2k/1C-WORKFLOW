@@ -242,7 +242,7 @@ func (s *XMLSource) registrarsFor(ctx context.Context, objectType, name string, 
 		events = append(events, e)
 	}
 	sort.Strings(events)
-	cache := moduleCache{}    // handler modules, read and parsed once per call
+	mods := moduleCache{}     // handler modules, read and parsed once per call
 	seen := map[string]bool{} // handler -> already judged
 	for _, e := range events {
 		for _, sub := range subs[e] {
@@ -250,7 +250,7 @@ func (s *XMLSource) registrarsFor(ctx context.Context, objectType, name string, 
 				continue
 			}
 			seen[sub.handler] = true
-			text, reaches := s.reachesRegistration(sub.handler, registrationDepth, cache, map[string]bool{})
+			text, reaches := s.reachesRegistration(sub.handler, registrationDepth, mods, map[string]bool{})
 			if !reaches {
 				continue
 			}
@@ -269,12 +269,12 @@ func (s *XMLSource) registrarsFor(ctx context.Context, objectType, name string, 
 // reachesRegistration reports whether a method registers changes, following the
 // calls it makes up to depth. Returns the collected text so that the plan a
 // handler works for can be recognised in it.
-func (s *XMLSource) reachesRegistration(handler string, depth int, cache moduleCache, visited map[string]bool) (string, bool) {
+func (s *XMLSource) reachesRegistration(handler string, depth int, mods moduleCache, visited map[string]bool) (string, bool) {
 	if depth <= 0 || visited[handler] {
 		return "", false
 	}
 	visited[handler] = true
-	body := s.methodBody(handler, cache)
+	body := s.methodBody(mods, handler)
 	if body == "" {
 		return "", false
 	}
@@ -290,7 +290,7 @@ func (s *XMLSource) reachesRegistration(handler string, depth int, cache moduleC
 		if !reRegistrationName.MatchString(method) && !reRegistrationName.MatchString(module) {
 			continue
 		}
-		inner, ok := s.reachesRegistration("CommonModule."+module+"."+method, depth-1, cache, visited)
+		inner, ok := s.reachesRegistration("CommonModule."+module+"."+method, depth-1, mods, visited)
 		if ok {
 			return text + "\n" + inner, true
 		}
@@ -301,7 +301,7 @@ func (s *XMLSource) reachesRegistration(handler string, depth int, cache moduleC
 			if bslKeywords[strings.ToLower(m[1])] || !reRegistrationName.MatchString(m[1]) {
 				continue
 			}
-			inner, ok := s.reachesRegistration("CommonModule."+parts[1]+"."+m[1], depth-1, cache, visited)
+			inner, ok := s.reachesRegistration("CommonModule."+parts[1]+"."+m[1], depth-1, mods, visited)
 			if ok {
 				return text + "\n" + inner, true
 			}
@@ -314,13 +314,8 @@ func (s *XMLSource) reachesRegistration(handler string, depth int, cache moduleC
 // its declaration, so that the method NAME cannot be mistaken for a call. The
 // declaration may be wrapped over several lines: the parser knows where the
 // body starts.
-func (s *XMLSource) methodBody(handler string, cache moduleCache) string {
-	parts := strings.Split(handler, ".")
-	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
-		return ""
-	}
-	mod := cache.module(filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl"))
-	m, ok := methodIn(mod, parts[2])
+func (s *XMLSource) methodBody(mods moduleCache, handler string) string {
+	mod, m, ok := mods.commonMethod(s.root, handler)
 	if !ok {
 		return ""
 	}

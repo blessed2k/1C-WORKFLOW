@@ -3,6 +3,7 @@ package source
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -52,6 +53,33 @@ func (c moduleCache) module(path string) *bsl.Module {
 	}
 	c[path] = mod
 	return mod
+}
+
+// methodByPath returns the text of method name from the module at path, whole
+// lines from its directives (&НаСервере, ...) to its closing keyword. The
+// parser finds the method, so a wrapped declaration or English keywords are
+// read as any other. Returns "" when the file or the method is missing.
+func (c moduleCache) methodByPath(path, name string) string {
+	mod := c.module(path)
+	m, ok := methodIn(mod, name)
+	if !ok {
+		return ""
+	}
+	return methodSource(mod, m)
+}
+
+// commonMethod resolves a "CommonModule.Модуль.Метод" reference, as event
+// subscriptions name their handlers, to the method in the common module of
+// the export at root. ok is false for another kind of reference and when the
+// module or the method is missing.
+func (c moduleCache) commonMethod(root, handler string) (*bsl.Module, bsl.Method, bool) {
+	parts := strings.Split(handler, ".")
+	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
+		return nil, bsl.Method{}, false
+	}
+	mod := c.module(filepath.Join(root, "CommonModules", parts[1], "Ext", "Module.bsl"))
+	m, ok := methodIn(mod, parts[2])
+	return mod, m, ok
 }
 
 // methodIn returns the first method of the module named name. Method names are
@@ -108,12 +136,19 @@ func bodyText(mod *bsl.Module, m bsl.Method) string {
 // for a method without an interceptor annotation whose target is a name.
 func interceptorOf(m bsl.Method) (kind, target string, ok bool) {
 	for _, a := range m.Annotations {
-		k, known := canonicalKind[strings.ToLower(strings.TrimPrefix(a.Name, "&"))]
-		if known && a.Arg != "" {
+		if k, known := interceptorKind(a); known {
 			kind, target, ok = k, a.Arg, true
 		}
 	}
 	return kind, target, ok
+}
+
+// interceptorKind returns the canonical kind of an interceptor annotation
+// (&Перед, &After, ...). ok is false for any other annotation and for an
+// interceptor whose target is not a name.
+func interceptorKind(a bsl.Annotation) (kind string, ok bool) {
+	kind, ok = canonicalKind[strings.ToLower(strings.TrimPrefix(a.Name, "&"))]
+	return kind, ok && a.Arg != ""
 }
 
 // spanText returns the source between two byte offsets of the module.

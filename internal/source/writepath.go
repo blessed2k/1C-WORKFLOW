@@ -471,11 +471,11 @@ func objectModuleHandlers(path string) map[string]bool {
 // handlerBody returns the text of a "CommonModule.Модуль.Процедура" handler.
 // mods keeps the modules parsed during the call.
 func (s *XMLSource) handlerBody(mods moduleCache, handler string) string {
-	parts := strings.Split(handler, ".")
-	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
+	mod, m, ok := mods.commonMethod(s.root, handler)
+	if !ok {
 		return ""
 	}
-	return originalMethod(mods, filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl"), parts[2])
+	return methodSource(mod, m)
 }
 
 // exchangeRegistration reports the exchange plans the object belongs to.

@@ -83,7 +83,7 @@ func (s *XMLSource) ExtensionContext(_ context.Context, baseDump string) (*Exten
 
 	// Interceptors: scan every .bsl module of the extension. A base module
 	// intercepted several times is parsed once.
-	bases := moduleCache{}
+	mods := moduleCache{}
 	walkErr := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.EqualFold(filepath.Ext(path), ".bsl") {
 			return err
@@ -97,7 +97,7 @@ func (s *XMLSource) ExtensionContext(_ context.Context, baseDump string) (*Exten
 		for _, ic := range parseInterceptors(stripBOM(data)) {
 			ic.Module = rel
 			if baseDump != "" {
-				ic.Original = originalMethod(bases, filepath.Join(baseDump, filepath.FromSlash(rel)), ic.Target)
+				ic.Original = mods.methodByPath(filepath.Join(baseDump, filepath.FromSlash(rel)), ic.Target)
 			}
 			out.Interceptors = append(out.Interceptors, ic)
 		}
@@ -116,26 +116,12 @@ func parseInterceptors(src []byte) []Interceptor {
 	var out []Interceptor
 	for _, m := range parseDeclarations(src).Methods {
 		for _, a := range m.Annotations {
-			kind, ok := canonicalKind[strings.ToLower(strings.TrimPrefix(a.Name, "&"))]
-			if !ok || a.Arg == "" {
+			kind, ok := interceptorKind(a)
+			if !ok {
 				continue // not an interceptor, or its target is not a name
 			}
 			out = append(out, Interceptor{Kind: kind, Target: a.Arg, Method: m.Name})
 		}
 	}
 	return out
-}
-
-// originalMethod returns the text of method name from the module at path,
-// whole lines from its directives (&НаСервере, ...) to its closing keyword. The
-// parser finds the method, so a wrapped declaration or English keywords are
-// read as any other. Returns "" when the file or the method is missing. mods
-// keeps the modules parsed during the call.
-func originalMethod(mods moduleCache, path, name string) string {
-	mod := mods.module(path)
-	m, ok := methodIn(mod, name)
-	if !ok {
-		return ""
-	}
-	return methodSource(mod, m)
 }
