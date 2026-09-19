@@ -53,7 +53,7 @@ const clService = `<?xml version="1.0" encoding="UTF-8"?>
 	</HTTPService>
 </MetaDataObject>`
 
-// newIndexedProject — отдельный workspace с одним проектом из files,
+// newIndexedProject: отдельный workspace с одним проектом из files,
 // полностью проиндексированный через app (тот же путь, что reindex).
 func newIndexedProject(t *testing.T, id domain.ProjectID, files map[string]string, hostsJSON string) graphweb.ProjectHandle {
 	t.Helper()

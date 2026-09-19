@@ -55,7 +55,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c` — точка входа MCP, регистрация всех инструментов (легаси + индексных), настройки процесса, блок памяти `server_info`
 - `cmd/syntaxgen` — генератор индекса синтаксиса платформы (`internal/syntax`) из `.hbk` установленной платформы; индекс в репозиторий не входит
 - `internal/domain` — сущности и инварианты индекса, ноль зависимостей кроме stdlib
-- `internal/store` — SQLite: схема (38 таблиц), эпохи, WAL, reader pool, единственный writer
+- `internal/store`: SQLite, схема (38 таблиц), эпохи, WAL, reader pool, единственный writer
 - `internal/parse/{bsl,meta,query}` — три независимых парсера: BSL (свой tolerant, не tree-sitter — ADR-3), XML метаданных, текст запроса 1С
 - `internal/resolve` — разрешение имён, call graph, вывод обращений к регистрам/запросам/обработчикам форм
 - `internal/index` — пайплайн индексации: discover→fingerprint→parse→normalize→resolve→derive→validate→publish

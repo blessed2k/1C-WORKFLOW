@@ -2,13 +2,13 @@ package store
 
 import "github.com/blessed2k/1C-WORKFLOW/internal/domain"
 
-// Файл — факты HTTP (веха В2, решение D10, ADR-039): исходящие вызовы
+// Файл: факты HTTP (веха В2, решение D10, ADR-039): исходящие вызовы
 // HTTPСоединение в коде (http_call) и методы HTTP-сервисов в метаданных
 // (http_endpoint). Сшивка вызовов с сервисами идёт при чтении и через
 // границу индексов (сервис лежит в индексе другой базы), поэтому здесь
 // только хранение и выборки. SQL живёт только здесь (RuleSQLOnlyInStore).
 
-// httpTables — таблицы фактов HTTP. Обе держатся за свой файл (каскад по
+// httpTables: таблицы фактов HTTP. Обе держатся за свой файл (каскад по
 // file_id), вызов ещё и за метод (symbol того же файла): узлов чужих файлов
 // они не касаются, и снимок ADR-037/038 им не нужен. Объект-сервис не
 // хранится ссылкой: это metadata_object того же XML (file_id), и чтение
@@ -48,7 +48,7 @@ CREATE INDEX idx_http_endpoint_file ON http_endpoint(file_id);
 CREATE INDEX idx_http_call_file ON http_call(file_id);
 `
 
-// HTTPEndpoint — метод шаблона URL HTTP-сервиса. Шаблон без методов
+// HTTPEndpoint: метод шаблона URL HTTP-сервиса. Шаблон без методов
 // хранится строкой с пустыми MethodName/HTTPMethod/Handler: он адресуем по
 // пути, хоть и не обрабатывает ни одного метода.
 type HTTPEndpoint struct {
@@ -72,7 +72,7 @@ func (tx *WriteTx) InsertHTTPEndpoint(e HTTPEndpoint) error {
 		e.FileID, e.RootURL, e.TemplateName, e.Template, e.MethodName, e.HTTPMethod, e.Handler, layerOrBase(e.Layer))
 }
 
-// HTTPCall — исходящий HTTP-вызов в коде.
+// HTTPCall: исходящий HTTP-вызов в коде.
 type HTTPCall struct {
 	FileID     int64
 	SymbolID   int64 // 0: вызов вне метода
@@ -97,7 +97,7 @@ func (tx *WriteTx) InsertHTTPCall(c HTTPCall) error {
 		c.Confidence, c.Span.StartByte, c.Span.EndByte, c.Span.StartLine, layerOrBase(c.Layer))
 }
 
-// HTTPEndpointRow — метод сервиса вместе с объектом-сервисом.
+// HTTPEndpointRow: метод сервиса вместе с объектом-сервисом.
 type HTTPEndpointRow struct {
 	ID int64
 	HTTPEndpoint
@@ -108,7 +108,7 @@ type HTTPEndpointRow struct {
 	ServiceDisplay string
 }
 
-// HTTPEndpoints — все методы HTTP-сервисов проекта.
+// HTTPEndpoints: все методы HTTP-сервисов проекта.
 func (tx *ReadTx) HTTPEndpoints() ([]HTTPEndpointRow, error) {
 	if err := tx.check(); err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (tx *ReadTx) HTTPEndpoints() ([]HTTPEndpointRow, error) {
 	return out, rows.Err()
 }
 
-// HTTPCallRow — вызов вместе с местом в коде и модулем, в котором он
+// HTTPCallRow: вызов вместе с местом в коде и модулем, в котором он
 // написан.
 type HTTPCallRow struct {
 	ID int64
@@ -145,13 +145,13 @@ type HTTPCallRow struct {
 	RelPath     string
 	ComponentID string
 	SymbolName  string
-	// ModuleKind и ModuleOwnerID — модуль файла вызова и его объект-владелец
+	// ModuleKind и ModuleOwnerID: модуль файла вызова и его объект-владелец
 	// (module.owner_object_id); 0, если владельца нет.
 	ModuleKind    string
 	ModuleOwnerID int64
 }
 
-// HTTPCalls — все HTTP-вызовы проекта.
+// HTTPCalls: все HTTP-вызовы проекта.
 func (tx *ReadTx) HTTPCalls() ([]HTTPCallRow, error) {
 	if err := tx.check(); err != nil {
 		return nil, err

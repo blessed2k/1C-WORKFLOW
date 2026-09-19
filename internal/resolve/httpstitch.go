@@ -9,8 +9,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// Файл — сшивка HTTP-вызовов с HTTP-сервисами (веха В2, решение D10,
-// ADR-039). Правила чистые: ни store, ни диска, вход — факты уже прочитанных
+// Файл: сшивка HTTP-вызовов с HTTP-сервисами (веха В2, решение D10,
+// ADR-039). Правила чистые: ни store, ни диска, вход: факты уже прочитанных
 // индексов и функция, отвечающая, какой проект стоит за хостом.
 //
 // Правила одни на всё:
@@ -26,33 +26,33 @@ import (
 //     /<публикация>/hs/<RootURL><Template>, параметры {Имя} занимают ровно
 //     один сегмент, "*" забирает остаток.
 
-// BadgeHasDynamicHTTP — бейдж «у объекта есть HTTP-вызов, адрес которого
+// BadgeHasDynamicHTTP: бейдж «у объекта есть HTTP-вызов, адрес которого
 // статически не выводится». Отдельное имя, а не has-dynamic: счётчики
 // регистров и HTTP не складываются в одно число.
 const BadgeHasDynamicHTTP = "has-dynamic-http"
 
-// Достоверность сшивки. Сшивка по пути — сопоставление текста, эвристика,
+// Достоверность сшивки. Сшивка по пути: сопоставление текста, эвристика,
 // поэтому ни одна величина не достигает 1 (Provenance.Validate).
 const (
-	// StitchMappedStatic — хост мапится на проект, путь целиком из литерала.
+	// StitchMappedStatic: хост мапится на проект, путь целиком из литерала.
 	StitchMappedStatic = 0.9
-	// StitchMappedPrefix — хост мапится, известно только начало пути.
+	// StitchMappedPrefix: хост мапится, известно только начало пути.
 	StitchMappedPrefix = 0.7
-	// StitchPathOnlyStatic — хост вычисляется, путь целиком из литерала.
+	// StitchPathOnlyStatic: хост вычисляется, путь целиком из литерала.
 	StitchPathOnlyStatic = 0.6
-	// StitchPathOnlyPrefix — хост вычисляется, известно только начало пути.
+	// StitchPathOnlyPrefix: хост вычисляется, известно только начало пути.
 	StitchPathOnlyPrefix = 0.5
 )
 
-// HTTPStitchKind — исход сшивки одного вызова.
+// HTTPStitchKind: исход сшивки одного вызова.
 type HTTPStitchKind string
 
 const (
-	// HTTPStitched — найден сервис (и его шаблон) в проекте.
+	// HTTPStitched: найден сервис (и его шаблон) в проекте.
 	HTTPStitched HTTPStitchKind = "stitched"
-	// HTTPExternal — адресат вне известных проектов: «внешний HTTP».
+	// HTTPExternal: адресат вне известных проектов: «внешний HTTP».
 	HTTPExternal HTTPStitchKind = "external"
-	// HTTPDynamic — путь не выводится, ребра нет.
+	// HTTPDynamic: путь не выводится, ребра нет.
 	HTTPDynamic HTTPStitchKind = "dynamic"
 )
 
@@ -70,7 +70,7 @@ const (
 	httpTemplateParamPrefix = "{"
 )
 
-// HTTPCallFact — вызов, как его видит сшивка.
+// HTTPCallFact: вызов, как его видит сшивка.
 type HTTPCallFact struct {
 	Verb       string
 	Host       string
@@ -79,7 +79,7 @@ type HTTPCallFact struct {
 	PathKind   string // static|prefix|dynamic
 }
 
-// HTTPEndpointFact — метод сервиса проекта.
+// HTTPEndpointFact: метод сервиса проекта.
 type HTTPEndpointFact struct {
 	Project      domain.ProjectID
 	ID           int64
@@ -92,15 +92,15 @@ type HTTPEndpointFact struct {
 	Handler      string
 }
 
-// HTTPStitch — исход сшивки вызова.
+// HTTPStitch: исход сшивки вызова.
 type HTTPStitch struct {
 	Kind   HTTPStitchKind
 	Reason string
-	// Host — нормализованный хост вызова (пусто, если он вычисляется).
+	// Host: нормализованный хост вызова (пусто, если он вычисляется).
 	Host string
-	// Project — проект, на который указал маппинг хоста (пусто без маппинга).
+	// Project: проект, на который указал маппинг хоста (пусто без маппинга).
 	Project domain.ProjectID
-	// Endpoints — совпавшие методы; у Kind=stitched непусты. Когда путь
+	// Endpoints: совпавшие методы; у Kind=stitched непусты. Когда путь
 	// совпал с шаблоном, а HTTP-метод вызова шаблон не обрабатывает, здесь
 	// методы шаблона и Reason=verb-not-allowed.
 	Endpoints  []HTTPEndpointFact
@@ -111,7 +111,7 @@ type HTTPStitch struct {
 type HostResolver func(host string) (domain.ProjectID, bool)
 
 // StitchHTTPCall сшивает один вызов с методами сервисов загруженных
-// проектов (endpoints — по проекту).
+// проектов (endpoints: по проекту).
 func StitchHTTPCall(call HTTPCallFact, endpoints map[domain.ProjectID][]HTTPEndpointFact, hosts HostResolver) HTTPStitch {
 	host := ""
 	if call.HostStatic {
@@ -189,8 +189,8 @@ const (
 	pathPrefix  pathKindText = "prefix"
 )
 
-// matchEndpoints — методы, чей шаблон совпал с путём вызова, с учётом
-// HTTP-метода. Второе значение — причина, если совпадений нет, либо
+// matchEndpoints: методы, чей шаблон совпал с путём вызова, с учётом
+// HTTP-метода. Второе значение: причина, если совпадений нет, либо
 // verb-not-allowed, если путь совпал, а метод вызова шаблон не обрабатывает.
 func matchEndpoints(call HTTPCallFact, eps []HTTPEndpointFact) ([]HTTPEndpointFact, string) {
 	isPrefix := call.PathKind == string(pathPrefix)
@@ -281,7 +281,7 @@ func verbAllowed(verb, method string) bool {
 }
 
 // templateMatches сопоставляет хвост пути после корня с шаблоном URL.
-// isPrefix: хвост — известное начало пути, дальше шаблон может продолжаться
+// isPrefix: хвост: известное начало пути, дальше шаблон может продолжаться
 // чем угодно; lastPartial: последний сегмент хвоста оборван склейкой.
 func templateMatches(tail, tpl []string, isPrefix, lastPartial bool) bool {
 	for i, t := range tpl {
@@ -335,9 +335,9 @@ func segsEqualFold(a, b []string) bool {
 
 // pathSegments режет путь на сегменты: схема и хост, если путь записан
 // полным URL, запрос (?...) и фрагмент отбрасываются, пустые сегменты
-// пропускаются. prefix=true: путь — известное начало; второе значение
-// отвечает, оборван ли его последний сегмент ("/a/b" + Х — да, "/a/b/" + Х
-// — нет).
+// пропускаются. prefix=true: путь: известное начало; второе значение
+// отвечает, оборван ли его последний сегмент ("/a/b" + Х: да, "/a/b/" + Х
+//: нет).
 func pathSegments(p string, prefix bool) ([]string, bool) {
 	p = strings.TrimSpace(p)
 	if i := strings.Index(p, "://"); i >= 0 {
@@ -370,7 +370,7 @@ func pathSegments(p string, prefix bool) ([]string, bool) {
 	return out, lastPartial
 }
 
-// SymbolFact — факт в теле метода, который надо приписать объекту-владельцу
+// SymbolFact: факт в теле метода, который надо приписать объекту-владельцу
 // (HTTP-вызов): символ, файл и место.
 type SymbolFact struct {
 	SymbolID   int64
@@ -379,7 +379,7 @@ type SymbolFact struct {
 	Confidence float64
 }
 
-// Attribution — объект-владелец факта и цепочка до него.
+// Attribution: объект-владелец факта и цепочка до него.
 type Attribution struct {
 	ObjectID   int64
 	Confidence float64
@@ -388,10 +388,10 @@ type Attribution struct {
 
 // AttributeSymbolFact приписывает факт объектам-владельцам по тем же
 // правилам, что запись в регистр (§6.3, D6): вверх по статическому графу
-// вызовов сквозь общие модули, достоверность — минимум по цепочке, пороги
-// штрафуют, потолки обхода дают truncated. Один владелец — одна атрибуция с
+// вызовов сквозь общие модули, достоверность: минимум по цепочке, пороги
+// штрафуют, потолки обхода дают truncated. Один владелец: одна атрибуция с
 // максимальной достоверностью и кратчайшей цепочкой. Пустой ответ без
-// truncated — цепочка не дошла ни до одного объекта (например, вызов из
+// truncated: цепочка не дошла ни до одного объекта (например, вызов из
 // регламентного задания через общий модуль без вызывающих).
 func AttributeSymbolFact(f SymbolFact, g ObjectEdgeGraph, t ObjectEdgeTunables) (owners []Attribution, truncated bool) {
 	if g == nil || f.SymbolID == 0 {

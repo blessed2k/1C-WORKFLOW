@@ -31,7 +31,7 @@ type Facts struct {
 	// только декларированные метаданными движения.
 	Document *DocumentFact
 
-	// HTTPService — корневой URL, шаблоны и методы HTTP-сервиса
+	// HTTPService: корневой URL, шаблоны и методы HTTP-сервиса
 	// (Object.MType == "HTTPService").
 	HTTPService *HTTPServiceFact
 
@@ -262,7 +262,7 @@ type PredefinedItemFact struct {
 	IsFolder     bool
 }
 
-// HTTPServiceFact — HTTP-сервис конфигурации: принимающая сторона сшивки
+// HTTPServiceFact: HTTP-сервис конфигурации: принимающая сторона сшивки
 // HTTP-вызовов между базами (веха В2, D10). Адрес метода в опубликованной
 // базе: /<имя публикации>/hs/<RootURL><Template>.
 type HTTPServiceFact struct {
@@ -270,14 +270,14 @@ type HTTPServiceFact struct {
 	Templates []HTTPTemplateFact
 }
 
-// HTTPTemplateFact — шаблон URL сервиса: "/v1/orders/{Номер}", "/*".
+// HTTPTemplateFact: шаблон URL сервиса: "/v1/orders/{Номер}", "/*".
 type HTTPTemplateFact struct {
 	NameDisplay string
 	Template    string
 	Methods     []HTTPMethodFact
 }
 
-// HTTPMethodFact — метод шаблона: HTTP-метод (GET, POST, ..., ANY) и имя
+// HTTPMethodFact: метод шаблона: HTTP-метод (GET, POST, ..., ANY) и имя
 // процедуры-обработчика в модуле сервиса.
 type HTTPMethodFact struct {
 	NameDisplay string

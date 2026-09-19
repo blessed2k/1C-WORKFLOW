@@ -7,8 +7,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// handleCrosslinks — GET /api/crosslinks?projects=a,b (веха В2, §8.1,
-// ADR-039): HTTP-связи между открытыми проектами. Без projects — все
+// handleCrosslinks: GET /api/crosslinks?projects=a,b (веха В2, §8.1,
+// ADR-039): HTTP-связи между открытыми проектами. Без projects: все
 // открытые. Каждый проект читается своим свежим сервисом (doc.go), маппинг
 // хостов сливается из http-hosts.json всех их workspace в порядке --project.
 func (h *Handler) handleCrosslinks(w http.ResponseWriter, r *http.Request) {

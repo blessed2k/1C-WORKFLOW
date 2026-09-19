@@ -24,40 +24,40 @@ import (
 //	  ]
 //	}
 //
-// host — имя сервера без схемы, порта и пути, без учёта регистра; "*." в
-// начале совпадает с любым поддоменом (но не с самим доменом). project — id
-// проекта из реестра (registry.json, 1c-project.json "project"). Файла нет —
+// host: имя сервера без схемы, порта и пути, без учёта регистра; "*." в
+// начале совпадает с любым поддоменом (но не с самим доменом). project: id
+// проекта из реестра (registry.json, 1c-project.json "project"). Файла нет :
 // маппинг пуст, и все вызовы с литеральным хостом видны как внешние. Сшивка
 // читает файл при каждом запросе: правка маппинга не требует переиндексации.
 
 const (
-	// HTTPHostsFileName — файл маппинга хостов в RegistryDirName.
+	// HTTPHostsFileName: файл маппинга хостов в RegistryDirName.
 	HTTPHostsFileName = "http-hosts.json"
-	// HTTPHostsVersion — версия формата маппинга.
+	// HTTPHostsVersion: версия формата маппинга.
 	HTTPHostsVersion = 1
 )
 
-// HTTPHostRule — одно правило маппинга.
+// HTTPHostRule: одно правило маппинга.
 type HTTPHostRule struct {
 	Host    string           `json:"host"`
 	Project domain.ProjectID `json:"project"`
 }
 
-// HTTPHosts — маппинг хостов на проекты.
+// HTTPHosts: маппинг хостов на проекты.
 type HTTPHosts struct {
 	Version int            `json:"version"`
 	Hosts   []HTTPHostRule `json:"hosts"`
-	// Source — откуда прочитан (для сообщений); пусто у пустого маппинга.
+	// Source: откуда прочитан (для сообщений); пусто у пустого маппинга.
 	Source string `json:"-"`
 }
 
-// HTTPHostsPath — путь файла маппинга в workspace.
+// HTTPHostsPath: путь файла маппинга в workspace.
 func HTTPHostsPath(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, RegistryDirName, HTTPHostsFileName)
 }
 
-// LoadHTTPHosts читает маппинг workspace. Отсутствующий файл — пустой
-// маппинг без ошибки; нечитаемый или неверный — ошибка с именем файла:
+// LoadHTTPHosts читает маппинг workspace. Отсутствующий файл: пустой
+// маппинг без ошибки; нечитаемый или неверный: ошибка с именем файла:
 // молча пустой маппинг выдал бы все вызовы за внешние.
 func LoadHTTPHosts(workspaceRoot string) (HTTPHosts, error) {
 	if strings.TrimSpace(workspaceRoot) == "" {

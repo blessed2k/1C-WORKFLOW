@@ -7,7 +7,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Файл — исходящие HTTP-вызовы модуля (веха В2, решение D10): кто и куда
+// Файл: исходящие HTTP-вызовы модуля (веха В2, решение D10): кто и куда
 // ходит через HTTPСоединение. Факт строится по форме кода внутри одного
 // метода, без резолвера:
 //
@@ -20,37 +20,37 @@ import (
 // (параметр метода, поле структуры, вызов функции), честно помечается
 // динамическим: такой вызов рёбер не даёт, а даёт бейдж (§6.3, D7).
 
-// HTTPPathKind — насколько путь запроса известен статически.
+// HTTPPathKind: насколько путь запроса известен статически.
 type HTTPPathKind string
 
 const (
-	// HTTPPathStatic — путь целиком из литерала.
+	// HTTPPathStatic: путь целиком из литерала.
 	HTTPPathStatic HTTPPathKind = "static"
-	// HTTPPathPrefix — статическое начало и вычисляемый хвост:
+	// HTTPPathPrefix: статическое начало и вычисляемый хвост:
 	// "/base/hs/svc/" + Номер, СтрШаблон("/base/hs/svc/%1", Номер).
 	HTTPPathPrefix HTTPPathKind = "prefix"
-	// HTTPPathDynamic — путь не выводится из текста метода.
+	// HTTPPathDynamic: путь не выводится из текста метода.
 	HTTPPathDynamic HTTPPathKind = "dynamic"
 )
 
-// ConfidenceHTTPCall — достоверность факта HTTP-вызова: связь переменной с
+// ConfidenceHTTPCall: достоверность факта HTTP-вызова: связь переменной с
 // соединением и запросом выведена по локальным присваиваниям метода, то есть
 // эвристикой.
 const ConfidenceHTTPCall domain.Confidence = 0.85
 
-// HTTPCall — исходящий HTTP-вызов: метод соединения с известным запросом или
+// HTTPCall: исходящий HTTP-вызов: метод соединения с известным запросом или
 // с соединением, созданным в этом же методе.
 type HTTPCall struct {
 	Span   domain.Span // Соединение.Метод
 	Method int
-	// Verb — HTTP-метод вызова (GET, POST, ...); пусто, если не выводится
+	// Verb: HTTP-метод вызова (GET, POST, ...); пусто, если не выводится
 	// (ВызватьHTTPМетод с вычисляемым именем метода).
 	Verb string
-	// Host — сервер из литерала конструктора HTTPСоединение как написан;
+	// Host: сервер из литерала конструктора HTTPСоединение как написан;
 	// HostStatic=false, если сервер вычисляется или соединение пришло извне.
 	Host       string
 	HostStatic bool
-	// Path — путь запроса (HTTPPathStatic) или его статическое начало
+	// Path: путь запроса (HTTPPathStatic) или его статическое начало
 	// (HTTPPathPrefix); пусто у динамического.
 	Path       string
 	PathKind   HTTPPathKind
@@ -58,8 +58,8 @@ type HTTPCall struct {
 	Provenance domain.Provenance
 }
 
-// httpBinds — локальные переменные метода, за которыми закреплены соединение,
-// запрос или строка. Ключ — нормализованное имя переменной.
+// httpBinds: локальные переменные метода, за которыми закреплены соединение,
+// запрос или строка. Ключ: нормализованное имя переменной.
 type httpBinds struct {
 	conns    map[string]httpHost
 	requests map[string]httpPath
@@ -78,7 +78,7 @@ type httpPath struct {
 
 var dynamicPath = httpPath{kind: HTTPPathDynamic}
 
-// httpVerbs — методы HTTPСоединение, отправляющие запрос первым аргументом
+// httpVerbs: методы HTTPСоединение, отправляющие запрос первым аргументом
 // (bsl_syntax, тип HTTPСоединение), и их HTTP-метод.
 var httpVerbs = map[string]string{
 	"получить": "GET", "get": "GET", "получитьасинх": "GET", "getasync": "GET",
@@ -89,7 +89,7 @@ var httpVerbs = map[string]string{
 	"удалить": "DELETE", "delete": "DELETE", "удалитьасинх": "DELETE", "deleteasync": "DELETE",
 }
 
-// httpCallMethod — ВызватьHTTPМетод(<HTTPМетод>, <HTTPЗапрос>, ...): метод
+// httpCallMethod: ВызватьHTTPМетод(<HTTPМетод>, <HTTPЗапрос>, ...): метод
 // первым аргументом, запрос вторым.
 func isHTTPCallMethod(lit []byte) bool {
 	return eqAny(lit, "ВызватьHTTPМетод", "CallHTTPMethod", "ВызватьHTTPМетодАсинх", "CallHTTPMethodAsync")
@@ -235,7 +235,7 @@ func (p *parser) collectHTTPVerb(i int) {
 	})
 }
 
-// requestArg — запрос в аргументе метода соединения: переменная, за которой
+// requestArg: запрос в аргументе метода соединения: переменная, за которой
 // закреплён запрос, или прямо Новый HTTPЗапрос(...).
 func (p *parser) requestArg(start, end int) (httpPath, bool) {
 	if end-start == 1 && p.toks[start].kind == tokIdent {
@@ -253,7 +253,7 @@ func (p *parser) requestArg(start, end int) (httpPath, bool) {
 	return httpPath{}, false
 }
 
-// classifyHost — сервер соединения: литерал (или переменная со статической
+// classifyHost: сервер соединения: литерал (или переменная со статической
 // строкой) либо ничего.
 func (p *parser) classifyHost(start, end int) httpHost {
 	path := p.classifyPath(start, end)
@@ -263,7 +263,7 @@ func (p *parser) classifyHost(start, end int) httpHost {
 	return httpHost{host: path.path, static: true}
 }
 
-// classifyPath — выражение адреса [start,end): литерал, склейка с литералом
+// classifyPath: выражение адреса [start,end): литерал, склейка с литералом
 // в начале, СтрШаблон с литералом шаблона или переменная со строкой.
 func (p *parser) classifyPath(start, end int) httpPath {
 	if start >= end || end > len(p.toks) {
@@ -314,7 +314,7 @@ func (p *parser) classifyPath(start, end int) httpPath {
 	return httpPath{path: path, kind: HTTPPathPrefix}
 }
 
-// stringLiteral — выражение ровно из одного строкового литерала.
+// stringLiteral: выражение ровно из одного строкового литерала.
 func (p *parser) stringLiteral(start, end int) (string, bool) {
 	if end-start != 1 || p.toks[start].kind != tokString {
 		return "", false
@@ -350,7 +350,7 @@ func (p *parser) argRanges(open int) ([][2]int, int) {
 	return out, 0
 }
 
-// statementEnd — индекс ';' (или конца тела) после start на нулевой глубине
+// statementEnd: индекс ';' (или конца тела) после start на нулевой глубине
 // скобок.
 func (p *parser) statementEnd(start int) int {
 	depth := 0
@@ -382,7 +382,7 @@ func (p *parser) ensureHTTPBinds() {
 	}
 }
 
-// unquoteBSL снимает кавычки строкового литерала BSL: "" внутри — одна
+// unquoteBSL снимает кавычки строкового литерала BSL: "" внутри: одна
 // кавычка, продолжение многострочного литерала (перевод строки и '|')
 // склеивается в перевод строки.
 func unquoteBSL(lit []byte) string {

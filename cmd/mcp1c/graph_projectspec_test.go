@@ -25,7 +25,7 @@ func TestSplitProjectSpec(t *testing.T) {
 		}
 	}
 	if got := dedupeRoots([]string{dir + "#a", dir + "#b", dir + "#a"}); len(got) != 2 {
-		t.Errorf("два проекта одного workspace — два handle: %v", got)
+		t.Errorf("два проекта одного workspace: два handle: %v", got)
 	}
 }
 

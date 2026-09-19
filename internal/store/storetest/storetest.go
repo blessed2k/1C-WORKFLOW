@@ -29,7 +29,7 @@ var DowngradeToSchema1Statements = append(append([]string{}, DowngradeToSchema4S
 	`UPDATE meta SET value='1' WHERE key='schema_version'`,
 )
 
-// DowngradeToSchema4Statements — обратный ход шага миграции до версии 5:
+// DowngradeToSchema4Statements: обратный ход шага миграции до версии 5:
 // снимает таблицы фактов HTTP (ADR-039). Версию схемы не трогает: её
 // выставляет вызывающий, которому нужна конкретная версия 2...4.
 var DowngradeToSchema4Statements = []string{

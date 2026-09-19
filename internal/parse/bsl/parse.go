@@ -75,7 +75,7 @@ type parser struct {
 	method int
 	// binds — локальные переменные метода, за которыми закреплён регистр.
 	binds map[string]registerBinding
-	// http — локальные переменные метода, за которыми закреплены
+	// http: локальные переменные метода, за которыми закреплены
 	// HTTP-соединение, запрос или строка адреса (httpcalls.go).
 	http httpBinds
 }

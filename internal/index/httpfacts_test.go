@@ -7,7 +7,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// httpServiceXML — HTTP-сервис фикстуры; %s подставляет второй шаблон,
+// httpServiceXML: HTTP-сервис фикстуры; %s подставляет второй шаблон,
 // чтобы правка XML меняла состав методов.
 const httpServiceXML = `<?xml version="1.0" encoding="UTF-8"?>
 <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.20">

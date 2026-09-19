@@ -6,7 +6,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// stitchEndpoints — два проекта: «erp» с сервисом обмена и «shop» с
+// stitchEndpoints: два проекта: «erp» с сервисом обмена и «shop» с
 // сервисом каталога. Имена вымышленные.
 func stitchEndpoints() map[domain.ProjectID][]HTTPEndpointFact {
 	return map[domain.ProjectID][]HTTPEndpointFact{
@@ -127,7 +127,7 @@ func TestNormalizeHTTPHost(t *testing.T) {
 
 // TestAttributeSymbolFact: HTTP-вызов в общем модуле приписывается тем же
 // документам, что и запись в регистр из того же места (D6): сквозь общий
-// модуль вверх до владельцев, достоверность — минимум по цепочке.
+// модуль вверх до владельцев, достоверность: минимум по цепочке.
 func TestAttributeSymbolFact(t *testing.T) {
 	g := newGraph().
 		symbolInCommon(1, 900, 9).  // ОбменСЕРП.ОтправитьЗаказ, в нём вызов
