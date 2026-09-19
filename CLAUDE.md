@@ -99,6 +99,8 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/freshness.go` — `precheckWork{changed, pending}`, `precheckWorkload`, `precheckChangedCount` (обёртка)
 - `internal/index/diskcheck.go`: `CachedFreshness` (дешёвый источник `stale` без запуска инкремента), исход обхода `diskCheck` с TTL/MaxAge (`Config.FreshnessTTL`/`FreshnessMaxAge`, 30 с / 5 мин), обход один на сервис (`diskFlight`, singleflight: синхронный путь, фон и прогрев `WarmFreshness` ждут общий, `opMu` берётся прерываемо с перепроверкой исхода, `Close` отменяет обход и ждёт горутину, после него `ErrServiceClosed`), типизированные причины `StaleReason`; каждый `precheckWorkload` пишет исход, прогон по всем компонентам сбрасывает его в «расхождений нет» на момент старта (ADR-036)
 - `internal/index/publish.go`, `publishderive.go`, `publishmeta2.go`, `publishforms.go` — публикация фактов в store; `publishModuleOwner` дописывает `module.owner_object_id` после прохода 1
+- `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
+- `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
 - `internal/resolve/*.go` — `NewEnv`, `Resolve`, `Derive*`; `layer.go` — `ParseInterceptAnnotation`, `DeriveIntercepts` (второе значение — диагностики), `DetectInsteadConflicts`, `DiagInterceptTargetUnknown`
@@ -193,15 +195,16 @@ effective-вид: intent `posting` эффективный (категория `p
 конвейера в `stageAccum` (`internal/index/stagetiming.go`) и кладёт результат в `Result.Stages`;
 `internal/app/indexstatus.go` пробрасывает его в `ReindexResultItem.Stages` тем же способом, что
 уже даёт `DurationMS`. Этапы `runComponent` в порядке появления: `discover`, `fingerprint`,
-`parse`, `resolve`, `publish` (публикация в store; производные проекции —
-`publishModuleOwner`/`publishDerivedModuleFacts` — не отделены от него: `publishFiles` зовёт их
-инлайн внутри одного цикла по файлам, разделить без реструктуризации цикла нельзя, ради тайминга
-не реструктурировали), плюс `hydrate` только в incremental-режиме. `commit` — синтетический
+`parse` (с issue #3 сюда же входят SHA-256, deflate и запись blob: образы уходят писателю прямо из
+пула), `resolve`, `publish` (публикация в store вместе с производными проекциями: планы файлов
+строятся в пуле параллельно с записью, отдельного этапа у них нет), плюс `hydrate` только в
+incremental-режиме. `commit`: синтетический
 остаток вне `runComponent` (внутри `store.Write`/`store.Rebuild`: открытие транзакции, миграция,
 blob GC, orphan-sweep, генерация, физическая фиксация) — `internal/store` инструментировать не
-стали: код на пути целостности эпох. На `ut_demo` (48 699 файлов, полный reindex, 228 417 мс)
-`publish` — 67% времени, `commit` — 29%, всё остальное — 4% (`docs/benchmarks.md`, раздел
-«Поэтапные тайминги reindex»).
+стали: код на пути целостности эпох. На `ut_demo` (48 699 файлов, полный reindex) до issue #3
+было 228…274 с, из них `publish` 67%, `commit` 29%; после шагов 1-3 около 142 с, `publish` 76 с,
+`commit` 54 с (`docs/benchmarks.md`, разделы «Поэтапные тайминги reindex» и «Ускорение полной
+индексации: шаги issue #3»).
 
 **Кэш выгрузки (легаси-слой).** `XMLSource` пересоздаётся на каждый вызов, поэтому кэш
 разобранных коллекций (`roles`, `subscriptions`, `options`) — process-wide, в переменной
@@ -276,6 +279,16 @@ blob GC, orphan-sweep, генерация, физическая фиксация
   случайно выдать факт от regex/эвристики за точный.
 - `store.Write` сам доводит транзакцию (blob GC, orphan-sweep, generation, commit) — не
   повторять этот цикл руками в вызывающем коде.
+- Вставки листовых таблиц `WriteTx` идут через буфер пакетной вставки (`internal/store/batch.go`,
+  колонки и порядок аргументов из одного `batchSpec`, со схемой их сверяет
+  `TestBatchSpecsMatchSchema`). Сброс буферов (`tx.check()`) обязателен перед любым оператором,
+  который читает буферизуемую таблицу или удаляет и обновляет строки, на которые буферизуемые
+  строки ссылаются. `tx.checkNoFlush()` только у вставок и upsert-ов в небуферизуемые таблицы и у
+  выборок из таблиц, которые в буфер не попадают (`node`, `source_file`, `role`); в сомнении
+  `check()`. Новая листовая таблица добавляется в буфер вместе с родителем в `parents`, иначе
+  дочерний пакет обгонит родительский и упадёт на FK. Id строк `reference` выдаёт `refIDs`
+  (MAX(id)+1): у таблицы нет AUTOINCREMENT и вставляет в неё только `InsertReference`
+  (`TestReferenceIDAllocationGuard`).
 - Курсор пагинации кодирует накопленный offset, не константу лимита (см. «Подводные камни»).
 - Новый MCP-инструмент индексного слоя — свой `idx_<name>.go` с `init()`, реестр не трогать.
 - Наименования BSL/1С в фикстурах и текстах — по стандартам разработки 1С (its.1c.ru/db/v8std);

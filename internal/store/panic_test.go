@@ -34,6 +34,11 @@ func TestWriteSurvivesPanicOfCaller(t *testing.T) {
 	if n := countRows(t, s, "symbol", "name_norm='п'"); n != 0 {
 		t.Error("символ из аварийной транзакции выжил")
 	}
+	// Кэш подготовленных выражений живёт одну транзакцию и закрывается и на
+	// панике: иначе выражения пережили бы свой ROLLBACK.
+	if s.writer.stmts != nil {
+		t.Error("кэш подготовленных выражений пережил панику вызывающего")
+	}
 	if err := s.Write(ctx, func(tx *WriteTx) error {
 		return tx.SetMeta("после-паники", "1")
 	}); err != nil {

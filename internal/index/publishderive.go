@@ -3,10 +3,7 @@ package index
 import (
 	"fmt"
 	"sort"
-	"strings"
 
-	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
-	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
 	"github.com/blessed2k/1C-WORKFLOW/internal/resolve"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
@@ -16,12 +13,11 @@ import (
 // обработчики формы. Требует прохода 2 (Env те же цели, что и ссылки —
 // объекты/члены метаданных уже опубликованы в проходе 1, символы формы
 // могут быть в другом файле той же транзакции).
-func publishDerivedModuleFacts(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState) error {
-	rec := in.corpus.files[rel]
-	if err := publishRegisterAccess(tx, in, ts, rel, st, rec); err != nil {
+func publishDerivedModuleFacts(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState, lp *linkPlan) error {
+	if err := publishRegisterAccess(tx, in, ts, rel, st, lp.registerAccess); err != nil {
 		return fmt.Errorf("register_access: %w", err)
 	}
-	if err := publishQueries(tx, in, ts, rel, st, rec); err != nil {
+	if err := publishQueries(tx, ts, rel, st, lp.queries); err != nil {
 		return fmt.Errorf("query: %w", err)
 	}
 	return nil
@@ -34,31 +30,19 @@ func publishDerivedModuleFacts(tx *store.WriteTx, in publishInput, ts *txState, 
 // DeriveQueryReference) — i-й результат соответствует i-й записи входа,
 // поэтому Method восстанавливается тем же приёмом, что и у ссылок
 // (refCallMethodIndexes).
-func publishRegisterAccess(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState, rec *fileRecord) error {
-	results := resolve.DeriveRegisterAccess(rec.bslModule, in.env)
-	for i, ra := range results {
-		var symbolID int64
-		if i < len(rec.bslModule.RegisterAccesses) {
-			m := rec.bslModule.RegisterAccesses[i].Method
-			if m >= 0 {
-				if id, ok := st.methodSymbolID[m]; ok {
-					symbolID = id
-				}
-			}
+func publishRegisterAccess(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState, plans []registerAccessPlan) error {
+	for _, p := range plans {
+		row := p.row
+		row.FileID = st.fileID
+		if p.symbolKey != "" {
+			row.SymbolID = ts.nodes.byKey[p.symbolKey]
 		}
-		var objectID int64
-		if ra.ObjectResolved {
-			if id, ok, err := ts.nodes.lookup(tx, ra.ObjectKey); err != nil {
+		if p.objectKey != "" {
+			if id, ok, err := ts.nodes.lookup(tx, p.objectKey); err != nil {
 				return err
 			} else if ok {
-				objectID = id
+				row.ObjectID = id
 			}
-		}
-		row := store.RegisterAccess{
-			FileID: st.fileID, SymbolID: symbolID, ObjectID: objectID,
-			RegisterNameNorm: ra.RegisterNameNorm, Mode: string(ra.Mode),
-			Static: ra.Static, Confidence: float64(ra.Confidence), Span: ra.Span,
-			Layer: layerName(in.layer),
 		}
 		if err := tx.InsertRegisterAccess(row); err != nil {
 			return fmt.Errorf("%s: %w", rel, err)
@@ -85,35 +69,29 @@ func publishRegisterAccess(tx *store.WriteTx, in publishInput, ts *txState, rel 
 // i-й LiteralIndex дериватора теперь один и тот же индекс в mod.Queries, и
 // query_id, вставленный здесь строкой выше, находится без второго разбора
 // текста запроса (второй резолвер вне internal/resolve запрещён, §6).
-func publishQueries(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState, rec *fileRecord) error {
-	mod := rec.bslModule
-	queryIDByLiteral := make(map[int]int64, len(mod.Queries))
-	for i, ql := range mod.Queries {
+func publishQueries(tx *store.WriteTx, ts *txState, rel string, st modulePublishState, plans []queryPlan) error {
+	for i := range plans {
+		q := &plans[i]
 		var symbolID int64
-		if ql.Method >= 0 {
-			if id, ok := st.methodSymbolID[ql.Method]; ok {
-				symbolID = id
-			}
+		if q.symbolKey != "" {
+			symbolID = ts.nodes.byKey[q.symbolKey]
 		}
 		if symbolID == 0 {
-			// Запрос вне метода (маловероятно для BSL) — без symbol_id
-			// вставить query нельзя (NOT NULL, §15): пропускаем эту запись.
+			// Запрос вне метода (маловероятно для BSL): без symbol_id
+			// вставить query нельзя (NOT NULL, §15), пропускаем вместе с его
+			// использованиями, им некуда прикрепиться.
 			continue
 		}
-		queryKey := fmt.Sprintf("%s\x00query\x00%d", moduleIdentityKey(in.component, rel), i)
-		queryID, err := tx.InsertQuery(store.Query{
-			IdentityKey: queryKey, ComponentID: string(in.component), SymbolID: symbolID, FileID: st.fileID,
-			Span: ql.Span, Staticity: string(ql.Staticity), Text: string(mod.Text(ql.Span)), Confidence: float64(ql.Confidence),
-		})
+		row := q.row
+		row.SymbolID, row.FileID = symbolID, st.fileID
+		queryID, err := tx.InsertQuery(row)
 		if err != nil {
 			return fmt.Errorf("%s: %w", rel, err)
 		}
 		ts.counts.query++
-		queryIDByLiteral[i] = queryID
-	}
-
-	if err := publishQueryReferences(tx, in, ts, rel, mod, queryIDByLiteral); err != nil {
-		return fmt.Errorf("query_reference %s: %w", rel, err)
+		if err := publishQueryReferences(tx, ts, queryID, q.refs); err != nil {
+			return fmt.Errorf("query_reference %s: %w", rel, err)
+		}
 	}
 	return nil
 }
@@ -123,39 +101,28 @@ func publishQueries(tx *store.WriteTx, in publishInput, ts *txState, rel string,
 // см. doc-комментарий DeriveQueryReference, это остаётся долгом: сборка
 // partial-текста из GapMarker-фрагментов не сделана этим таском, только
 // группировка static-результата по литералу).
-func publishQueryReferences(tx *store.WriteTx, in publishInput, ts *txState, rel string, mod *bsl.Module, queryIDByLiteral map[int]int64) error {
-	for _, g := range resolve.DeriveQueryReference(mod, in.env) {
-		queryID, ok := queryIDByLiteral[g.LiteralIndex]
-		if !ok {
-			// Литерал не получил query_id (вне метода, см. publishQueries) —
-			// его ссылки некуда прикрепить, query_reference.query_id NOT NULL.
-			continue
-		}
-		for _, r := range g.References {
-			var objectID, memberID int64
-			if r.ObjectResolved {
-				if id, ok, err := ts.nodes.lookup(tx, r.ObjectKey); err != nil {
-					return err
-				} else if ok {
-					objectID = id
-				}
-			}
-			if r.MemberResolved {
-				if id, ok, err := ts.nodes.lookup(tx, r.MemberKey); err != nil {
-					return err
-				} else if ok {
-					memberID = id
-				}
-			}
-			if err := tx.InsertQueryReference(store.QueryReference{
-				QueryID: queryID, Kind: string(r.Kind), NameNorm: r.NameNorm,
-				ObjectID: objectID, MemberID: memberID,
-				SpanStart: int64(r.Span.StartByte), SpanEnd: int64(r.Span.EndByte),
-			}); err != nil {
+func publishQueryReferences(tx *store.WriteTx, ts *txState, queryID int64, refs []queryRefPlan) error {
+	for _, r := range refs {
+		row := r.row
+		row.QueryID = queryID
+		if r.objectKey != "" {
+			if id, ok, err := ts.nodes.lookup(tx, r.objectKey); err != nil {
 				return err
+			} else if ok {
+				row.ObjectID = id
 			}
-			ts.counts.queryReference++
 		}
+		if r.memberKey != "" {
+			if id, ok, err := ts.nodes.lookup(tx, r.memberKey); err != nil {
+				return err
+			} else if ok {
+				row.MemberID = id
+			}
+		}
+		if err := tx.InsertQueryReference(row); err != nil {
+			return err
+		}
+		ts.counts.queryReference++
 	}
 	return nil
 }
@@ -165,41 +132,29 @@ func publishQueryReferences(tx *store.WriteTx, in publishInput, ts *txState, rel
 // (FormStructureFact.Handlers) резолвятся против Env модуля формы —
 // DeriveHandlerBinding сам ищет formModulePath в Env, промах — Resolution
 // unresolved у КАЖДОГО обработчика (R43.1), не пустая выдача.
-func publishHandlerBindingsForForm(tx *store.WriteTx, in publishInput, ts *txState, rel string, rec *fileRecord) error {
-	fs := rec.metaFacts.FormStructure
-	if fs == nil || len(fs.Handlers) == 0 {
-		return nil
-	}
-	formKey := formIdentityKey(in.component, fs.Key)
-	formID, ok, err := ts.nodes.lookup(tx, formKey)
+func publishHandlerBindingsForForm(tx *store.WriteTx, ts *txState, rel string, hp *handlerBindingsPlan) error {
+	formID, ok, err := ts.nodes.lookup(tx, hp.formKey)
 	if err != nil {
 		return err
 	}
 	if !ok {
 		return nil // форма не опубликована (не должно случаться после publishFormStructure того же файла)
 	}
-	fileID, ok, err := tx.SourceFileID(string(in.component), rel)
-	if err != nil {
-		return err
-	}
+	fileID, ok := ts.fileID[rel]
 	if !ok {
 		return nil
 	}
-	formModulePath := domain.NormalizeModulePath(strings.TrimSuffix(rel, "Form.xml") + "Form/Module.bsl")
-	results := resolve.DeriveHandlerBinding(formModulePath, fs.Handlers, in.env)
-	for _, r := range results {
-		var symbolID int64
-		if r.Resolution == domain.ResolutionResolved {
-			if id, ok, err := ts.nodes.lookupSymbol(tx, r.HandlerUID); err != nil {
+	for _, b := range hp.bindings {
+		row := b.row
+		row.FormID, row.OriginFileID = formID, fileID
+		if b.handlerKey != "" {
+			if id, ok, err := ts.nodes.lookup(tx, b.handlerKey); err != nil {
 				return err
 			} else if ok {
-				symbolID = id
+				row.HandlerSymbolID = id
 			}
 		}
-		if err := tx.InsertHandlerBinding(store.HandlerBinding{
-			FormID: formID, Source: r.Source, Event: r.Event, HandlerNameNorm: r.HandlerNameNorm,
-			HandlerSymbolID: symbolID, OriginFileID: fileID, Resolution: string(r.Resolution),
-		}); err != nil {
+		if err := tx.InsertHandlerBinding(row); err != nil {
 			return fmt.Errorf("%s: %w", rel, err)
 		}
 		ts.counts.handlerBinding++

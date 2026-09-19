@@ -557,19 +557,25 @@ func runWriteTx(ctx context.Context, c *conn, opts *Options, fn func(*WriteTx) e
 	if err := c.exec(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("начало write-транзакции: %w", err)
 	}
-	tx := &WriteTx{ReadTx: ReadTx{ctx: ctx, c: c}, touched: map[string]struct{}{}}
+	// Кэш подготовленных выражений и буферы пакетной вставки живут ровно эту
+	// транзакцию (issue #3, шаг 2) и закрываются до COMMIT или ROLLBACK.
+	c.beginStmtCache()
+	tx := &WriteTx{ReadTx: ReadTx{ctx: ctx, c: c}, touched: map[string]struct{}{}, batches: newTxBatches()}
+	tx.flush = func() error { return tx.batches.flushAll(tx.ctx, tx.c) }
 	defer func() {
 		tx.done = true
 		// Паника вызывающего не должна оставлять открытую транзакцию на
 		// единственном соединении писателя: сервер живёт долго, и после такого
 		// КАЖДАЯ следующая запись падала бы на «transaction within a transaction».
 		if p := recover(); p != nil {
+			c.endStmtCache()
 			c.exec(context.WithoutCancel(ctx), "ROLLBACK")
 			panic(p)
 		}
 		if err == nil {
 			return
 		}
+		c.endStmtCache()
 		// Откат идёт по контексту без отмены: на отменённом ctx сам ROLLBACK не
 		// выполнится, и транзакция осталась бы открытой на соединении писателя.
 		if rbErr := c.exec(context.WithoutCancel(ctx), "ROLLBACK"); rbErr != nil {
@@ -578,6 +584,11 @@ func runWriteTx(ctx context.Context, c *conn, opts *Options, fn func(*WriteTx) e
 	}()
 
 	if err = fn(tx); err != nil {
+		return err
+	}
+	// Хвосты буферов уходят до учёта blob: дальше транзакция только читает
+	// и обновляет, а строки из буфера обязаны быть видны reconciliation.
+	if err = tx.flush(); err != nil {
 		return err
 	}
 	now := opts.Now().Unix()
@@ -593,6 +604,9 @@ func runWriteTx(ctx context.Context, c *conn, opts *Options, fn func(*WriteTx) e
 	if err = c.exec(ctx, `UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key=?`,
 		metaCurrentGeneration); err != nil {
 		return err
+	}
+	if err = c.endStmtCache(); err != nil {
+		return fmt.Errorf("закрытие подготовленных выражений: %w", err)
 	}
 	if err = c.exec(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("COMMIT: %w", err)

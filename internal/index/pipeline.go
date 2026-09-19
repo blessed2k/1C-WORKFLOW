@@ -151,13 +151,23 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	stages.mark(now, "fingerprint", fingerprintStart)
 
 	parseStart := now()
-	raw := make(map[string][]byte, len(toRead))
+	// blobs: образы файлов, republish-нутых только из-за смены резолюции
+	// (см. ниже). Образы разобранных файлов в карту не попадают: пул отдаёт
+	// их писателю сразу, и blob уже лежит в транзакции.
+	blobs := make(map[string]store.PreparedBlob)
 	changedSet := make(map[string]bool, len(toRead))
 	if len(toRead) > 0 {
 		// parse (§17 п.3): bounded worker pool — чтение и разбор тысяч
 		// файлов последовательно доминирует время cold-индексации (замерено
 		// на ut_demo), параллелизм по числу ядер держит это в бюджете §28.
-		results, poolErr := runParsePool(ctx, workers, toRead)
+		// Образы уходят в blob прямо из пула, пока воркеры разбирают
+		// остальное: blob адресуется хэшем и от source_file не зависит, а
+		// образ неизменившегося файла дедуплицируется (ON CONFLICT DO
+		// NOTHING). Откат транзакции уносит их вместе со всем прочим.
+		results, poolErr := runParsePool(ctx, workers, toRead, func(b store.PreparedBlob) error {
+			_, err := tx.PutPreparedBlob(b)
+			return err
+		})
 		if poolErr != nil {
 			return stats, fmt.Errorf("parse %s: %w", comp.ID, poolErr)
 		}
@@ -179,7 +189,6 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 				oldSnapshots[rec.relPath] = old
 			}
 			corpus.files[rec.relPath] = rec
-			raw[rec.relPath] = r.raw
 			changedSet[rec.relPath] = true
 		}
 	}
@@ -240,13 +249,13 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	stages.mark(now, "resolve", resolveStart)
 
 	publishStart := now()
-	// raw для файлов, republish-нутых ТОЛЬКО из-за смены резолюции (не сами
+	// Образ для файлов, republish-нутых ТОЛЬКО из-за смены резолюции (не сами
 	// изменились), берём заново с диска — их байты не менялись, но
-	// publishFiles обязан положить blob, а PutBlob дедуплицирует по хэшу,
+	// publishFiles обязан положить blob, а blob дедуплицируется по хэшу,
 	// то есть повторное чтение не тратит место в БД, только время на диске.
 	for _, rel := range republish {
-		if _, ok := raw[rel]; ok {
-			continue
+		if changedSet[rel] {
+			continue // образ записан пулом разбора
 		}
 		abs, err := workspace.SafeJoin(comp.AbsRoot, rel)
 		if err != nil {
@@ -256,13 +265,18 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 		if err != nil {
 			return stats, fmt.Errorf("чтение %s: %w", rel, err)
 		}
-		raw[rel] = data
+		blob, err := store.PrepareBlob(data)
+		if err != nil {
+			return stats, fmt.Errorf("образ %s: %w", rel, err)
+		}
+		blobs[rel] = blob
 	}
 
 	out, err := publishFiles(tx, publishInput{
 		project: project, component: comp.ID, layer: layer,
-		corpus: corpus, raw: raw, resolve: corpus.resolved, env: env,
+		corpus: corpus, blobs: blobs, resolve: corpus.resolved, env: env,
 		tunables:  cfg.GraphTunables,
+		workers:   workers,
 		republish: republish, removed: removed,
 	})
 	if err != nil {
@@ -322,6 +336,12 @@ func incrementalRepublishSet(comp domain.ComponentID, layer domain.Layer, env re
 			full[rel] = true
 		}
 		for rel := range corpus.resolved {
+			// Удалённые файлы ещё лежат в corpus.resolved (dropResolved идёт
+			// после этой функции), но в corpus.files их уже нет: republish
+			// такого файла перечитывал бы его с диска и ронял прогон.
+			if _, alive := corpus.files[rel]; !alive {
+				continue
+			}
 			full[rel] = true // консервативно: любой файл мог сменить резолюцию
 		}
 		return full
