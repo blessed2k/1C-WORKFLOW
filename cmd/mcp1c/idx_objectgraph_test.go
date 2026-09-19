@@ -443,3 +443,76 @@ func TestObjectGraphResponsePagination(t *testing.T) {
 		t.Fatalf("вместе страницы должны покрыть все 3 ребра, получено %d", len(seen))
 	}
 }
+
+// ogAccumRegisterXML: минимальный регистр накопления для фикстуры с кодом
+// проведения (Движения.<Имя>.Записать()).
+func ogAccumRegisterXML(uid, name string) string {
+	return metaBOM + `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.20">
+	<AccumulationRegister uuid="` + uid + `">
+		<Properties>
+			<Name>` + name + `</Name>
+		</Properties>
+		<ChildObjects/>
+	</AccumulationRegister>
+</MetaDataObject>`
+}
+
+// TestObjectGraphToolViewDiff: object_graph принимает view (веха В3, issue
+// #5). Расширение перехватывает проведение документа (&После) и пишет в
+// регистр, которого база не пишет: view=raw этого ребра не видит,
+// view=diff отдаёт только его, с именем расширения в layer и diff=added.
+func TestObjectGraphToolViewDiff(t *testing.T) {
+	ctx := context.Background()
+	workspaceRoot := t.TempDir()
+	projectRoot := t.TempDir()
+
+	manifest, err := json.Marshal(map[string]any{
+		"version": 1, "project": "og-view",
+		"components": []map[string]any{
+			{"id": "cfg", "kind": "configuration", "root": "cfg"},
+			{"id": "ext", "kind": "extension", "root": "ext", "appliesTo": "cfg", "applyOrder": 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	metaWriteFile(t, filepath.Join(projectRoot, "1c-project.json"), string(manifest))
+	metaWriteFile(t, filepath.Join(projectRoot, "cfg", "Configuration.xml"), metaConfigurationXML("Тест"))
+	metaWriteFile(t, filepath.Join(projectRoot, "ext", "Configuration.xml"), strings.Replace(metaConfigurationXML("Расширение"),
+		"</Name>", "</Name>\n\t\t\t<ConfigurationExtensionPurpose>Customization</ConfigurationExtensionPurpose>", 1))
+	for _, comp := range []string{"cfg", "ext"} {
+		metaWriteFile(t, filepath.Join(projectRoot, comp, "Documents", "Отгрузка.xml"), ogDocumentXML(ogUID(1), "Отгрузка"))
+		metaWriteFile(t, filepath.Join(projectRoot, comp, "AccumulationRegisters", "Остатки.xml"), ogAccumRegisterXML(ogUID(2), "Остатки"))
+		metaWriteFile(t, filepath.Join(projectRoot, comp, "AccumulationRegisters", "Резервы.xml"), ogAccumRegisterXML(ogUID(3), "Резервы"))
+	}
+	metaWriteFile(t, filepath.Join(projectRoot, "cfg", "Documents", "Отгрузка", "Ext", "ObjectModule.bsl"),
+		"\nПроцедура ОбработкаПроведения(Отказ, Режим)\n\tДвижения.Остатки.Записать();\nКонецПроцедуры\n")
+	metaWriteFile(t, filepath.Join(projectRoot, "ext", "Documents", "Отгрузка", "Ext", "ObjectModule.bsl"),
+		"\n&После(\"ОбработкаПроведения\")\nПроцедура Расш_ОбработкаПроведения(Отказ, Режим)\n\tДвижения.Резервы.Записать();\nКонецПроцедуры\n")
+
+	cs := ogConnect(t, ctx, workspaceRoot)
+	ogReindex(t, ctx, cs, projectRoot)
+
+	args := func(view string) map[string]any {
+		return map[string]any{"objectType": "Document", "objectName": "Отгрузка", "depth": 1, "view": view}
+	}
+	res, raw := ogCall(t, ctx, cs, args("raw"))
+	if res.IsError {
+		t.Fatalf("view=raw: %s", contentText(res))
+	}
+	if len(raw.Items) != 1 || raw.Items[0].ToDisplay != "Остатки" || raw.Items[0].Layer != "base" {
+		t.Errorf("view=raw: %+v, want одно ребро базы к Остатки", raw.Items)
+	}
+	res, diff := ogCall(t, ctx, cs, args("diff"))
+	if res.IsError {
+		t.Fatalf("view=diff: %s", contentText(res))
+	}
+	if len(diff.Items) != 1 || diff.Items[0].ToDisplay != "Резервы" || diff.Items[0].Layer != "ext" || diff.Items[0].Diff != app.EdgeDiffAdded {
+		t.Errorf("view=diff: %+v, want одно ребро расширения ext к Резервы с diff=added", diff.Items)
+	}
+	res, _ = ogCall(t, ctx, cs, args("effectiv"))
+	if !res.IsError || !strings.Contains(contentText(res), "view") {
+		t.Errorf("опечатка в view обязана быть ошибкой, получено IsError=%v %s", res.IsError, contentText(res))
+	}
+}

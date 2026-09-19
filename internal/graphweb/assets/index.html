@@ -16,6 +16,7 @@
     --warn: #e0a72e;
     --danger: #e05a4e;
     --stale: #b085f5;
+    --ext: #2ee6c5;
     --radius: 6px;
   }
   * { box-sizing: border-box; }
@@ -76,6 +77,17 @@
   .swatch { width: 18px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
   .swatch.dashed { background: none !important; border-top: 3px dashed; height: 0; }
   #filters input[type=range] { width: 110px; vertical-align: middle; }
+  /* режим слоёв: raw / effective / diff */
+  .view-switch { display: inline-flex; align-items: center; gap: 4px; }
+  .view-switch button { padding: 2px 9px; font-size: 12px; }
+  .view-switch .sep { width: 1px; height: 16px; background: var(--border); margin: 0 6px 0 8px; }
+  /* рёбра расширений: линия того же цвета вида, вокруг неё подсветка слоя */
+  .swatch.ext-added { background: #4da3ff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ext) 60%, transparent); }
+  .swatch.ext-same { background: #4da3ff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ext) 22%, transparent); }
+  .ext-list { margin-top: 10px; display: grid; gap: 4px; font-size: 12px; }
+  .ext-row { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
+  .ext-row:hover { color: var(--accent); }
+  .ext-row .tag { color: var(--ext); white-space: nowrap; }
   #filters .conf { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 
   #status { font-size: 12px; color: var(--muted); padding: 3px 12px; min-height: 22px; }
@@ -158,6 +170,13 @@
   </div>
 </header>
 <div id="filters">
+  <span class="view-switch" role="group" aria-label="Режим слоёв расширений">
+    <span class="muted">Вид:</span>
+    <button data-view="raw" title="Только базовая конфигурация: как декларирует база">raw</button>
+    <button data-view="effective" class="active" title="С расширениями: как действует конфигурация, заимствованный объект одним узлом">effective</button>
+    <button data-view="diff" title="Только связи, которые добавили расширения">diff</button>
+    <span class="sep"></span>
+  </span>
   <span class="muted">Рёбра:</span>
   <label class="kind"><input type="checkbox" data-kind="writes-register" checked><span class="swatch" style="background:#4da3ff"></span>пишет в регистр <code>writes-register</code></label>
   <label class="kind"><input type="checkbox" data-kind="writes-declared" checked><span class="swatch" style="background:#e0a72e"></span>движения <code>writes-declared</code></label>
@@ -204,6 +223,12 @@
         <div>Сплошная линия: запись, пунктир: чтение. Бледнее: ниже confidence.</div>
         <div><b>12/85</b> на узле: на карте 12 связей из 85.</div>
         <div>⚡ динамика не даёт рёбер, ✂ атрибуция упёрлась в потолок, ⏳ связь могла устареть.</div>
+      </div>
+      <div id="legendLayers" class="legend-notes">
+        <div><b>raw</b>: только базовая конфигурация. <b>effective</b>: с расширениями, заимствованный объект показан одним узлом. <b>diff</b>: только связи, которые добавили расширения.</div>
+        <div class="legend-item"><span class="swatch ext-added"></span><span>связь добавило расширение, в raw её нет</span></div>
+        <div class="legend-item"><span class="swatch ext-same"></span><span>связь есть в базе и повторена расширением (одно ребро, слои в подсказке)</span></div>
+        <div>Какое расширение: в подсказке ребра и в карточке узла. diff не показывает связи, которые расширение гасит (&amp;Вместо без ПродолжитьВызов): индекс их не вычисляет.</div>
       </div>
     </section>
   </div>

@@ -44,6 +44,8 @@ func NewHandler(projects []ProjectHandle) http.Handler {
 	h := &Handler{projects: append([]ProjectHandle(nil), projects...), locks: make([]sync.Mutex, len(projects))}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/projects", h.handleProjects)
+	// view=raw|effective|diff у node, neighbors, radius и godnodes: режимы
+	// «до и после расширений» (веха В3, internal/app/objectgraph_view.go).
 	mux.HandleFunc("GET /api/node/{id}", h.handleNode)
 	mux.HandleFunc("GET /api/neighbors/{id}", h.handleNeighbors)
 	mux.HandleFunc("GET /api/radius/{id}", h.handleRadius)
@@ -191,7 +193,7 @@ func (h *Handler) handleNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
-	resp, err := gs.Node(r.Context(), app.NodeInput{Target: app.ObjectTarget{ObjectID: id}})
+	resp, err := gs.Node(r.Context(), app.NodeInput{Target: app.ObjectTarget{ObjectID: id}, View: r.URL.Query().Get("view")})
 	if err != nil {
 		respondErr(w, err)
 		return
@@ -222,6 +224,7 @@ func (h *Handler) handleNeighbors(w http.ResponseWriter, r *http.Request) {
 		Direction:     q.Get("dir"),
 		Kinds:         splitCSV(q.Get("kinds")),
 		Layer:         q.Get("layer"),
+		View:          q.Get("view"),
 		MinConfidence: queryFloat(r, "minConfidence"),
 		Limit:         queryInt(r, "limit"),
 		Cursor:        q.Get("cursor"),
@@ -258,6 +261,7 @@ func (h *Handler) handleRadius(w http.ResponseWriter, r *http.Request) {
 		Depth:         queryInt(r, "depth"),
 		Kinds:         splitCSV(q.Get("kinds")),
 		Layer:         q.Get("layer"),
+		View:          q.Get("view"),
 		MinConfidence: queryFloat(r, "minConfidence"),
 		Limit:         queryInt(r, "limit"),
 		Cursor:        q.Get("cursor"),
@@ -286,6 +290,7 @@ func (h *Handler) handleGodNodes(w http.ResponseWriter, r *http.Request) {
 	in := app.GodNodesInput{
 		Kinds:         splitCSV(q.Get("kinds")),
 		Layer:         q.Get("layer"),
+		View:          q.Get("view"),
 		MinConfidence: queryFloat(r, "minConfidence"),
 		MTypes:        splitCSV(q.Get("type")),
 		By:            q.Get("metric"),

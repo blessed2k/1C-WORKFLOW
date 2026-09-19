@@ -99,3 +99,31 @@ func doRawGET(t *testing.T, h http.Handler, path string) *httptest.ResponseRecor
 	h.ServeHTTP(rr, req)
 	return rr
 }
+
+// TestAssetsViewSwitchAndLegend: веха В3 (issue #5). Интерфейс несёт
+// переключатель raw/effective/diff, легенда объясняет стиль рёбер
+// расширения, а app.js действительно шлёт view в API и различает рёбра
+// расширения классами, на которые опирается легенда.
+func TestAssetsViewSwitchAndLegend(t *testing.T) {
+	h := graphweb.NewHandler(nil)
+	html := doRawGET(t, h, "/").Body.String()
+	for _, want := range []string{
+		`data-view="raw"`, `data-view="effective"`, `data-view="diff"`,
+		`id="legendLayers"`, `swatch ext-added`, `swatch ext-same`, `var(--ext)`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html без %s", want)
+		}
+	}
+	js := doRawGET(t, h, "/app.js").Body.String()
+	for _, want := range []string{
+		`view: state.view`, `selector: "edge.ext"`, `selector: "edge.added"`,
+		`"ext" : ""`, `"added" : ""`, `extensionEdges`,
+		// поколение карты: ответы, запрошенные до смены режима, отбрасываются
+		`state.gen++`, `if (gen !== state.gen) return;`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("app.js без %s", want)
+		}
+	}
+}

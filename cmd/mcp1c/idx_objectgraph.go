@@ -36,6 +36,7 @@ type objectGraphInput struct {
 	Kinds         []string `json:"kinds,omitempty" jsonschema:"writes-register (code), writes-declared (RegisterRecords); default both"`
 	Depth         int      `json:"depth,omitempty" jsonschema:"default 2, max 2; more is an error"`
 	MinConfidence float64  `json:"minConfidence,omitempty" jsonschema:"minimum confidence (0..1]"`
+	View          string   `json:"view,omitempty" jsonschema:"raw (base only), effective (with extensions, borrowed objects merged) or diff (edges added by extensions); default: layers as stored"`
 	Project       string   `json:"project,omitempty" jsonschema:"root of another registered project, for this call only"`
 	Limit         int      `json:"limit,omitempty" jsonschema:"page size, default 50, max 200"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"nextCursor of the previous page"`
@@ -56,7 +57,7 @@ func registerObjectGraphTool(server *mcp.Server, deps indexToolDeps) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "object_graph",
-		Description: "The data map around one metadata object in one call: edges writes-register (from code) and writes-declared (from RegisterRecords) out to depth 2, each with both ends' type and name. Call it when you need the object's whole data neighbourhood instead of chaining find_register_writes and find_references; it complements the symbol-level tools. project= reads another registered project for this call only.",
+		Description: "The data map around one metadata object in one call: edges writes-register (from code) and writes-declared (from RegisterRecords) out to depth 2, each with both ends' type and name. Call it when you need the object's whole data neighbourhood instead of chaining find_register_writes and find_references; it complements the symbol-level tools. project= reads another registered project for this call only; view=diff shows only the edges extensions add.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    true,
 			IdempotentHint:  true,
@@ -79,6 +80,7 @@ func registerObjectGraphTool(server *mcp.Server, deps indexToolDeps) {
 			Direction:     in.Direction,
 			Depth:         in.Depth,
 			Kinds:         in.Kinds,
+			View:          in.View,
 			MinConfidence: in.MinConfidence,
 			Limit:         in.Limit,
 			Cursor:        in.Cursor,
