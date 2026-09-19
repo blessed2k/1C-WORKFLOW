@@ -240,18 +240,27 @@ func TestHandlerRadiusTruncationWarningReachesHTTPResponse(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
-	if len(env.Warnings) == 0 {
-		t.Fatalf("ожидалось предупреждение об обрезании радиуса, получили %+v", env)
+	if !hasWarningCode(t, env.Warnings, "truncated") {
+		t.Fatalf("ожидалось предупреждение truncated об обрезании радиуса, получили %+v", env)
 	}
-	var w struct {
-		Code string `json:"code"`
+}
+
+// hasWarningCode ищет предупреждение по коду, а не по позиции: сид пишет
+// store мимо пайплайна, и первым в ответе штатно идёт stale_index (ADR-036).
+func hasWarningCode(t *testing.T, ws []json.RawMessage, code string) bool {
+	t.Helper()
+	for _, raw := range ws {
+		var w struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(raw, &w); err != nil {
+			t.Fatalf("decode warning: %v", err)
+		}
+		if w.Code == code {
+			return true
+		}
 	}
-	if err := json.Unmarshal(env.Warnings[0], &w); err != nil {
-		t.Fatalf("decode warning: %v", err)
-	}
-	if w.Code != "truncated" {
-		t.Fatalf("warning.code = %q, want truncated", w.Code)
-	}
+	return false
 }
 
 // TestHandlerGodNodesAndEdgeEvidence — оставшиеся два маршрута раздела 8.1:
@@ -482,7 +491,7 @@ func TestHandlerSearchByName(t *testing.T) {
 	if len(env.Items) != 1 {
 		t.Fatalf("limit=1 дал %d объектов", len(env.Items))
 	}
-	if len(env.Warnings) == 0 || !strings.Contains(string(env.Warnings[0]), "search_truncated") {
+	if !hasWarningCode(t, env.Warnings, "search_truncated") {
 		t.Errorf("обрезанная выдача без предупреждения: %+v", env.Warnings)
 	}
 
