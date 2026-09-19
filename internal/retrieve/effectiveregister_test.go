@@ -180,3 +180,34 @@ func TestEffectiveRegisterWriterIntercepts(t *testing.T) {
 		t.Fatalf("запись из перехватчика обязана называть себя перехватчиком базового обработчика: %+v", extWrite)
 	}
 }
+
+// TestEffectivePostingBeforeAndAfterSameModuleBothKept: ключ кандидата
+// перехвата (ADR-035 п.6) различает перехватчик. Одно расширение вешает на
+// ОбработкаПроведения и &Перед, и &После в одном модуле: прежний ключ
+// (категория, слой, порядок, цель) у них совпадал, и один факт молча
+// пропадал при дедупликации уже в posting, не только в register.
+func TestEffectivePostingBeforeAndAfterSameModuleBothKept(t *testing.T) {
+	st := openFixtureStore(t)
+	rel := objModulePath("Document", "Заказ")
+	err := st.Write(context.Background(), func(tx *store.WriteTx) error {
+		seedEffComponents(t, tx)
+		seedEffObject(t, tx, "cfg", "Document", "Заказ")
+		seedEffMethod(t, tx, "cfg", rel, "ОбработкаПроведения",
+			"Процедура ОбработкаПроведения(Отказ, РежимПроведения)\nКонецПроцедуры")
+		body := "&Перед(\"ОбработкаПроведения\")\nПроцедура РасшА_ПередПроведением(Отказ, РежимПроведения)\nКонецПроцедуры\n\n" +
+			"&После(\"ОбработкаПроведения\")\nПроцедура РасшА_ПослеПроведения(Отказ, РежимПроведения)\nКонецПроцедуры"
+		seedEffMethod(t, tx, effExt, rel, "РасшА_ПередПроведением", body)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	eff := buildFor(t, st, Request{Task: postingTask, ProjectID: "p", View: "effective"})
+	if eff.Intent.Primary != IntentPosting {
+		t.Fatalf("Intent.Primary = %q, want %q", eff.Intent.Primary, IntentPosting)
+	}
+	before, after := signaturesOfKind(eff, "Перед"), signaturesOfKind(eff, "После")
+	if len(before) != 1 || len(after) != 1 {
+		t.Fatalf("оба перехватчика одного модуля обязаны остаться: Перед=%+v После=%+v", before, after)
+	}
+}

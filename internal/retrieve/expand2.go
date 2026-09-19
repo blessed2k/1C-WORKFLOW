@@ -54,27 +54,27 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	writeRows, werr := tx.RegisterAccesses(store.RegisterAccessFilter{
 		RegisterNameNorm: obj.NameNorm, Modes: []string{"write", "movement", "clear"}, Limit: 300,
 	})
-	effectiveView := bctx.view == domain.ViewEffective
-	var appliesTo map[string]string
-	if effectiveView && werr == nil {
-		var aerr error
-		if appliesTo, aerr = extensionAppliesTo(tx); aerr != nil {
-			warnings = append(warnings, Warning{
-				Code:    "register_writer_intercepts_read_failed",
-				Message: fmt.Sprintf("не удалось прочитать состав компонентов для наложения расширений на писателей %s: %v", obj.NameDisplay, aerr),
-				Hint:    "повторите вызов после reindex",
-			})
-			effectiveView = false
+	// overlay: одно наложение на весь вызов (ADR-035 п.8): состав расширений
+	// читается один раз, модуль расширения разбирается один раз на пару
+	// (база, путь), сколько бы писателей в нём ни было.
+	var overlay *effective.Overlay
+	if bctx.view == domain.ViewEffective && werr == nil {
+		exts, eerr := effective.StoreExtensions(tx)
+		if eerr != nil {
+			warnings = append(warnings, readFailedWarning("register_writer_intercepts_read_failed",
+				fmt.Sprintf("не удалось прочитать состав компонентов для наложения расширений на писателей %s: %v", obj.NameDisplay, eerr)))
+		} else {
+			overlay = effective.NewOverlay(effective.StoreSource(tx), exts)
 		}
 	}
 	var baseWriters []store.SymbolRow
-	var extIntercepts []effective.Intercept
+	var writerInterceptFacts []effective.Intercept
 	if werr == nil {
 		symbolCache := map[int64]store.SymbolRow{}
 		ownersDone := map[int64]bool{}
-		// extIntercept: факт перехвата у символа расширения, посчитанный
+		// interceptOfWriter: факт перехвата у символа расширения, посчитанный
 		// один раз на символ (effective): им подписывается каждая его запись.
-		extIntercept := map[int64]*effective.Intercept{}
+		interceptOfWriter := map[int64]*effective.Intercept{}
 		var sawDynamic bool
 		for i, r := range writeRows {
 			if !r.Static {
@@ -91,15 +91,15 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				}
 				if sym.ID != 0 {
 					ownerDisplay = sym.ModulePath + "." + sym.NameDisplay
-					if effectiveView && !cached {
+					if overlay != nil && !cached {
 						if bctx.extensionComponents[sym.ComponentID] {
-							ic, found, ws, ierr := extensionInterceptOf(tx, appliesTo, sym)
-							warnings = append(warnings, ws...)
+							ic, found, notes, ierr := overlay.InterceptOf(sym.ComponentID, sym.ModulePath, sym.NameNorm)
+							warnings = append(warnings, warningsOf(notes)...)
 							if ierr != nil {
 								warnings = append(warnings, registerInterceptReadFailed(sym, ierr))
 							} else if found {
-								extIntercept[sym.ID] = &ic
-								extIntercepts = append(extIntercepts, ic)
+								interceptOfWriter[sym.ID] = &ic
+								writerInterceptFacts = append(writerInterceptFacts, ic)
 							}
 						} else {
 							baseWriters = append(baseWriters, sym)
@@ -109,7 +109,7 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			}
 			label := fmt.Sprintf("%s: %s", r.Mode, ownerDisplay)
 			why := fmt.Sprintf("register_access mode=%s на %s из %s", r.Mode, obj.NameDisplay, ownerDisplay)
-			if ic := extIntercept[r.SymbolID]; ic != nil {
+			if ic := interceptOfWriter[r.SymbolID]; ic != nil {
 				why += "; " + interceptWhy(*ic)
 			}
 			rc := &candidate{
@@ -141,8 +141,8 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 		}
 	}
 
-	if effectiveView {
-		icCands, icWarnings := registerWriterIntercepts(bctx, obj, baseWriters, extIntercepts)
+	if overlay != nil {
+		icCands, icWarnings := registerWriterIntercepts(bctx, obj, overlay, baseWriters, writerInterceptFacts)
 		out = append(out, icCands...)
 		warnings = append(warnings, icWarnings...)
 	}
@@ -333,31 +333,30 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // формы всех слоёв прочитаны: пустота тогда честная. raw не меняется.
 func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
+		// Анкер, который этот builder не разворачивает, ничего не собрал:
+		// заявление другого анкера не имеет права превратить категорию в
+		// complete_empty (ADR-035 п.5, пограничный случай ADR-030).
+		bctx.anchorNotCollected("forms")
 		return nil, nil
 	}
 	tx := bctx.tx
 	obj, ok, err := resolveMetadataAnchor(tx, a)
 	if err != nil || !ok {
+		bctx.anchorNotCollected("forms")
 		return nil, nil
 	}
 	out, formsOK := addAttributeFacts(bctx, a, obj, "")
-	var warnings []Warning
-	if bctx.view == domain.ViewEffective && !bctx.extensionComponents[obj.ComponentID] {
-		borrowed, berr := effective.BorrowedObjects(tx, obj)
-		if berr != nil {
-			formsOK = false
-			warnings = append(warnings, borrowedObjectsReadFailed(obj, berr))
-		}
-		for _, b := range borrowed {
-			cands, bFormsOK := addAttributeFacts(bctx, a, b, b.ComponentID)
-			out = append(out, cands...)
-			formsOK = formsOK && bFormsOK
-		}
-		if formsOK {
-			bctx.declareCollected("forms")
-		} else {
-			bctx.declareCollectionFailed("forms")
-		}
+	borrowed, merges, readOK, warnings := borrowedLayers(bctx, obj)
+	formsOK = formsOK && readOK
+	for _, b := range borrowed {
+		cands, bFormsOK := addAttributeFacts(bctx, a, b, b.ComponentID)
+		out = append(out, cands...)
+		formsOK = formsOK && bFormsOK
+	}
+	if merges {
+		bctx.declareCollectedIf(formsOK, "forms")
+	} else if !formsOK {
+		bctx.declareCollectionFailed("forms")
 	}
 
 	warnings = append(warnings, Warning{
@@ -372,12 +371,26 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 // Ответ тогда построен по одному базовому слою, и это обязано быть сказано:
 // иначе он неотличим от ответа по объекту, который никто не заимствовал.
 func borrowedObjectsReadFailed(obj store.MetadataObjectRow, err error) Warning {
-	return Warning{
-		Code: "effective_borrowed_objects_read_failed",
-		Message: fmt.Sprintf("не удалось прочитать заимствования %s.%s в расширениях: %v; ответ построен только по базовому слою",
-			obj.MType, obj.NameDisplay, err),
-		Hint: "повторите вызов после reindex",
+	return readFailedWarning("effective_borrowed_objects_read_failed",
+		fmt.Sprintf("не удалось прочитать заимствования %s.%s в расширениях: %v; ответ построен только по базовому слою",
+			obj.MType, obj.NameDisplay, err))
+}
+
+// borrowedLayers: условие effective-заимствования в ОДНОМ месте для
+// add-attribute и rights. merges=true, когда объект анкера дополняется
+// заимствованиями: view=effective и сам анкер из базы, а не из расширения
+// (расширения применяются к базе, заимствований у заимствования нет).
+// readOK=false: заимствования прочитать не удалось, предупреждение в
+// warnings; пустота категорий тогда ничего не доказывает.
+func borrowedLayers(bctx *buildCtx, obj store.MetadataObjectRow) (borrowed []store.MetadataObjectRow, merges, readOK bool, warnings []Warning) {
+	if bctx.view != domain.ViewEffective || bctx.extensionComponents[obj.ComponentID] {
+		return nil, false, true, nil
 	}
+	borrowed, err := bctx.objects.BorrowedObjects(obj)
+	if err != nil {
+		return nil, true, false, []Warning{borrowedObjectsReadFailed(obj, err)}
+	}
+	return borrowed, true, true, nil
 }
 
 // addAttributeFacts собирает факты add-attribute по ОДНОЙ строке объекта.
@@ -490,15 +503,24 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if err != nil || !ok {
 		return nil, nil
 	}
-	queries, qerr := tx.QueriesBySymbolID(row.ID)
+	queries, qerr := bctx.queries.QueriesBySymbolID(row.ID)
 	if qerr != nil {
 		queries = nil
 	}
 	var icCands []*candidate
 	var icWarnings []Warning
+	var replacedBy []effective.Intercept
 	icQueries := 0
 	if bctx.view == domain.ViewEffective {
-		icCands, icQueries, icWarnings = queryInterceptCandidates(bctx, row)
+		icCands, icQueries, replacedBy, icWarnings = queryInterceptCandidates(bctx, row)
+		if qerr != nil {
+			// Запросы перехватчиков нашлись, а запросы самого анкера не
+			// прочитались: без предупреждения ответ выглядел бы так, будто
+			// в базовом методе запросов нет (ADR-035). raw здесь прежний.
+			icWarnings = append(icWarnings, readFailedWarning("query_anchor_read_failed",
+				fmt.Sprintf("не удалось прочитать тексты запросов %s.%s: %v; в ответе только запросы перехватчиков расширений",
+					row.ModulePath, row.NameDisplay, qerr)))
+		}
 	}
 	if len(queries) == 0 && icQueries == 0 {
 		return icCands, append(icWarnings, Warning{Code: "no_query_in_symbol", Message: fmt.Sprintf("в %s не найдено текстов запросов", row.NameDisplay)})
@@ -510,18 +532,32 @@ func expandQuery(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	out = append(out, makeSignature(bctx, sc, row, params, "owner_symbol",
 		fmt.Sprintf("символ-владелец текста запроса %s", row.NameDisplay)))
 
-	qCands, warnings := queryCandidates(bctx, row, queries, sc, row.ComponentID, "")
+	qCands, warnings := queryCandidates(bctx, row, queries, sc, replacedWhy(replacedBy))
 	out = append(out, qCands...)
 	out = append(out, icCands...)
 	return out, append(warnings, icWarnings...)
+}
+
+// replacedWhy: пометка базового текста запроса, который в effective-виде
+// заменён перехватчиком &ИзменениеИКонтроль: исполняется текст расширения,
+// а базовый остаётся в ответе как исходник правки.
+func replacedWhy(replacedBy []effective.Intercept) string {
+	if len(replacedBy) == 0 {
+		return ""
+	}
+	var names []string
+	for _, ic := range replacedBy {
+		names = append(names, fmt.Sprintf("%s: &%s %s", ic.Layer.Component, ic.Kind, ic.InterceptorNameNorm))
+	}
+	return fmt.Sprintf(" (в effective-виде метод изменён перехватчиком %s: исполняется текст расширения)", strings.Join(names, ", "))
 }
 
 // queryCandidates строит query_text/schema/tables_fields по текстам запросов
 // символа owner. Общий для запросов анкера и запросов его перехватчиков
 // (effective): у перехватчика component и модуль его собственные, whyTail
 // называет факт перехвата. sc: оценка текстов; ссылки схемы идут на шаг
-// глубже от anchorComp.
-func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.QueryRow, sc scoreCtx, anchorComp, whyTail string) ([]*candidate, []Warning) {
+// глубже от того же sc.anchorComp.
+func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.QueryRow, sc scoreCtx, whyTail string) ([]*candidate, []Warning) {
 	tx := bctx.tx
 	var out []*candidate
 	var warnings []Warning
@@ -570,7 +606,7 @@ func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.Quer
 				whyIncluded: fmt.Sprintf("%s %q в схеме запроса %s", r.Kind, r.NameNorm, owner.NameDisplay) + whyTail,
 				charCost:    runeLen(label) + 8,
 			}
-			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: anchorComp}, rc))
+			out = append(out, bctx.apply(scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: sc.anchorComp}, rc))
 		}
 	}
 	return out, warnings
@@ -593,11 +629,13 @@ func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.Quer
 // (дефолты и setForNewObjects). raw не меняется.
 func expandRights(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
+		bctx.anchorNotCollected("rls")
 		return nil, nil
 	}
 	tx := bctx.tx
 	obj, ok, err := resolveMetadataAnchor(tx, a)
 	if err != nil || !ok {
+		bctx.anchorNotCollected("rls")
 		return nil, nil
 	}
 	type layerRights struct {
@@ -608,34 +646,24 @@ func expandRights(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	rows, rerr := tx.RoleRightsByObjectID(obj.ID)
 	layers := []layerRights{{obj: obj, rows: rows}}
 	total := len(rows)
-	var warnings []Warning
-	if bctx.view == domain.ViewEffective && !bctx.extensionComponents[obj.ComponentID] {
-		readOK := rerr == nil
-		borrowed, berr := effective.BorrowedObjects(tx, obj)
-		if berr != nil {
+	borrowed, merges, readOK, warnings := borrowedLayers(bctx, obj)
+	readOK = readOK && rerr == nil
+	for _, b := range borrowed {
+		bRows, bErr := tx.RoleRightsByObjectID(b.ID)
+		if bErr != nil {
 			readOK = false
-			warnings = append(warnings, borrowedObjectsReadFailed(obj, berr))
+			warnings = append(warnings, readFailedWarning("effective_borrowed_rights_read_failed",
+				fmt.Sprintf("не удалось прочитать права ролей расширения %s на %s: %v; права этого слоя в ответ не вошли",
+					b.ComponentID, obj.NameDisplay, bErr)))
+			continue
 		}
-		for _, b := range borrowed {
-			bRows, bErr := tx.RoleRightsByObjectID(b.ID)
-			if bErr != nil {
-				readOK = false
-				warnings = append(warnings, Warning{
-					Code: "effective_borrowed_rights_read_failed",
-					Message: fmt.Sprintf("не удалось прочитать права ролей расширения %s на %s: %v; права этого слоя в ответ не вошли",
-						b.ComponentID, obj.NameDisplay, bErr),
-					Hint: "повторите вызов после reindex",
-				})
-				continue
-			}
-			layers = append(layers, layerRights{obj: b, rows: bRows, borrowedBy: b.ComponentID})
-			total += len(bRows)
-		}
-		if readOK {
-			bctx.declareCollected("rls")
-		} else {
-			bctx.declareCollectionFailed("rls")
-		}
+		layers = append(layers, layerRights{obj: b, rows: bRows, borrowedBy: b.ComponentID})
+		total += len(bRows)
+	}
+	if merges {
+		bctx.declareCollectedIf(readOK, "rls")
+	} else if !readOK {
+		bctx.declareCollectionFailed("rls")
 	}
 	if total == 0 {
 		return nil, append(warnings, Warning{Code: "no_role_rights", Message: fmt.Sprintf("для %s нет строк role_right в индексе", obj.NameDisplay)})

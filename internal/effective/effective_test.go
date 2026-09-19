@@ -281,7 +281,12 @@ type fakeObjectSource struct {
 	rowsErr error
 }
 
-func (f fakeObjectSource) Components() ([]store.Component, error) { return f.comps, f.compErr }
+func (f fakeObjectSource) ExtensionsApplyingTo(base string) ([]Extension, error) {
+	if f.compErr != nil {
+		return nil, f.compErr
+	}
+	return ApplyingTo(ExtensionsFromStore(f.comps), base), nil
+}
 
 func (f fakeObjectSource) MetadataObjectsByName(mtype, nameNorm string) ([]store.MetadataObjectRow, error) {
 	if f.rowsErr != nil {
@@ -338,4 +343,52 @@ func TestBorrowedObjects(t *testing.T) {
 			}
 		}
 	})
+}
+
+// countingSource считает обращения к исходникам модулей: кэш Overlay
+// проверяется числом разборов, а не временем.
+type countingSource struct {
+	*Memory
+	moduleReads int
+}
+
+func (c *countingSource) ModuleText(ext, modulePath string) ([]byte, bool, error) {
+	c.moduleReads++
+	return c.Memory.ModuleText(ext, modulePath)
+}
+
+// TestOverlay: модуль расширения читается один раз на пару (база, путь),
+// сколько бы символов этого модуля ни спросили; обратный запрос InterceptOf
+// находит факт перехвата по слою и имени перехватчика и не делает
+// перехватчиком обычный метод расширения.
+func TestOverlay(t *testing.T) {
+	src := &countingSource{Memory: &Memory{
+		Extensions: []Extension{extComp("ext-b", testBase, 1)},
+		Modules: map[ModuleKey][]byte{{Component: "ext-b", Path: testModule}: []byte(moduleThreeKinds +
+			"\nПроцедура РасшБ_Служебная()\nКонецПроцедуры\n")},
+	}}
+	o := NewOverlay(src, src.Extensions)
+	for i := 0; i < 3; i++ {
+		r, err := o.Module(testBase, testModule)
+		if err != nil || len(r.Intercepts) != 3 {
+			t.Fatalf("Module: err=%v intercepts=%d, want 3", err, len(r.Intercepts))
+		}
+	}
+	if src.moduleReads != 1 {
+		t.Fatalf("исходник модуля прочитан %d раз, want 1 (кэш по базе и пути)", src.moduleReads)
+	}
+
+	ic, found, _, err := o.InterceptOf("ext-b", testModule, "расшб_обработкапроведения")
+	if err != nil || !found || ic.Kind != resolve.InterceptInstead || ic.TargetNameNorm != "обработкапроведения" {
+		t.Fatalf("InterceptOf(перехватчик) = %+v found=%v err=%v", ic, found, err)
+	}
+	if _, found, _, _ := o.InterceptOf("ext-b", testModule, "расшб_служебная"); found {
+		t.Fatal("метод без аннотации перехватчиком не является")
+	}
+	if _, found, _, _ := o.InterceptOf("cfg-unknown", testModule, "расшб_обработкапроведения"); found {
+		t.Fatal("компонент не из состава расширений ответа не имеет")
+	}
+	if src.moduleReads != 1 {
+		t.Fatalf("обратный запрос перечитал модуль: %d чтений, want 1", src.moduleReads)
+	}
 }

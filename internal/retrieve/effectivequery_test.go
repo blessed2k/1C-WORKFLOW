@@ -145,3 +145,56 @@ func TestEffectiveQueryInterceptorQueries(t *testing.T) {
 		requireCoverageStatus(t, eff, "owner_symbol", CompleteInline)
 	})
 }
+
+// TestEffectiveExchangeExtensionInterceptors: exchange и extension делят
+// builder с bugfix и под effective несут настоящий факт перехвата анкера
+// (interceptors), поэтому они effective-aware (ADR-035 п.7), а не «построены
+// как raw». raw фактов перехвата не несёт.
+func TestEffectiveExchangeExtensionInterceptors(t *testing.T) {
+	cases := []struct{ intent, task string }{
+		{IntentExchange, "Обмен по плану обмена падает в ДанныеОстатков"},
+		{IntentExtension, "Перехватчик расширения для ДанныеОстатков"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.intent, func(t *testing.T) {
+			st := openFixtureStore(t)
+			seedEffQueryFixture(t, st, true)
+			raw := buildFor(t, st, Request{Task: tc.task, ProjectID: "p"})
+			if raw.Intent.Primary != tc.intent {
+				t.Fatalf("Intent.Primary = %q, want %q", raw.Intent.Primary, tc.intent)
+			}
+			if n := len(signaturesOfKind(raw, "ИзменениеИКонтроль")); n != 0 {
+				t.Fatalf("raw не несёт фактов перехвата: %+v", raw.Signatures)
+			}
+			eff := buildFor(t, st, Request{Task: tc.task, ProjectID: "p", View: "effective"})
+			ics := signaturesOfKind(eff, "ИзменениеИКонтроль")
+			if len(ics) != 1 || ics[0].Component != effExt {
+				t.Fatalf("effective: ожидался перехватчик анкера из %s, получено %+v", effExt, eff.Signatures)
+			}
+			if hasWarning(eff, "effective_view_partial_coverage") {
+				t.Fatalf("intent %q учитывает расширения, предупреждение было бы ложью: %+v", tc.intent, eff.Warnings)
+			}
+		})
+	}
+}
+
+// TestPartialCoverageWarningForUnlistedIntent: intent вне effectiveAwareIntent
+// (новый, со своим builder'ом) получает effective_view_partial_coverage при
+// view=effective и не получает при raw. Мутация «effectiveAwareIntent всегда
+// true» красит этот тест: иначе предел покрытия исчез бы молча.
+func TestPartialCoverageWarningForUnlistedIntent(t *testing.T) {
+	const unlisted = "новый-intent"
+	got := partialCoverageWarning("effective", unlisted)
+	if len(got) != 1 || got[0].Code != "effective_view_partial_coverage" || !strings.Contains(got[0].Message, unlisted) {
+		t.Fatalf("partialCoverageWarning(effective, %q) = %+v, want одно предупреждение с именем intent", unlisted, got)
+	}
+	if w := partialCoverageWarning("raw", unlisted); len(w) != 0 {
+		t.Fatalf("raw не несёт предупреждения: %+v", w)
+	}
+	for _, known := range []string{IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting,
+		IntentRegister, IntentQuery, IntentAddAttribute, IntentRights, IntentExchange, IntentExtension} {
+		if w := partialCoverageWarning("effective", known); len(w) != 0 {
+			t.Fatalf("intent %q effective-aware, предупреждение лишнее: %+v", known, w)
+		}
+	}
+}

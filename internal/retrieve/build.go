@@ -26,7 +26,16 @@ import (
 //     usedChars<=budget всегда.
 //  9. sufficiency check — requiredCoverage[] + sufficiencyStatus.
 func Build(ctx context.Context, tx *store.ReadTx, req Request) (Result, error) {
-	return buildWithSymbols(ctx, tx, nil, req)
+	return buildWithSeams(ctx, tx, readSeams{}, req)
+}
+
+// readSeams: подменённые источники чтения, привилегия теста. Пустое поле
+// означает «как в production»: источник выводится из транзакции
+// конструктором newBuildCtx.
+type readSeams struct {
+	symbols symbolFinder
+	objects borrowedObjectsFinder
+	queries queryReader
 }
 
 // buildWithSymbols — то же самое с ПОДМЕНЁННЫМ источником символов
@@ -35,6 +44,11 @@ func Build(ctx context.Context, tx *store.ReadTx, req Request) (Result, error) {
 // Непустое значение передаёт только тест, которому нужен отказ чтения,
 // недостижимый на живой транзакции.
 func buildWithSymbols(ctx context.Context, tx *store.ReadTx, symbols symbolFinder, req Request) (Result, error) {
+	return buildWithSeams(ctx, tx, readSeams{symbols: symbols}, req)
+}
+
+// buildWithSeams: Build с подменёнными источниками чтения (readSeams).
+func buildWithSeams(ctx context.Context, tx *store.ReadTx, seams readSeams, req Request) (Result, error) {
 	budget := normalizeBudgetChars(req.BudgetChars, req.BudgetTokens)
 	maxDepth := req.MaxDepth
 	if maxDepth <= 0 {
@@ -77,21 +91,7 @@ func buildWithSymbols(ctx context.Context, tx *store.ReadTx, symbols symbolFinde
 		return Result{}, fmt.Errorf("get_context_for_task: view %q неизвестен (допустимые значения: raw, effective)", req.View)
 	}
 
-	var warnings []Warning
-	if view == domain.ViewEffective && !effectiveAwareIntent(intent.Primary) {
-		// Честная граница покрытия (D08 п.4): предупреждение получает intent,
-		// чей builder наложение слоёв не консультирует. После ADR-035 все
-		// intent с собственной картой категорий effective-aware; сюда попадают
-		// только intent вне effectiveAwareIntent (exchange/extension делят
-		// builder с bugfix, но в список не внесены, см. ADR-035 «Остаток»).
-		warnings = append(warnings, Warning{
-			Code: "effective_view_partial_coverage",
-			Message: fmt.Sprintf(
-				"view=effective учитывает расширения для intent bugfix/unknown/signature-change/form/posting/register/query/rights/add-attribute; для классифицированного intent %q этот вызов по-прежнему построен как raw",
-				intent.Primary),
-			Hint: "перехватчики конкретного модуля/объекта смотрите отдельно: get_symbol/get_object/get_module_structure с view=effective",
-		})
-	}
+	warnings := partialCoverageWarning(view, intent.Primary)
 	if req.Stale {
 		reason := req.StaleReason
 		if reason == "" {
@@ -139,8 +139,14 @@ func buildWithSymbols(ctx context.Context, tx *store.ReadTx, symbols symbolFinde
 	}
 
 	bctx := newBuildCtx(tx, req, gen, maxDepth, includeCode, extensionComponents, view)
-	if symbols != nil {
-		bctx.symbols = symbols // привилегия теста, см. buildWithSymbols
+	if seams.symbols != nil {
+		bctx.symbols = seams.symbols // привилегия теста, см. readSeams
+	}
+	if seams.objects != nil {
+		bctx.objects = seams.objects
+	}
+	if seams.queries != nil {
+		bctx.queries = seams.queries
 	}
 
 	expansions := make([]anchorExpansion, 0, len(anchors))
@@ -253,15 +259,37 @@ func expandForAnchor(bctx *buildCtx, intent string, a Anchor) ([]*candidate, []W
 // обработчике проведения (effective.go:effectivePostingIntercepts, П2.1/R22).
 // ADR-035 добавил register ("writer_intercepts"), query ("query_intercepts" и
 // запросы перехватчиков), add-attribute и rights (заимствования объекта в
-// применяющихся расширениях, effective.BorrowedObjects). Остальные получают
-// предупреждение effective_view_partial_coverage в Build.
+// применяющихся расширениях, effective.BorrowedObjects), а также exchange и
+// extension: они делят builder с bugfix (expandForAnchor) и получают те же
+// "interceptors". Список закрыт перечислением, а не «всё известное»: новый
+// intent со своим builder'ом, не консультирующим наложение, обязан получить
+// предупреждение, пока его сюда не внесут осознанно.
 func effectiveAwareIntent(intent string) bool {
 	switch intent {
-	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting, IntentRegister, IntentQuery, IntentAddAttribute, IntentRights:
+	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting,
+		IntentRegister, IntentQuery, IntentAddAttribute, IntentRights, IntentExchange, IntentExtension:
 		return true
 	default:
 		return false
 	}
+}
+
+// partialCoverageWarning: честная граница покрытия (D08 п.4): при
+// view=effective intent, чей builder наложение не консультирует, получает
+// effective_view_partial_coverage. После ADR-035 классификатор такого intent
+// не выдаёт; ветка держит предел для будущего intent и закреплена
+// TestPartialCoverageWarningForUnlistedIntent.
+func partialCoverageWarning(view domain.View, intent string) []Warning {
+	if view != domain.ViewEffective || effectiveAwareIntent(intent) {
+		return nil
+	}
+	return []Warning{{
+		Code: "effective_view_partial_coverage",
+		Message: fmt.Sprintf(
+			"view=effective учитывает расширения для intent bugfix/unknown/signature-change/form/posting/register/query/rights/add-attribute/exchange/extension; для классифицированного intent %q этот вызов по-прежнему построен как raw",
+			intent),
+		Hint: "перехватчики конкретного модуля/объекта смотрите отдельно: get_symbol/get_object/get_module_structure с view=effective",
+	}}
 }
 
 // anchorExpansion — результат typed expansion одного анкера (§24 шаг 4),

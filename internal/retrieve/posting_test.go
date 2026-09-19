@@ -349,11 +349,11 @@ func TestPostingInterceptorRegisterAccesses(t *testing.T) {
 }
 
 // TestEffectivePartialCoverageWarningScope — критерий приёмки П2.1 (R22,
-// R23) и issue #4 (ADR-035): intent, чей builder консультируется с наложением
-// слоёв, предупреждения effective_view_partial_coverage не несёт; intent, ещё
-// построенный как raw, обязан его нести, иначе предел покрытия перестанет
-// называться честно. Таблица держит обе стороны: сдвиг intent из одной
-// группы в другую виден здесь явно.
+// R23) и issue #4 (ADR-035): каждый intent, который выдаёт классификатор,
+// строится с наложением слоёв и предупреждения effective_view_partial_coverage
+// не несёт. Сторону «предупреждение обязано быть» классификатор больше не
+// производит: её держит TestPartialCoverageWarningForUnlistedIntent на
+// intent вне списка.
 func TestEffectivePartialCoverageWarningScope(t *testing.T) {
 	cases := []struct {
 		intent      string
@@ -365,6 +365,8 @@ func TestEffectivePartialCoverageWarningScope(t *testing.T) {
 		{IntentQuery, "Перепиши текст запроса в отчёте по остаткам", false},
 		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS", false},
 		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента", false},
+		{IntentExchange, "Обмен данными по плану обмена ломается на документе Заказ", false},
+		{IntentExtension, "Перехватчик расширения документа Заказ", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.intent, func(t *testing.T) {
