@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -454,4 +455,183 @@ func TestCloseDuringRead(t *testing.T) {
 	if err := s.Read(context.Background(), func(*ReadTx) error { return nil }); !errors.Is(err, ErrStoreClosed) {
 		t.Fatalf("Read после Close вернул %v, ожидалась ErrStoreClosed", err)
 	}
+}
+
+// Close во время Rebuild (issue #13, риск ADR-023): закрытие не должно
+// оставить проект на пустой эпохе или без прежних данных. Два окна: отмена во
+// время наполнения (до публикации) и закрытие после checkpoint, прямо перед
+// записью указателя. В первом указатель остаётся на прежней эпохе с её
+// данными, во втором смотрит на полностью собранную новую, а прежняя не
+// удаляется.
+func TestCloseDuringRebuild(t *testing.T) {
+	cases := []struct {
+		name string
+		// afterCheckpoint: Close приходит из hookBeforePublish, а не из fill.
+		afterCheckpoint bool
+		wantEpoch       int
+		wantSeed        string
+	}{
+		{name: "до публикации", afterCheckpoint: false, wantEpoch: 1, wantSeed: "прежняя"},
+		{name: "после checkpoint", afterCheckpoint: true, wantEpoch: 2, wantSeed: "новая"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, root := openClosableStore(t)
+			ctx := context.Background()
+			if err := s.Write(ctx, func(tx *WriteTx) error { return tx.SetMeta("seed", "прежняя") }); err != nil {
+				t.Fatalf("запись прежней эпохи: %v", err)
+			}
+			st, err := s.Status(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldEpoch := st.Epoch
+
+			closeDone := make(chan error, 1)
+			// startClose запускает Close и ждёт, пока хранилище пометится
+			// закрытым: сам Close вернётся только после выхода Rebuild.
+			startClose := func() {
+				go func() { closeDone <- s.Close() }()
+				<-s.closeCtx.Done()
+			}
+			if tc.afterCheckpoint {
+				hookBeforePublish = startClose
+				t.Cleanup(func() { hookBeforePublish = nil })
+			}
+			rbErr := s.Rebuild(ctx, func(tx *WriteTx) error {
+				if err := tx.SetMeta("seed", "новая"); err != nil {
+					return err
+				}
+				if !tc.afterCheckpoint {
+					startClose()
+					<-tx.ctx.Done()
+					return tx.ctx.Err()
+				}
+				return nil
+			})
+			if !errors.Is(rbErr, ErrStoreClosed) {
+				t.Fatalf("Rebuild под Close вернул %v, ожидалась ErrStoreClosed", rbErr)
+			}
+			select {
+			case err := <-closeDone:
+				if err != nil {
+					t.Fatalf("Close: %v", err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("Close не вернулся после выхода Rebuild")
+			}
+
+			// Прежняя эпоха цела в обоих окнах: публикация её не трогала, а
+			// отменённая сборка удаляет только свой файл.
+			if _, err := os.Stat(epochFile(s.dir, s.opts.ProjectID, oldEpoch)); err != nil {
+				t.Fatalf("файл прежней эпохи: %v", err)
+			}
+			re, err := Open(root, Options{ProjectID: "project", StateDirName: testStateDir})
+			if err != nil {
+				t.Fatalf("повторное Open: %v", err)
+			}
+			defer re.Close()
+			rst, err := re.Status(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rst.Epoch != tc.wantEpoch {
+				t.Fatalf("указатель смотрит на эпоху %d, ожидалась %d", rst.Epoch, tc.wantEpoch)
+			}
+			if rst.NeedsFullRebuild {
+				t.Fatal("после переоткрытия эпоха пустая и требует полной пересборки")
+			}
+			var seed string
+			if err := re.Read(ctx, func(tx *ReadTx) error {
+				var err error
+				seed, err = tx.Meta("seed")
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if seed != tc.wantSeed {
+				t.Fatalf("данные опубликованной эпохи %q, ожидались %q", seed, tc.wantSeed)
+			}
+		})
+	}
+}
+
+// Read, ждавший свободного читателя в момент Close, возвращает
+// ErrStoreClosed, а не ErrReaderPoolClosed: отмена контекста через
+// context.AfterFunc приходит асинхронно, и пул может закрыться раньше неё.
+// Гонка недетерминирована, поэтому сценарий повторяется.
+func TestReadWaitingForPoolDuringClose(t *testing.T) {
+	for i := 0; i < 30; i++ {
+		root := t.TempDir()
+		s, err := Open(root, Options{ProjectID: "project", StateDirName: testStateDir, ReaderPoolSize: 1})
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		started := make(chan struct{})
+		holderDone := make(chan error, 1)
+		go func() {
+			holderDone <- s.Read(context.Background(), func(tx *ReadTx) error {
+				close(started)
+				<-tx.ctx.Done()
+				return nil
+			})
+		}()
+		<-started
+		waiterDone := make(chan error, 1)
+		go func() {
+			waiterDone <- s.Read(context.Background(), func(*ReadTx) error { return nil })
+		}()
+		// Дать ждущему встать в очередь пула.
+		time.Sleep(time.Millisecond)
+		if err := s.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := <-waiterDone; !errors.Is(err, ErrStoreClosed) {
+			t.Fatalf("итерация %d: ждавший читатель вернул %v, ожидалась ErrStoreClosed", i, err)
+		}
+		<-holderDone
+	}
+}
+
+// Второй Close, пришедший во время первого, ждёт его конца (issue #13):
+// вернувшийся Close означает закрытые соединения, для любого вызывающего.
+func TestConcurrentCloseWaitsForFirst(t *testing.T) {
+	s, _ := openClosableStore(t)
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	safety := time.AfterFunc(5*time.Second, releaseOnce)
+	defer safety.Stop()
+
+	started := make(chan struct{})
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- s.Write(context.Background(), func(tx *WriteTx) error {
+			close(started)
+			<-release
+			return nil
+		})
+	}()
+	<-started
+	first := make(chan error, 1)
+	go func() { first <- s.Close() }()
+	<-s.closeCtx.Done()
+	second := make(chan error, 1)
+	go func() { second <- s.Close() }()
+	select {
+	case <-second:
+		t.Fatal("второй Close вернулся, пока первый ещё ждёт запись")
+	case <-time.After(50 * time.Millisecond):
+	}
+	releaseOnce()
+	for _, ch := range []chan error{first, second} {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("Close не вернулся")
+		}
+	}
+	<-writeDone
 }

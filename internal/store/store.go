@@ -79,6 +79,9 @@ type Store struct {
 	// рвёт соединение из-под транзакции, и отпускает стоящих в очереди.
 	closeCtx    context.Context
 	cancelClose context.CancelCauseFunc
+	// closeDone закрывается, когда первый Close закрыл соединения: второй
+	// одновременный Close ждёт его, а не возвращается раньше времени.
+	closeDone chan struct{}
 
 	mu               sync.Mutex
 	closed           bool
@@ -128,10 +131,11 @@ func Open(dir string, opts Options) (*Store, error) {
 		return nil, fmt.Errorf("каталог индекса %s: %w", indexDir, err)
 	}
 	s := &Store{
-		dir:      indexDir,
-		opts:     opts,
-		ptr:      newPointer(indexDir),
-		writeSem: make(chan struct{}, 1),
+		dir:       indexDir,
+		opts:      opts,
+		ptr:       newPointer(indexDir),
+		writeSem:  make(chan struct{}, 1),
+		closeDone: make(chan struct{}),
 	}
 	s.closeCtx, s.cancelClose = context.WithCancelCause(context.Background())
 	ctx := context.Background()
@@ -477,17 +481,27 @@ func (s *Store) Read(ctx context.Context, fn func(*ReadTx) error) error {
 	return done(runRead(ctx, pool, c, fn))
 }
 
+// isClosed: единственная проверка «хранилище закрыто» для входов Write,
+// Rebuild и Read и для перевода их ошибок в ErrStoreClosed.
+func (s *Store) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
 // bindClose связывает контекст вызова с закрытием хранилища: Close отменяет
 // его с причиной ErrStoreClosed. done снимает связь и переводит ошибку
-// прерванного закрытием вызова в ErrStoreClosed, сохраняя исходную в тексте.
+// вызова, завершившегося на закрытом хранилище, в ErrStoreClosed, сохраняя
+// исходную в тексте. Смотреть надо на флаг, а не на причину отмены
+// контекста: AfterFunc отменяет асинхронно, и пул читателей может закрыться
+// раньше, отдав ErrReaderPoolClosed.
 func (s *Store) bindClose(ctx context.Context) (context.Context, func(error) error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	stop := context.AfterFunc(s.closeCtx, func() { cancel(ErrStoreClosed) })
 	return ctx, func(err error) error {
 		stop()
-		closedMid := err != nil && errors.Is(context.Cause(ctx), ErrStoreClosed)
 		cancel(nil)
-		if closedMid && !errors.Is(err, ErrStoreClosed) {
+		if err != nil && !errors.Is(err, ErrStoreClosed) && s.isClosed() {
 			return fmt.Errorf("%w: вызов прерван закрытием: %v", ErrStoreClosed, err)
 		}
 		return err
@@ -507,10 +521,7 @@ func (s *Store) acquireWriter(ctx context.Context) (context.Context, func(error)
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	}
-	s.mu.Lock()
-	closed := s.closed
-	s.mu.Unlock()
-	if closed {
+	if s.isClosed() {
 		<-s.writeSem
 		return nil, nil, ErrStoreClosed
 	}
@@ -767,16 +778,31 @@ func (s *Store) Status(ctx context.Context) (StoreStatus, error) {
 // только после того, как текущая транзакция зафиксирована или откатилась:
 // закрыть его под транзакцией значит отдать её хвост (закрытие выражений,
 // COMMIT) закрытому хэндлу sqlite. Арендованные читатели закрываются при
-// возврате в пул, поэтому их Close не ждёт.
+// возврате в пул, поэтому их Close не ждёт. Второй одновременный Close ждёт
+// конца первого.
+//
+// упрощение: Close из тела fn записи или Rebuild виснет навсегда: он ждёт
+// очередь писателя, которую держит тот же вызов, а горутину вызывающего Go не
+// различает. Потолок: такого вызова в коде нет, и дёшево его не распознать.
+// Путь исправления: помечать контекст транзакции и давать Close(ctx), который
+// по этой метке возвращает ошибку.
+//
+// упрощение: ожидание писателя без потолка. Тело, не слушающее контекст,
+// держит Close сколько угодно; рабочие тела ходят в SQL с контекстом
+// транзакции и на отмене выходят с ошибкой. Путь
+// исправления: Close(ctx) с дедлайном и sqlite3_interrupt на соединении
+// писателя по его истечении.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
+		<-s.closeDone
 		return nil
 	}
 	s.closed = true
 	s.cancelClose(ErrStoreClosed)
 	s.mu.Unlock()
+	defer close(s.closeDone)
 
 	// Очередь писателя занимается без контекста: держатель уже отменён и
 	// обязан выйти, а освобождает очередь он только после конца транзакции.
