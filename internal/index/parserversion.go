@@ -18,4 +18,6 @@ package index
 // 3 - общий словарь видов domain.MetaKinds (C2): резолвер разрешает
 //     КритерииОтбора и ХранилищаНастроек, у Sequence и ExternalDataSource
 //     сменились ключи зависимостей.
-const ParserVersion = 3
+// 4 - движения своего объекта через ЭтотОбъект.Движения (ThisObject.RegisterRecords)
+//     в выходе parse/bsl (issue #1): register_access получает их наравне с Движения.
+const ParserVersion = 4

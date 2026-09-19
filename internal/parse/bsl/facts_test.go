@@ -207,3 +207,56 @@ func TestParseОбращениеКРегиструЧерезНаборЗапис
 		t.Errorf("прямое чтение: Confidence %v, ожидался %v", float64(ra3.Confidence), float64(ConfidenceRegisterDirect))
 	}
 }
+
+// Движения своего объекта через ЭтотОбъект (ThisObject) это те же движения, что
+// и без префикса: и raw-анализаторы, и индекс обязаны их видеть. Коллекция
+// движений чужого объекта (Документ.Движения) движением этого модуля не является.
+func TestParseДвиженияЧерезЭтотОбъект(t *testing.T) {
+	cases := []struct {
+		имя, код, регистр, фрагмент string
+		есть                        bool
+	}{
+		{"без префикса", "Движения.Товары.Записывать = Истина;", "Товары", "Движения.Товары.Записывать", true},
+		{"ЭтотОбъект", "ЭтотОбъект.Движения.Товары.Записывать = Истина;", "Товары", "ЭтотОбъект.Движения.Товары.Записывать", true},
+		{"ThisObject", "ThisObject.RegisterRecords.Stock.Write = True;", "Stock", "ThisObject.RegisterRecords.Stock.Write", true},
+		{"регистр ключевых слов", "этотобъект.движения.Товары.Добавить();", "Товары", "этотобъект.движения.Товары.Добавить", true},
+		{"чужой объект", "Документ.Движения.Товары.Записывать = Истина;", "", "", false},
+		{"цепочка до ЭтотОбъект", "Форма.ЭтотОбъект.Движения.Товары.Записать();", "", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.имя, func(t *testing.T) {
+			src := []byte("Процедура ОбработкаПроведения(Отказ)\n\t" + c.код + "\nКонецПроцедуры\n")
+			mod, diags := Parse(src, Options{})
+			if len(diags) != 0 {
+				t.Fatalf("диагностик быть не должно: %v", codes(diags))
+			}
+			checkSpans(t, src, mod, diags, c.имя)
+			checkHeuristics(t, mod, c.имя)
+			var движения []RegisterAccess
+			for _, ra := range mod.RegisterAccesses {
+				if ra.Kind == AccessMovements {
+					движения = append(движения, ra)
+				}
+			}
+			if !c.есть {
+				if len(движения) != 0 {
+					t.Fatalf("движений быть не должно: %s", mod.Name(движения[0].Span))
+				}
+				return
+			}
+			if len(движения) != 1 {
+				t.Fatalf("движений: %d, ожидалось 1", len(движения))
+			}
+			ra := движения[0]
+			if got := mod.Name(ra.NameSpan); got != c.регистр {
+				t.Errorf("NameSpan: %q, ожидалось %q", got, c.регистр)
+			}
+			if got := mod.Name(ra.Span); got != c.фрагмент {
+				t.Errorf("Span: %q, ожидалось %q", got, c.фрагмент)
+			}
+			if ra.Mode != ModeMovement || ra.Method != 0 {
+				t.Errorf("Mode %q, Method %d", ra.Mode, ra.Method)
+			}
+		})
+	}
+}

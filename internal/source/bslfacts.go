@@ -155,9 +155,9 @@ func movementUses(mod *bsl.Module) []movementUse {
 			continue
 		}
 		u := movementUse{register: mod.Name(ra.NameSpan), line: ra.Span.StartLine}
-		if segments := strings.Split(strings.Join(strings.Fields(mod.Name(ra.Span)), ""), "."); len(segments) == 3 {
-			u.member = segments[2]
-		}
+		// The member is what follows the register: the use may start with
+		// ЭтотОбъект, so the segments of the whole span are not counted.
+		u.member = strings.Trim(spanText(mod, ra.NameSpan.EndByte, ra.Span.EndByte), ". \t\r\n")
 		after := strings.TrimLeft(src[ra.Span.EndByte:], " \t")
 		switch {
 		case strings.HasPrefix(after, "("):

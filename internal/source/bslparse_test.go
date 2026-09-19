@@ -43,6 +43,16 @@ const englishObjectModuleNoFlag = `Procedure Posting(Cancel, PostingMode)
 EndProcedure
 `
 
+// thisObjectModule reaches the movements of its own object through ЭтотОбъект;
+// the movements of another object are not the document's own.
+const thisObjectModule = `Процедура ОбработкаПроведения(Отказ, РежимПроведения)
+	ЭтотОбъект.Движения.ИмуществоВПути.Записывать = Истина;
+	Запись = ЭтотОбъект.Движения.ИмуществоВПути.Добавить();
+	Запись.Сумма = 1;
+	Документ.Движения.ИмуществоНаСкладах.Записывать = Истина;
+КонецПроцедуры
+`
+
 // overridableModule holds one extension point whose parameter list is wrapped
 // and whose first line carries a ")" inside a string default: counting
 // parentheses by line ended the declaration before Export and lost the point.
@@ -93,6 +103,7 @@ func writeParseDump(t *testing.T) string {
 	for doc, module := range map[string]string{
 		"ПеремещениеИмущества": englishObjectModule,
 		"СписаниеИмущества":    englishObjectModuleNoFlag,
+		"ВозвратИмущества":     thisObjectModule,
 	} {
 		write(workspace.DumpDeclarationPath("Document", doc), parseDocumentXML(doc))
 		write(workspace.DumpModulePath("Document", doc, workspace.ModuleObject), module)
@@ -202,4 +213,23 @@ func TestWritePathRegisterRecords(t *testing.T) {
 		}
 	}
 	t.Errorf("no movement step for ИмуществоНаСкладах: %+v", rep.Steps)
+}
+
+func TestMovementsThroughThisObject(t *testing.T) {
+	s := NewXMLSource(writeParseDump(t))
+	rep, err := s.Movements(context.Background(), "ВозвратИмущества")
+	if err != nil {
+		t.Fatalf("Movements: %v", err)
+	}
+	byName := map[string]RegisterMovement{}
+	for _, r := range rep.Registers {
+		byName[r.Register] = r
+	}
+	transit := byName["РегистрНакопления.ИмуществоВПути"]
+	if !transit.UsedInCode || !transit.WriteFlag || strings.Join(transit.FieldsSet, ",") != "Сумма" {
+		t.Errorf("ИмуществоВПути = %+v", transit)
+	}
+	if stock := byName["РегистрНакопления.ИмуществоНаСкладах"]; stock.UsedInCode || stock.WriteFlag {
+		t.Errorf("movements of another object leaked: %+v", stock)
+	}
 }

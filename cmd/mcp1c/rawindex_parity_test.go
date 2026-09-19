@@ -15,7 +15,7 @@ import (
 // one module answers the same way on both paths. The module is the hard case
 // for the regular expressions this replaced: English syntax, a declaration
 // wrapped over two lines with a comment inside it, and RegisterRecords instead
-// of Движения.
+// of Движения, also reached through ThisObject.
 
 const parityObjectModule = `Procedure Posting(Cancel, PostingMode)
 	RegisterRecords.ИмуществоНаСкладах.Write = True;
@@ -23,6 +23,9 @@ const parityObjectModule = `Procedure Posting(Cancel, PostingMode)
 		Record = RegisterRecords.ИмуществоНаСкладах.Add();
 		Record.Количество = Row.Количество;
 	EndDo;
+	ThisObject.RegisterRecords.ИмуществоВПути.Write = True;
+	Transit = ThisObject.RegisterRecords.ИмуществоВПути.Add();
+	Transit.Количество = 1;
 EndProcedure
 
 // Fills the document from a base one.
@@ -56,7 +59,7 @@ const parityAccumulationRegisterXML = metaBOM + `<?xml version="1.0" encoding="U
 </MetaDataObject>`
 
 // parityWriteProject lays out a one-component project: a document posting to
-// one of its two declared registers, and an overridable common module.
+// both of its declared registers, and an overridable common module.
 func parityWriteProject(t *testing.T, root string) {
 	t.Helper()
 	ogManifest(t, root, "parity")
