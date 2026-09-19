@@ -123,6 +123,7 @@ var sameFileCascades = map[string]string{
 	"parameter.symbol_id":           "параметры публикуются вместе с символом",
 	"query.symbol_id":               "запрос живёт в теле метода, файл тот же",
 	"register_access.symbol_id":     "доступ к регистру в теле метода",
+	"http_call.symbol_id":           "HTTP-вызов в теле метода",
 	"reference.from_symbol_id":      "ссылка в теле метода",
 	"call_edge.caller_id":           "вызов в теле метода",
 	"call_edge.ref_id":              "ребро вызова производно от ссылки",

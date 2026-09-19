@@ -60,8 +60,8 @@ func TestHTTPServiceFacts(t *testing.T) {
 	if s == nil {
 		t.Fatal("HTTPService не разобран")
 	}
-	if s.RootURL != "exchange" {
-		t.Errorf("RootURL %q", s.RootURL)
+	if s.RootURL != "exchange" || facts.Object.Props["RootURL"] != "exchange" {
+		t.Errorf("RootURL %q, в свойствах %q", s.RootURL, facts.Object.Props["RootURL"])
 	}
 	if len(s.Templates) != 2 {
 		t.Fatalf("шаблонов %d: %+v", len(s.Templates), s.Templates)

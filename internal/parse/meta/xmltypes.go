@@ -56,9 +56,6 @@ type xmlProperties struct {
 	Use        xmlOptBool `xml:"Use"`
 	Predefined xmlOptBool `xml:"Predefined"`
 
-	// HTTP-сервис: корневой URL.
-	RootURL string `xml:"RootURL"`
-
 	// Произвольные скалярные свойства объекта (Hierarchical, Posting,
 	// CodeLength, InformationRegisterPeriodicity, WriteMode, RegisterType, ...):
 	// захватываются обобщённо, без поля на каждое.

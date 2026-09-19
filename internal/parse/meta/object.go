@@ -48,7 +48,9 @@ func parseMetadataObject(relPath string, src []byte) (Facts, []domain.Diagnostic
 	case "Document":
 		facts.Document = &DocumentFact{RegisterRecords: registerRecordsFrom(obj.Properties)}
 	case "HTTPService":
-		facts.HTTPService = httpServiceFrom(obj.Properties.RootURL, obj.ChildObjects.Items)
+		// RootURL остаётся и среди Props: карточка объекта показывает его
+		// как прежде.
+		facts.HTTPService = httpServiceFrom(facts.Object.Props["RootURL"], obj.ChildObjects.Items)
 	case "CommonModule":
 		facts.ModuleRegistry = moduleRegistryFrom(obj.Properties)
 	case "ScheduledJob":

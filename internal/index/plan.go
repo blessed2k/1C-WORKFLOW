@@ -7,6 +7,7 @@ import (
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
+	"github.com/blessed2k/1C-WORKFLOW/internal/parse/meta"
 	"github.com/blessed2k/1C-WORKFLOW/internal/resolve"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
@@ -59,6 +60,8 @@ type filePlan struct {
 	subscription *handlerPlan[store.EventSubscription]
 	// roleRights: у файла есть права роли; сами права публикует проход 2.
 	roleRights bool
+	// httpEndpoints: методы HTTP-сервиса из его XML (FileID ставит писатель).
+	httpEndpoints []store.HTTPEndpoint
 }
 
 // objectPlan: объект метаданных и всё, что публикуется вместе с ним. Id
@@ -127,7 +130,30 @@ func planFile(pc planContext, rel string, rec *fileRecord) (*filePlan, error) {
 	if rec.metaFacts.Subscription != nil {
 		p.subscription = planEventSubscription(pc, rec)
 	}
+	if svc := rec.metaFacts.HTTPService; svc != nil {
+		p.httpEndpoints = planHTTPEndpoints(pc, svc)
+	}
 	return p, nil
+}
+
+// planHTTPEndpoints раскладывает HTTP-сервис в строки http_endpoint: по
+// строке на метод шаблона, шаблон без методов строкой с пустым методом.
+func planHTTPEndpoints(pc planContext, svc *meta.HTTPServiceFact) []store.HTTPEndpoint {
+	var out []store.HTTPEndpoint
+	for _, tpl := range svc.Templates {
+		base := store.HTTPEndpoint{RootURL: svc.RootURL, TemplateName: tpl.NameDisplay,
+			Template: tpl.Template, Layer: layerName(pc.layer)}
+		if len(tpl.Methods) == 0 {
+			out = append(out, base)
+			continue
+		}
+		for _, m := range tpl.Methods {
+			row := base
+			row.MethodName, row.HTTPMethod, row.Handler = m.NameDisplay, m.HTTPMethod, m.Handler
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 func planMetadataObject(pc planContext, rel string, rec *fileRecord) (*objectPlan, error) {
@@ -302,6 +328,7 @@ type linkPlan struct {
 
 	refs           []refPlan
 	registerAccess []registerAccessPlan
+	httpCalls      []httpCallPlan
 	queries        []queryPlan
 	handlers       *handlerBindingsPlan
 	roleRights     *roleRightsPlan
@@ -328,6 +355,11 @@ type registerAccessPlan struct {
 	symbolKey string
 	objectKey string // пусто, если объект не разрешён
 	row       store.RegisterAccess
+}
+
+type httpCallPlan struct {
+	symbolKey string // ключ метода вызова; пусто вне метода
+	row       store.HTTPCall
 }
 
 type queryPlan struct {
@@ -365,6 +397,7 @@ func planLinks(pc planContext, rel string, rec *fileRecord, methodKeys []string)
 		planModuleOwner(pc, rel, rec, lp)
 		lp.refs = planModuleReferences(pc, rel, rec, methodKeys)
 		lp.registerAccess = planRegisterAccess(pc, rec, methodKeys)
+		lp.httpCalls = planHTTPCalls(pc, rec, methodKeys)
 		lp.queries = planQueries(pc, rel, rec, methodKeys)
 	}
 	if fs := rec.metaFacts.FormStructure; fs != nil && len(fs.Handlers) > 0 {
@@ -490,6 +523,22 @@ func planRegisterAccess(pc planContext, rec *fileRecord, methodKeys []string) []
 			Layer: layerName(pc.layer),
 		}
 		out = append(out, p)
+	}
+	return out
+}
+
+func planHTTPCalls(pc planContext, rec *fileRecord, methodKeys []string) []httpCallPlan {
+	calls := rec.bslModule.HTTPCalls
+	if len(calls) == 0 {
+		return nil
+	}
+	out := make([]httpCallPlan, len(calls))
+	for i, c := range calls {
+		out[i] = httpCallPlan{symbolKey: methodKey(methodKeys, c.Method), row: store.HTTPCall{
+			Verb: c.Verb, Host: c.Host, HostStatic: c.HostStatic, Path: c.Path,
+			PathKind: string(c.PathKind), Confidence: float64(c.Confidence), Span: c.Span,
+			Layer: layerName(pc.layer),
+		}}
 	}
 	return out
 }

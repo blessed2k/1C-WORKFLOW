@@ -163,6 +163,8 @@ type publishCounts struct {
 	dependencyEdge int
 	objectEdge     int
 	objectBadge    int
+	httpCall       int
+	httpEndpoint   int
 }
 
 // publishFiles пишет одну write-транзакцию (§17 п.8, §18.1): удаляет старые
@@ -298,6 +300,13 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 			}
 			if p.roleRights {
 				roleRightFileID[rel] = fileID
+			}
+			for _, e := range p.httpEndpoints {
+				e.FileID = fileID
+				if err := tx.InsertHTTPEndpoint(e); err != nil {
+					return fmt.Errorf("http_endpoint %s: %w", rel, err)
+				}
+				ts.counts.httpEndpoint++
 			}
 			return nil
 		})
