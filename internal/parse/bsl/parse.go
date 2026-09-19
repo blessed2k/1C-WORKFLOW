@@ -75,6 +75,9 @@ type parser struct {
 	method int
 	// binds — локальные переменные метода, за которыми закреплён регистр.
 	binds map[string]registerBinding
+	// http — локальные переменные метода, за которыми закреплены
+	// HTTP-соединение, запрос или строка адреса (httpcalls.go).
+	http httpBinds
 }
 
 // regionRange — интервал действия одной области препроцессора.
@@ -466,6 +469,7 @@ func (p *parser) parseMethod(start int) int {
 	idx := len(p.mod.Methods) - 1
 	p.method = idx
 	p.binds = nil
+	p.http = httpBinds{}
 
 	// Тело: до закрывающего ключевого слова. Начало следующего объявления —
 	// признак того, что закрывающего слова нет; такой метод закрывается там,
@@ -501,6 +505,7 @@ func (p *parser) parseMethod(start int) int {
 	p.mod.Methods[idx].BodySpan = p.li.Span(bodyStart, bodyEnd)
 	p.method = NoMethod
 	p.binds = nil
+	p.http = httpBinds{}
 	return end
 }
 
@@ -625,6 +630,7 @@ func (p *parser) collectFacts(i int) {
 		p.collectRef(i)
 		p.collectManagerRef(i)
 		p.collectRegisterAccess(i)
+		p.collectHTTP(i)
 	case tokString:
 		p.collectQueryLiteral(i)
 	}

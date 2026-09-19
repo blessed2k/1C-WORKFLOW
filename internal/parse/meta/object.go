@@ -47,6 +47,8 @@ func parseMetadataObject(relPath string, src []byte) (Facts, []domain.Diagnostic
 	switch mtype {
 	case "Document":
 		facts.Document = &DocumentFact{RegisterRecords: registerRecordsFrom(obj.Properties)}
+	case "HTTPService":
+		facts.HTTPService = httpServiceFrom(obj.Properties.RootURL, obj.ChildObjects.Items)
 	case "CommonModule":
 		facts.ModuleRegistry = moduleRegistryFrom(obj.Properties)
 	case "ScheduledJob":
@@ -173,4 +175,35 @@ func moduleRegistryFrom(p xmlProperties) *ModuleRegistryFact {
 		Privileged:                p.Privileged.Value,
 		ReturnValuesReuse:         p.ReturnValuesReuse,
 	}
+}
+
+// httpServiceFrom собирает корневой URL, шаблоны и методы HTTP-сервиса
+// (веха В2): это принимающая сторона сшивки HTTP-вызовов между базами.
+// Метод без обработчика или шаблон без методов не теряются: сервис всё равно
+// адресуем по пути, а пустое место видно по полям.
+func httpServiceFrom(rootURL string, items []xmlChildElem) *HTTPServiceFact {
+	f := &HTTPServiceFact{RootURL: strings.TrimSpace(rootURL)}
+	for _, e := range items {
+		if e.XMLName.Local != "URLTemplate" || e.Props == nil {
+			continue
+		}
+		tpl := HTTPTemplateFact{
+			NameDisplay: e.Props.Name,
+			Template:    strings.TrimSpace(e.Props.Template),
+		}
+		if e.ChildObjects != nil {
+			for _, m := range e.ChildObjects.Items {
+				if m.XMLName.Local != "Method" || m.Props == nil {
+					continue
+				}
+				tpl.Methods = append(tpl.Methods, HTTPMethodFact{
+					NameDisplay: m.Props.Name,
+					HTTPMethod:  strings.ToUpper(strings.TrimSpace(m.Props.HTTPMethod)),
+					Handler:     strings.TrimSpace(m.Props.Handler),
+				})
+			}
+		}
+		f.Templates = append(f.Templates, tpl)
+	}
+	return f
 }

@@ -56,6 +56,9 @@ type xmlProperties struct {
 	Use        xmlOptBool `xml:"Use"`
 	Predefined xmlOptBool `xml:"Predefined"`
 
+	// HTTP-сервис: корневой URL.
+	RootURL string `xml:"RootURL"`
+
 	// Произвольные скалярные свойства объекта (Hierarchical, Posting,
 	// CodeLength, InformationRegisterPeriodicity, WriteMode, RegisterType, ...):
 	// захватываются обобщённо, без поля на каждое.
@@ -133,6 +136,11 @@ type xmlChildProps struct {
 	Name     string  `xml:"Name"`
 	Type     xmlType `xml:"Type"`
 	Indexing string  `xml:"Indexing"`
+
+	// HTTP-сервис: шаблон URL (<URLTemplate>) и его метод (<Method>).
+	Template   string `xml:"Template"`
+	HTTPMethod string `xml:"HTTPMethod"`
+	Handler    string `xml:"Handler"`
 }
 
 func (e xmlChildElem) indexed() bool {
