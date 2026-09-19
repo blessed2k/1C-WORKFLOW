@@ -3,6 +3,7 @@ package bsl
 import (
 	"bytes"
 	"strings"
+	"sync"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
@@ -19,6 +20,8 @@ func Parse(src []byte, opts Options) (*Module, []domain.Diagnostic) {
 		mod:  &Module{Info: ClassifyModule(opts.File), src: src, lines: li},
 	}
 	p.run()
+	releaseTokens(p.toks)
+	p.toks = nil
 
 	if len(p.lex.diags)+len(p.diags) == 0 {
 		return p.mod, nil
@@ -31,6 +34,31 @@ func Parse(src []byte, opts Options) (*Module, []domain.Diagnostic) {
 		diags = append(diags, p.diagnostic(d))
 	}
 	return p.mod, diags
+}
+
+// tokenPool переиспользует поток токенов между разборами. Модуль после Parse
+// на него не ссылается (факты держат спаны и подслайсы исходника, а не
+// токены), поэтому срез можно отдать следующему разбору. Без пула каждый
+// крупный модуль заново выделял поток токенов, а рост среза удвоением давал
+// почти половину памяти разбора.
+var tokenPool sync.Pool
+
+// takeTokens отдаёт пустой поток токенов с ёмкостью под исходник из n байт:
+// на выгрузке УТ один значимый токен приходится примерно на 23 байта.
+func takeTokens(n int) []token {
+	want := n/20 + 16
+	if v, ok := tokenPool.Get().(*[]token); ok && cap(*v) >= want {
+		return (*v)[:0]
+	}
+	return make([]token, 0, want)
+}
+
+// releaseTokens возвращает поток в пул. Токены обнуляются: иначе пул держал
+// бы исходник уже разобранного модуля через их подслайсы.
+func releaseTokens(toks []token) {
+	clear(toks)
+	toks = toks[:0]
+	tokenPool.Put(&toks)
 }
 
 type parser struct {
@@ -78,6 +106,7 @@ func (p *parser) diagnostic(d rawDiag) domain.Diagnostic {
 // к следующему объявлению в уже готовом потоке, а не откат лексера.
 func (p *parser) run() {
 	p.method = NoMethod
+	p.toks = takeTokens(len(p.src))
 	for {
 		t := p.lex.next()
 		if t.kind == tokEOF {

@@ -15,12 +15,20 @@ import (
 // expression of their own: comments and string literals are already cut, and
 // both spellings of the language are known.
 //
-// text must be BOM-free: the facts carry byte offsets and 1-based line numbers
-// of exactly this text, and callers split the same text into lines.
-func parseModule(text string) *bsl.Module {
+// src must be BOM-free: the facts carry byte offsets and 1-based line numbers
+// of exactly these bytes, and callers split the same text into lines.
+func parseModule(src []byte) *bsl.Module {
 	// The parser is tolerant: a broken module still yields every method it
 	// could read, and its diagnostics are of no use to a raw report.
-	mod, _ := bsl.Parse([]byte(text), bsl.Options{})
+	mod, _ := bsl.Parse(src, bsl.Options{})
+	return mod
+}
+
+// parseDeclarations is parseModule for a caller that needs only the methods:
+// their names, export flags, declarations and bodies. References, queries
+// and register accesses are not collected, which makes the parse much cheaper.
+func parseDeclarations(src []byte) *bsl.Module {
+	mod, _ := bsl.Parse(src, bsl.Options{SkipReferences: true})
 	return mod
 }
 
@@ -137,6 +145,7 @@ type movementUse struct {
 	register string // the segment after the collection: a register or a method of the collection
 	member   string // the segment after the register, "" when absent
 	line     int    // 1-based line of the use
+	method   int    // index of the method in Module.Methods, bsl.NoMethod outside methods
 	call     bool   // the last segment is called: Движения.X.Добавить(
 	assign   bool   // the last segment is assigned: Движения.X.Записывать =
 	value    string // with assign, the first word of the assigned value
@@ -154,7 +163,7 @@ func movementUses(mod *bsl.Module) []movementUse {
 		if ra.Kind != bsl.AccessMovements {
 			continue
 		}
-		u := movementUse{register: mod.Name(ra.NameSpan), line: ra.Span.StartLine}
+		u := movementUse{register: mod.Name(ra.NameSpan), line: ra.Span.StartLine, method: ra.Method}
 		// The member is what follows the register: the use may start with
 		// ЭтотОбъект, so the segments of the whole span are not counted.
 		u.member = strings.Trim(spanText(mod, ra.NameSpan.EndByte, ra.Span.EndByte), ". \t\r\n")

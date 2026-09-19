@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/blessed2k/1C-WORKFLOW/internal/parse/bsl"
 )
 
 // MovementsReport describes which registers a document posts to: the declared
@@ -55,6 +57,18 @@ func (s *XMLSource) Movements(_ context.Context, name string) (*MovementsReport,
 	if name == "" {
 		return nil, fmt.Errorf("document name is required")
 	}
+	// The object module is optional: without it the report is the metadata alone.
+	var mod *bsl.Module
+	if data, err := os.ReadFile(filepath.Join(s.root, "Documents", name, "Ext", "ObjectModule.bsl")); err == nil {
+		mod = parseModule(stripBOM(data))
+	}
+	return s.movements(name, mod)
+}
+
+// movements builds the report from the metadata of the document and its
+// already parsed object module (nil when there is none), so a caller that has
+// parsed the module does not parse it again.
+func (s *XMLSource) movements(name string, mod *bsl.Module) (*MovementsReport, error) {
 	var root xmlObjectRoot
 	if err := readXML(filepath.Join(s.root, "Documents", name+".xml"), &root); err != nil {
 		return nil, err
@@ -102,16 +116,16 @@ func (s *XMLSource) Movements(_ context.Context, name string) (*MovementsReport,
 		shortIdx[k] = append(shortIdx[k], r)
 	}
 
-	// Code facts from the object module (optional). Which registers are used
+	// Code facts from the object module. Which registers are used
 	// and flagged comes from the parser, in both spellings (Движения and
 	// RegisterRecords), with comments and query texts already out of the way.
 	// Record fields are then collected by a line-by-line pass with
 	// variable-to-register bindings, so fields do not leak between registers
 	// when one variable is reused, and commented-out code is ignored.
-	if data, err := os.ReadFile(filepath.Join(s.root, "Documents", name, "Ext", "ObjectModule.bsl")); err == nil {
-		text := string(stripBOM(data))
+	if mod != nil {
+		text := string(mod.Source())
 		bindAt := map[int]movementUse{} // line -> "Запись = Движения.X.Добавить()"
-		for _, u := range movementUses(parseModule(text)) {
+		for _, u := range movementUses(mod) {
 			if u.isCollectionMethod() {
 				continue
 			}

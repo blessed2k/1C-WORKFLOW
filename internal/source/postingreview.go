@@ -92,14 +92,18 @@ func (s *XMLSource) PostingReview(ctx context.Context, name string) (*PostingRep
 	}
 	text := string(stripBOM(data))
 	lines := strings.Split(text, "\n")
-	mod := parseModule(text)
+	// The module is parsed once: handlers, procedures and movements all come
+	// from this one result.
+	mod := parseModule(stripBOM(data))
+	uses := movementUses(mod)
+	moves := movesByMethod(uses)
 
-	handlers := postingHandlerBodies(mod, lines)
+	handlers := postingHandlerBodies(mod, lines, moves)
 	if len(handlers) > 0 {
 		// Follow the calls into the module's own procedures before classifying:
 		// the style and every rule below read the handler body, and posting is
 		// routinely split out of the handler into private procedures.
-		procs := moduleProcedures(mod, lines)
+		procs := moduleProcedures(mod, lines, moves)
 		for i := range handlers {
 			handlers[i] = expandLocalCalls(handlers[i], procs)
 		}
@@ -124,16 +128,16 @@ func (s *XMLSource) PostingReview(ctx context.Context, name string) (*PostingRep
 	}
 
 	// The flag may be set anywhere in the module, not only inside the handler.
-	moduleText := text
+	writes := moduleWritesOf(uses)
 	var movements *MovementsReport
 	if out.Style == postingInline {
-		movements, _ = s.Movements(ctx, name)
+		movements, _ = s.movements(name, mod)
 	}
 	for _, h := range handlers {
 		// Rules follow the style of THIS handler: clearing movements in
 		// ОбработкаУдаленияПроведения is a normal idiom and must not drag the
 		// delegated ОбработкаПроведения into the inline rule set.
-		out.Findings = append(out.Findings, reviewHandler(h, handlerStyle(h), movements, moduleText)...)
+		out.Findings = append(out.Findings, reviewHandler(h, handlerStyle(h), movements, writes)...)
 	}
 	return out, nil
 }
@@ -147,6 +151,7 @@ type handlerBody struct {
 	start   int // 1-based line of the declaration
 	lines   []string
 	lineNos []int
+	moves   []movementUse // movements of the handler and of the procedures it calls
 }
 
 // postingHandlers names the posting handlers in both spellings of the language.
@@ -157,14 +162,14 @@ var postingHandlers = map[string]bool{
 
 // postingHandlerBodies extracts ОбработкаПроведения and ОбработкаУдаленияПроведения
 // (Posting and UndoPosting).
-func postingHandlerBodies(mod *bsl.Module, lines []string) []handlerBody {
+func postingHandlerBodies(mod *bsl.Module, lines []string, moves map[int][]movementUse) []handlerBody {
 	var out []handlerBody
-	for _, m := range mod.Methods {
+	for i, m := range mod.Methods {
 		if m.Kind != domain.SymbolProcedure || !postingHandlers[strings.ToLower(m.Name)] {
 			continue
 		}
 		start, body := methodLines(mod, m, lines)
-		h := handlerBody{name: m.Name, start: start, lines: body}
+		h := handlerBody{name: m.Name, start: start, lines: body, moves: moves[i]}
 		for k := range body {
 			h.lineNos = append(h.lineNos, start+k)
 		}
@@ -188,6 +193,30 @@ func methodLines(mod *bsl.Module, m bsl.Method, lines []string) (int, []string) 
 	return start, lines[start-1 : end]
 }
 
+// moduleWrites is what the whole module does to write its movements.
+type moduleWrites struct {
+	all     bool // Движения.Записать() somewhere in the module
+	flagged bool // some Записывать = Истина somewhere in the module
+}
+
+func moduleWritesOf(uses []movementUse) moduleWrites {
+	var w moduleWrites
+	for _, u := range uses {
+		w.all = w.all || u.writesAll()
+		w.flagged = w.flagged || u.setsWriteFlag()
+	}
+	return w
+}
+
+// movesByMethod groups the movement uses by the method they are in.
+func movesByMethod(uses []movementUse) map[int][]movementUse {
+	out := map[int][]movementUse{}
+	for _, u := range uses {
+		out[u.method] = append(out[u.method], u)
+	}
+	return out
+}
+
 // maxNestedDepth bounds how far the expansion follows calls inside the module.
 // Posting split across more than three levels of private procedures is rare,
 // and every extra level dilutes what the rules are looking at.
@@ -202,15 +231,16 @@ const maxNestedDepth = 3
 type moduleProcedure struct {
 	start int
 	lines []string
+	moves []movementUse
 }
 
 // moduleProcedures indexes every procedure and function of the module by
 // lower-cased name.
-func moduleProcedures(mod *bsl.Module, lines []string) map[string]moduleProcedure {
+func moduleProcedures(mod *bsl.Module, lines []string, moves map[int][]movementUse) map[string]moduleProcedure {
 	out := map[string]moduleProcedure{}
-	for _, m := range mod.Methods {
+	for i, m := range mod.Methods {
 		start, body := methodLines(mod, m, lines)
-		out[strings.ToLower(m.Name)] = moduleProcedure{start: start, lines: body}
+		out[strings.ToLower(m.Name)] = moduleProcedure{start: start, lines: body, moves: moves[i]}
 	}
 	return out
 }
@@ -226,6 +256,7 @@ func expandLocalCalls(h handlerBody, procs map[string]moduleProcedure) handlerBo
 	out := h
 	out.lines = append([]string(nil), h.lines...)
 	out.lineNos = append([]int(nil), h.lineNos...)
+	out.moves = append([]movementUse(nil), h.moves...)
 
 	seen := map[string]bool{strings.ToLower(h.name): true}
 	frontier := [][]string{h.lines}
@@ -246,6 +277,7 @@ func expandLocalCalls(h handlerBody, procs map[string]moduleProcedure) handlerBo
 						continue
 					}
 					seen[key] = true
+					out.moves = append(out.moves, p.moves...)
 					for k, l := range p.lines {
 						out.lines = append(out.lines, l)
 						out.lineNos = append(out.lineNos, p.start+k)
@@ -274,10 +306,9 @@ func postingStyle(handlers []handlerBody) string {
 	return style
 }
 
-// handlerStyle classifies one handler. The expanded body is a run of whole
-// procedures, so it parses as a module of its own.
+// handlerStyle classifies one handler.
 func handlerStyle(h handlerBody) string {
-	for _, u := range movementUses(parseModule(strings.Join(h.lines, "\n"))) {
+	for _, u := range h.moves {
 		if u.forms() {
 			return postingInline
 		}
@@ -291,7 +322,7 @@ func handlerStyle(h handlerBody) string {
 }
 
 // reviewHandler applies the rules that make sense for the posting style.
-func reviewHandler(h handlerBody, style string, movements *MovementsReport, moduleText string) []PostingFinding {
+func reviewHandler(h handlerBody, style string, movements *MovementsReport, writes moduleWrites) []PostingFinding {
 	var out []PostingFinding
 	// The offset indexes the expanded body, which mixes lines of several
 	// procedures: only lineNos knows where each of them really is.
@@ -307,8 +338,6 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 		readsBalance = -1 // line offset of the first balance read
 		written      = map[string]bool{}
 		filled       = map[string]bool{} // register sets actually filled here
-		writesAll    bool                // Движения.Записать() somewhere in the module
-		flagged      bool                // some Записывать = Истина somewhere in the module
 		loopDepth    int
 		queryInLoop  int
 	)
@@ -333,9 +362,8 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 		}
 	}
 
-	// The expanded body is a run of whole procedures and parses as a module of
-	// its own. Writing the set explicitly is as good as the flag.
-	for _, u := range movementUses(parseModule(strings.Join(h.lines, "\n"))) {
+	// Writing the set explicitly is as good as the flag.
+	for _, u := range h.moves {
 		switch {
 		case u.setsWriteFlag(), u.writesSet():
 			written[strings.ToLower(u.register)] = true
@@ -343,11 +371,6 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 			filled[strings.ToLower(u.register)] = true
 		}
 	}
-	for _, u := range movementUses(parseModule(moduleText)) {
-		writesAll = writesAll || u.writesAll()
-		flagged = flagged || u.setsWriteFlag()
-	}
-
 	if queryInLoop > 0 {
 		out = append(out, PostingFinding{
 			Code:    "QueryInLoop",
@@ -374,7 +397,7 @@ func reviewHandler(h handlerBody, style string, movements *MovementsReport, modu
 			}
 			key := strings.ToLower(short)
 			// Движения.Записать() пишет все наборы сразу, флаг тогда не нужен.
-			if filled[key] && !written[key] && !writesAll && !flagged {
+			if filled[key] && !written[key] && !writes.all && !writes.flagged {
 				out = append(out, PostingFinding{
 					Code:    "NoWriteFlag",
 					Message: fmt.Sprintf("для %s не найдено Движения.%s.Записывать = Истина: набор заполняется, но может не записаться", r.Register, short),

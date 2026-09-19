@@ -11,6 +11,19 @@ func prSource(t *testing.T) *XMLSource {
 	return NewXMLSource("testdata/pr")
 }
 
+// parsedHandler builds the posting handler of a module made of lines the way
+// PostingReview does: one parse, movements taken from it.
+func parsedHandler(t *testing.T, lines ...string) handlerBody {
+	t.Helper()
+	text := strings.Join(lines, "\n")
+	mod := parseModule([]byte(text))
+	hs := postingHandlerBodies(mod, strings.Split(text, "\n"), movesByMethod(movementUses(mod)))
+	if len(hs) != 1 {
+		t.Fatalf("posting handlers: %d, want 1", len(hs))
+	}
+	return hs[0]
+}
+
 func findingCodes(rep *PostingReport) map[string]bool {
 	out := map[string]bool{}
 	for _, f := range rep.Findings {
@@ -92,7 +105,7 @@ func TestPostingStyleByMethodName(t *testing.T) {
 		"	СообщитьПользователю(\"Готово\");":                                                 postingNone,
 	}
 	for line, want := range cases {
-		h := handlerBody{name: "ОбработкаПроведения", start: 1, lines: []string{"Процедура ОбработкаПроведения(Отказ, РежимПроведения)", line, "КонецПроцедуры"}}
+		h := parsedHandler(t, "Процедура ОбработкаПроведения(Отказ, РежимПроведения)", line, "КонецПроцедуры")
 		if got := handlerStyle(h); got != want {
 			t.Errorf("handlerStyle(%q) = %q, want %q", strings.TrimSpace(line), got, want)
 		}
@@ -110,7 +123,7 @@ func TestPostingLockMustPrecedeRead(t *testing.T) {
 
 	build := func(body ...string) handlerBody {
 		lines := append([]string{"Процедура ОбработкаПроведения(Отказ, РежимПроведения)"}, body...)
-		return handlerBody{name: "ОбработкаПроведения", start: 1, lines: append(lines, "КонецПроцедуры")}
+		return parsedHandler(t, append(lines, "КонецПроцедуры")...)
 	}
 	has := func(fs []PostingFinding, code string) bool {
 		for _, f := range fs {
@@ -120,13 +133,13 @@ func TestPostingLockMustPrecedeRead(t *testing.T) {
 		}
 		return false
 	}
-	if !has(reviewHandler(build(read, lock, fill), postingInline, nil, ""), "BalanceReadWithoutLock") {
+	if !has(reviewHandler(build(read, lock, fill), postingInline, nil, moduleWrites{}), "BalanceReadWithoutLock") {
 		t.Error("lock taken after the read must still be reported: that is the race")
 	}
-	if has(reviewHandler(build(lock, read, fill), postingInline, nil, ""), "BalanceReadWithoutLock") {
+	if has(reviewHandler(build(lock, read, fill), postingInline, nil, moduleWrites{}), "BalanceReadWithoutLock") {
 		t.Error("lock taken before the read must silence the rule")
 	}
-	if !has(reviewHandler(build(fake, read, fill), postingInline, nil, ""), "BalanceReadWithoutLock") {
+	if !has(reviewHandler(build(fake, read, fill), postingInline, nil, moduleWrites{}), "BalanceReadWithoutLock") {
 		t.Error("a lock named inside a string literal is not a lock")
 	}
 }
@@ -135,15 +148,15 @@ func TestPostingLockMustPrecedeRead(t *testing.T) {
 // appears 154 times in the document modules of УТ, and the rule used to see none
 // of them.
 func TestPostingBatchQueryInLoop(t *testing.T) {
-	h := handlerBody{name: "ОбработкаПроведения", start: 1, lines: []string{
+	h := parsedHandler(t,
 		"Процедура ОбработкаПроведения(Отказ, РежимПроведения)",
 		"	Для Каждого Строка Из Товары Цикл",
 		"		Результат = Запрос.ВыполнитьПакет();",
 		"	КонецЦикла;",
 		"КонецПроцедуры",
-	}}
+	)
 	found := false
-	for _, f := range reviewHandler(h, postingInline, nil, "") {
+	for _, f := range reviewHandler(h, postingInline, nil, moduleWrites{}) {
 		if f.Code == "QueryInLoop" {
 			found = true
 		}
@@ -156,14 +169,14 @@ func TestPostingBatchQueryInLoop(t *testing.T) {
 // TestPostingWrittenExplicitly pins that writing a set explicitly is as good as
 // raising the flag: Движения.X.Записать() is legal and used in УТ.
 func TestPostingWrittenExplicitly(t *testing.T) {
-	h := handlerBody{name: "ОбработкаПроведения", start: 1, lines: []string{
+	h := parsedHandler(t,
 		"Процедура ОбработкаПроведения(Отказ, РежимПроведения)",
 		"	Движение = Движения.ТоварыНаСкладах.Добавить();",
 		"	Движения.ТоварыНаСкладах.Записать();",
 		"КонецПроцедуры",
-	}}
+	)
 	movements := &MovementsReport{Registers: []RegisterMovement{{Register: "РегистрНакопления.ТоварыНаСкладах", Declared: true, UsedInCode: true}}}
-	for _, f := range reviewHandler(h, postingInline, movements, "") {
+	for _, f := range reviewHandler(h, postingInline, movements, moduleWrites{}) {
 		if f.Code == "NoWriteFlag" {
 			t.Errorf("an explicitly written set must not be reported: %+v", f)
 		}

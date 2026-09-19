@@ -78,7 +78,7 @@ func (s *XMLSource) ContextPack(ctx context.Context, objectType, name string, op
 		pack.Modules = append(pack.Modules, ModuleInterface{
 			Kind:    m.kind,
 			Path:    filepath.ToSlash(rel),
-			Exports: extractExports(string(stripBOM(data))),
+			Exports: extractExports(stripBOM(data)),
 		})
 	}
 
@@ -132,8 +132,8 @@ func (s *XMLSource) formBrief(ctx context.Context, objectType, name, form string
 // module, e.g. "Процедура НайтиКонтрагента(ИНН)". The declarations come from the
 // parser, so a header wrapped over several lines, a comment inside it and the
 // English spelling (Procedure ... Export) read the same as a Russian one-liner.
-func extractExports(module string) []string {
-	mod := parseModule(module)
+func extractExports(src []byte) []string {
+	mod := parseDeclarations(src)
 	var out []string
 	for _, m := range mod.Methods {
 		if m.Export {
