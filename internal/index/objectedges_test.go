@@ -20,7 +20,7 @@ import (
 // движения (один регистр — ДВАЖДЫ, второй в конфигурации отсутствует) и пишет
 // в регистр кодом через общий модуль, который зовёт и второй документ. Свою
 // нестатическую запись Отгрузка держит в модуле менеджера — отдельно от
-// цепочки через общий модуль. На ней проверяются обе половины таска 07:
+// цепочки через общий модуль. На ней проверяются обе половины публикации рёбер:
 // декларированные рёбра (§4) и кодовые (§5), включая инкремент.
 func writeGraphFixture(t *testing.T) string {
 	t.Helper()
@@ -210,7 +210,7 @@ func edgesOf(t *testing.T, ctx context.Context, st *store.Store, objectID int64)
 	return out
 }
 
-// TestDeclaredMovementEdgePublished — история 17/19 (G08, G10): движения,
+// TestDeclaredMovementEdgePublished: движения,
 // объявленные метаданными документа, становятся рёбрами writes-declared с
 // собственной provenance и достоверностью НИЖЕ кодового факта.
 //
@@ -254,7 +254,7 @@ func TestDeclaredMovementEdgePublished(t *testing.T) {
 		t.Errorf("layer = %q, want base", e.Layer)
 	}
 	// Достоверность декларации строго ниже достоверности кодового факта:
-	// иначе декларация выдавала бы себя за код-факт (история 19).
+	// иначе декларация выдавала бы себя за код-факт.
 	if !(e.Confidence < codeFactConfidence) {
 		t.Errorf("confidence = %v, want строго меньше %v", e.Confidence, codeFactConfidence)
 	}
@@ -267,7 +267,7 @@ func TestDeclaredMovementEdgePublished(t *testing.T) {
 	}
 }
 
-// TestCodeObjectEdgeThroughCommonModule — истории 10/21 (R10, G07, R48):
+// TestCodeObjectEdgeThroughCommonModule:
 // запись в регистр, физически сделанная в общем модуле, приписывается
 // ДОКУМЕНТУ, который его зовёт. Общий модуль узлом графа не появляется, а
 // object_data_edge_dep несёт ОБА файла цепочки: правка любого звена обязана
@@ -322,7 +322,7 @@ func TestCodeObjectEdgeThroughCommonModule(t *testing.T) {
 	}
 
 	// Общий модуль владельцем данных не считается: своего ребра в регистр у
-	// него быть не должно (решение D6, история 4).
+	// него быть не должно (решение D6, docs/architecture-graph.md).
 	if got := edgesOfKind(t, ctx, st, commonID, store.EdgeWritesRegister); len(got) != 0 {
 		t.Errorf("у общего модуля %d рёбер writes-register, want 0: %+v", len(got), got)
 	}
@@ -371,7 +371,7 @@ func badgesOf(t *testing.T, ctx context.Context, st *store.Store, objectID int64
 	return out
 }
 
-// TestDynamicBadgePublished — история 13 (R14): запись, которую статически
+// TestDynamicBadgePublished: запись, которую статически
 // приписать регистру нельзя, ребра не даёт, но и не замалчивается: владелец
 // получает бейдж has-dynamic со счётчиком, тем же проходом публикации.
 func TestDynamicBadgePublished(t *testing.T) {
@@ -423,7 +423,7 @@ func allFixtureBadges(t *testing.T, ctx context.Context, st *store.Store) []stor
 	return out
 }
 
-// TestIncrementalEdgeRebuildIsLocal — история 21 (R11): правка одного модуля
+// TestIncrementalEdgeRebuildIsLocal: правка одного модуля
 // пересобирает рёбра только затронутых владельцев.
 //
 // Оба документа фикстуры пишут в регистр через ОДИН общий модуль, то есть их
@@ -558,7 +558,7 @@ func edgeShapes(t *testing.T, ctx context.Context, st *store.Store, objectID int
 	return out
 }
 
-// TestObjectEdgeGraphTransportErrorSurfaces — требование ревью таска 06:
+// TestObjectEdgeGraphTransportErrorSurfaces (требование ревью):
 // методы resolve.ObjectEdgeGraph ошибок не возвращают, поэтому вся цена
 // сбоя транспорта лежит на реализации. Сбой обязан кончиться ошибкой
 // наружу, а не тихо пустым графом: пустой ответ на обходе неотличим от
@@ -605,7 +605,7 @@ func TestObjectEdgeGraphTransportErrorSurfaces(t *testing.T) {
 // половина закреплена в cmd/mcp1c (TestNewServerConfiguresGraphTunables), эта
 // проверяет, что index.Config не теряет пороги по дороге к атрибуции.
 //
-// Заодно история 15 (R16): превышение порога СНИЖАЕТ достоверность, но ребро
+// Заодно: превышение порога СНИЖАЕТ достоверность, но ребро
 // остаётся. Общий модуль фикстуры зовут два документа, поэтому fan-in 1
 // делает его хабом.
 func TestGraphTunablesReachDeriver(t *testing.T) {
@@ -637,7 +637,7 @@ func TestGraphTunablesReachDeriver(t *testing.T) {
 	}
 }
 
-// TestRealDumpDeclaredMovementsOrderDocument — история 17 (G08, G10) на
+// TestRealDumpDeclaredMovementsOrderDocument: декларированные движения на
 // реальной выгрузке: у Документ.ЗаказКлиента есть рёбра writes-declared.
 //
 // Именно этот документ был доказательством в отчёте 2026-08-20: строк
@@ -731,7 +731,7 @@ func badgeCount(t *testing.T, ctx context.Context, st *store.Store, objectID int
 	return 0
 }
 
-// TestBadgeSeedClosesOverOwners — требование ревью таска 06: InsertObjectBadge
+// TestBadgeSeedClosesOverOwners (требование ревью): InsertObjectBadge
 // счётчик ЗАМЕЩАЕТ, поэтому владельцу нельзя подать часть его строк
 // register_access. Правится ОДИН модуль, а закрыть тест обязаны два разных
 // замыкания сида по владельцу (ModuleFilesByOwnerObject):
@@ -909,7 +909,7 @@ func TestBadgeOnlyOwnerIsRecounted(t *testing.T) {
 
 // TestStaleAttributionBadgeMarksLostEdge: снесённая связь обязана быть видимой.
 //
-// Первая половина (закрытая граница D03, ADR-026, ADR-037): правка общего
+// Первая половина (закрытая граница, ADR-026, ADR-037): правка общего
 // модуля, не меняющая записей, больше не рвёт входящие вызовы, и атрибуция
 // поднимается от факта в правленом модуле к документу, которого правка не
 // касалась. Ребро восстанавливается той же публикацией, признака нет.
@@ -944,7 +944,7 @@ func TestStaleAttributionBadgeMarksLostEdge(t *testing.T) {
 
 	// Правка общего модуля, не меняющая записей в регистры: цепочка Отгрузки
 	// проходит через него, ребро снесено по файловой зависимости и обязано
-	// вернуться этой же публикацией (D03 закрыта, ADR-037).
+	// вернуться этой же публикацией (граница закрыта, ADR-037).
 	commonPath := filepath.Join(root, filepath.FromSlash("CommonModules/ПроведениеДвижений/Ext/Module.bsl"))
 	mustWrite(t, commonPath, `
 Процедура ЗаписатьДвижения(Движения) Экспорт
@@ -1383,7 +1383,8 @@ func TestPublishStaleAttributionBadgesTable(t *testing.T) {
 		})
 	}
 
-	// Различие raw/effective (D11): признак живёт на паре объект+слой, а не
+	// Различие raw/effective (D11 в docs/architecture-graph.md): признак живёт
+	// на паре объект+слой, а не
 	// на объекте одном. Владелец расширения (writeLayerFixture, "ext") ловит
 	// честную потерю в СВОЁМ слое — при полном совпадении объекта две потери
 	// разных слоёв обязаны остаться ДВУМЯ записями, а не слиться в одну.
@@ -1460,7 +1461,7 @@ func TestPublishStaleAttributionBadgesTable(t *testing.T) {
 // writeTwoEdgeFixture): правка одного из них не задевает файл другого, и
 // каждый из двух связанных рёбер можно снести ОТДЕЛЬНЫМ прогоном. Заведена
 // специально под сцену «владелец вне scope теряет два НЕЗАВИСИМЫХ ребра в
-// двух разных прогонах» (дефект внешнего ревью после таска 07): ни один из
+// двух разных прогонах» (дефект, найденный внешним ревью): ни один из
 // готовых фикстур проекта эту сцену не собирает — writeTwoEdgeFixture сносит
 // оба ребра ОДНОЙ правкой общего файла (TestStaleBadgeCountsEveryLostEdge).
 func writeTwoIndependentModulesFixture(t *testing.T) string {
@@ -1541,7 +1542,7 @@ func writeTwoIndependentModulesFixture(t *testing.T) string {
 }
 
 // TestStaleBadgeAccumulatesAcrossIndependentOutOfScopeLosses — дефект,
-// найденный внешним ревью после закрытия таска 07 (3eced9a): владелец,
+// найденный внешним ревью (3eced9a): владелец,
 // теряющий СВОЁ ребро в прогоне, где он НЕ входит в scope has-dynamic/
 // attribution-truncated (не переопубликовал собственный модуль, атрибуцией
 // этого прохода не найден), должен НАКАПЛИВАТЬ признак attribution-stale, а

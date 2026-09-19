@@ -10,7 +10,7 @@ import (
 
 // URI resource-ссылок retrieve строит В ТОМ ЖЕ формате, что internal/app
 // (symbolResourceURI/referencesResourceURI/srcResourceURI, зарегистрированы
-// как onec://symbol/..., onec://references/..., onec://src/... — тикет 11,
+// как onec://symbol/..., onec://references/..., onec://src/..., см.
 // cmd/mcp1c/idx_symbol.go:registerSymbolResources) — эти resource templates
 // УЖЕ зарегистрированы на сервере и обслуживаются app.SymbolService/
 // app.GraphService, retrieve не заводит вторую регистрацию. Формат

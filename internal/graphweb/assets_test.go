@@ -19,7 +19,7 @@ import (
 // при загрузке файла.
 const wantCytoscapeSHA256 = "5141892eb19898946e5af8300e14cec15a63a22186a4ca56d76819a91e2a3fe6"
 
-// TestSPARootServesHTML — R24/R44: GET / отдаёт HTML-страницу SPA с верным
+// TestSPARootServesHTML: GET / отдаёт HTML-страницу SPA с верным
 // Content-Type. Сервер поднят БЕЗ единого проекта — маршрут статики не
 // должен зависеть от того, есть ли открытые проекты (критерий «сервер не
 // падает при отсутствии данных»).
@@ -55,8 +55,8 @@ func TestAppJSServed(t *testing.T) {
 	}
 }
 
-// TestVendoredCytoscapeIsRealLibrary — R24/R44/R54i, критерий приёмки
-// тикета 10: «cytoscape.min.js версии 3.34.1 лежит vendored-файлом... версия
+// TestVendoredCytoscapeIsRealLibrary: критерий приёмки
+// «cytoscape.min.js версии 3.34.1 лежит vendored-файлом... версия
 // и происхождение записаны». Три независимых проверки, что go:embed
 // действительно содержит НАСТОЯЩУЮ библиотеку нужной версии, а не заглушку:
 // контрольная сумма, версия и правообладатель в шапке файла, и сам маршрут

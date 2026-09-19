@@ -30,8 +30,8 @@ func relPaths(files []discoveredFile) []string {
 	return out
 }
 
-// TestDiscoverComponentSkipsBinaryArtifacts закрывает вторую половину долга
-// таска 02: workspace.SkipFile получает реальное место в обходе index —
+// TestDiscoverComponentSkipsBinaryArtifacts закрывает файловую половину списка
+// неиндексируемого: workspace.SkipFile получает реальное место в обходе index:
 // расширения вроде .cf/.log отсекаются им внутри workspace.IsIgnored, до
 // того как discoverComponent вообще увидит файл. Тест красит ровно то место:
 // уберите вызов IsIgnored (или сам SkipFile) — .cf/.log попадут в выдачу.

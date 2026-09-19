@@ -189,7 +189,7 @@ func linkByTo(item CrossLinksItem, toType string) *HTTPLink {
 
 // TestCrossLinksStitchByPath (критерий 1 issue #6): вызов из общего модуля
 // через мапленный хост и путь сшивается с обработчиком сервиса другой базы,
-// концом ребра стал документ, который зовёт общий модуль (D6).
+// концом ребра стал документ, который зовёт общий модуль (D6, docs/architecture-graph.md).
 func TestCrossLinksStitchByPath(t *testing.T) {
 	p, roots := newHTTPWorkspace(t, erpHostsJSON, twoBases())
 	item := crossLinks(t, p, roots)

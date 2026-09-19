@@ -3,7 +3,7 @@
 // checksummed-указателем (ADR-2 §9), ограниченный пул читателей и единственный
 // writer (ADR-2 §7).
 //
-// Публичная граница пакета (interfaces.md): Open / Read / Write / Status / Close
+// Публичная граница пакета: Open / Read / Write / Status / Close
 // плюс типизированные выборки и вставки на *ReadTx и *WriteTx. SQL, PRAGMA
 // lifecycle, формат указателя, файлы эпох, WAL/checkpoint и drain наружу не
 // выходят и жить обязаны только здесь.
@@ -220,7 +220,7 @@ CREATE TABLE register_access(
   byte_start INTEGER NOT NULL,
   byte_end INTEGER NOT NULL,
   -- Слой факта: 'base' либо id компонента-расширения, та же семантика, что у
-  -- dependency_edge.layer. Без него raw и effective неразличимы (D11).
+  -- dependency_edge.layer. Без него raw и effective неразличимы (D11 в docs/architecture-graph.md).
   layer TEXT NOT NULL DEFAULT 'base',
   CHECK(mode IN ('read','write','movement','clear')));
 
@@ -337,7 +337,7 @@ CREATE TABLE role(
 -- Права читаются по ИЛИ-логике с учётом set_for_new_objects: отсутствие строки
 -- НЕ означает отсутствия доступа, поэтому дефолт хранится явно.
 -- Расхождение с §15 (владелец-identity RESTRICT) сделано осознанно и по тому же
--- основанию, по которому ревью №5 перевело containment на CASCADE: RESTRICT
+-- основанию, по которому containment переведено на CASCADE: RESTRICT
 -- здесь заблокировал бы одиночный DELETE FROM source_file, когда каскад сносит
 -- роль и её права в одной операции — а Rights.xml всегда удаляется целиком.
 CREATE TABLE role_right(
@@ -448,8 +448,8 @@ CREATE INDEX idx_blob_unref ON blob(unreferenced_since) WHERE unreferenced_since
 
 // objectGraphTables — таблицы объектного графа (§2 спецификации В1, контракт
 // полей раздела 6.2, имена дословно). Узлами графа являются ТОЛЬКО объекты
-// метаданных (решение D6): FK стоят на metadata_object, модулю или символу в
-// object_data_edge места нет.
+// метаданных (решение D6, docs/architecture-graph.md): FK стоят на
+// metadata_object, модулю или символу в object_data_edge места нет.
 //
 // Тот же текст исполняется двумя путями: как часть createScript на новой эпохе
 // и как шаг migrations на эпохе версии 1. Общая константа вместо двух копий —

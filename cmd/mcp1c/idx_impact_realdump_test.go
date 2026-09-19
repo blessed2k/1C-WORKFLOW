@@ -10,9 +10,9 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/source"
 )
 
-// TestFindImpactCrossCheckWithDependencyPaths — критерий приёмки тикета 13:
-// «сверка с find_dependency_paths на трёх входах, расхождения перечислены и
-// объяснены». Живёт в cmd/mcp1c, а не в internal/app, потому что
+// TestFindImpactCrossCheckWithDependencyPaths: сверка с
+// find_dependency_paths на трёх входах, расхождения перечислены и
+// объяснены. Живёт в cmd/mcp1c, а не в internal/app, потому что
 // internal/arch.CheckLegacyIsolation запрещает internal/app опираться на
 // internal/source (эталон — internal/source/deppaths.go), и это правило не
 // делает исключения для _test.go (internal/app/impact_test.go объясняет
@@ -34,7 +34,7 @@ import (
 //
 // find_impact(target=каждый Catalog, kinds=[dependency_edge]) обязан найти
 // НЕ МЕНЬШЕ metadata_member-узлов, чем find_dependency_paths нашёл путей —
-// заявленное в тикете свойство «надмножество».
+// заявленное свойство «надмножество».
 //
 // РАСХОЖДЕНИЕ, обнаруженное этим тестом и честно задокументированное, а не
 // подогнанное выбором входов «под ответ» без объяснения: первая версия этого
@@ -52,8 +52,7 @@ import (
 // что реально лежит в dependency_edge), а разрыв публикации ВЫШЕ по
 // пайплайну — metadata_member документов, похоже, не попадают в
 // resolve.Env.Members() при сборке dependency_edge (internal/resolve,
-// internal/index — таски 08/09, уже «сданы», чинить здесь не в зоне тикета
-// 13). Тест ниже сознательно проверяет Catalog->Catalog пары, где данные
+// internal/index; чинится отдельно, не в find_impact). Тест ниже сознательно проверяет Catalog->Catalog пары, где данные
 // РЕАЛЬНО есть, — честная сверка на том, что пайплайн действительно
 // публикует сегодня, а не подгонка входов под зелёный прогон.
 func TestFindImpactCrossCheckWithDependencyPaths(t *testing.T) {

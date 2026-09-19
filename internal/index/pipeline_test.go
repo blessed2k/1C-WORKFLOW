@@ -146,7 +146,7 @@ func TestFullIndexBasic(t *testing.T) {
 	}
 }
 
-// TestTotalSymbolCountIncompleteOnHydrated — R15 применительно к третьему
+// TestTotalSymbolCountIncompleteOnHydrated: ограничение ADR-028 для третьего
 // потребителю корпуса: totalSymbolCount на гидратированной записи фактов не
 // видит и даёт 0. Слепота не устраняется (записи ещё не дочитаны, считать
 // нечего), но названа возвращаемым признаком, и предохранитель §17 п.7 на

@@ -6,10 +6,10 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// TestMatchPath закрывает долг таска 02 (interfaces.md, «Долг, переданный из
-// таска 02»): MatchPath — единственный матчер include/exclude манифеста, но
-// была покрыта только половина-валидатор (splitPattern через ManifestError),
-// само сопоставление сегментов не имело ни одного теста. Таблица фиксирует
+// TestMatchPath закрывает долг по тестам: MatchPath, единственный матчер
+// include/exclude манифеста, был покрыт только половиной-валидатором
+// (splitPattern через ManifestError), а само сопоставление сегментов не
+// имело ни одного теста. Таблица фиксирует
 // семантику ДО того, как index начнёт применять include/exclude при обходе.
 func TestMatchPath(t *testing.T) {
 	cases := []struct {

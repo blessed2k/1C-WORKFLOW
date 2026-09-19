@@ -52,7 +52,7 @@ type Candidate struct {
 
 // Result — исход Resolve: состояние разрешения плюс всё, что из него следует
 // для reference/call_edge/reference_candidate/resolution_dep. Строится как
-// значение (не сохраняет ссылок на Env), собирается в store-строки таском 09.
+// значение (не сохраняет ссылок на Env), собирается в store-строки пайплайном index.
 type Result struct {
 	Resolution  domain.Resolution
 	TargetClass domain.TargetClass

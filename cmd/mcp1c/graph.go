@@ -25,14 +25,14 @@ import (
 const graphShutdownTimeout = 5 * time.Second
 
 // graphShutdownSignals — полный список сигналов, которые обязаны погасить
-// graph-режим так же корректно, как Ctrl+C (D04 манифеста): os.Interrupt
+// graph-режим так же корректно, как Ctrl+C: os.Interrupt
 // (SIGINT) плюс всё, что называет additionalShutdownSignals (SIGTERM,
 // platform-файл с ОДИНАКОВЫМ телом на unix/Windows — graph_signal_unix.go/
 // graph_signal_windows.go, образец cmd/mcp1c/rss_*.go). Единственный вызов
 // этого выражения: runGraph строит sigCtx через него же, и
 // graph_signal_unix_test.go проверяет доставку SIGTERM через НЕГО ЖЕ, а не
 // через переписанную копию — ревью качества поймало ровно этот класс
-// дефекта (byCap/byFetch на таске 08): тест-копия выражения не защищает
+// дефекта (byCap/byFetch в объектном графе): тест-копия выражения не защищает
 // продакшен-строку, которая реально решает, дойдёт ли сигнал до сервера.
 func graphShutdownSignals() []os.Signal {
 	return append([]os.Signal{os.Interrupt}, additionalShutdownSignals()...)
@@ -54,9 +54,9 @@ func (l *projectRootList) Set(v string) error {
 	return nil
 }
 
-// runGraph — точка входа подкоманды `mcp1c graph` (spec §6, тикет 09):
+// runGraph (точка входа подкоманды `mcp1c graph`):
 // поднимает отдельный HTTP-процесс поверх internal/app.ObjectGraphService
-// (тикет 08) и internal/graphweb (этот тикет). Возвращает код возврата
+// и internal/graphweb. Возвращает код возврата
 // процесса; main() зовёт os.Exit(runGraph(os.Args[2:])) — сам он ничего не
 // печатает и не завершает процесс, чтобы остаться тестируемым в памяти без
 // exec.Command.
@@ -68,7 +68,7 @@ func runGraph(args []string) int {
 	noOpen := fs.Bool("no-open", false, "не открывать карту в браузере автоматически")
 	var opts options
 	registerGraphFlags(fs, &opts)
-	registerSyntaxIndexFlag(fs, &opts) // даёт -graph-radius-nodes; остальные четыре здесь не читаются (таск 07 их зона), но флаг остаётся тем же именем, что у обычного сервера
+	registerSyntaxIndexFlag(fs, &opts) // даёт -graph-radius-nodes; остальные четыре здесь не читаются (их читает только обычный сервер), но флаг остаётся тем же именем, что у обычного сервера
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -88,7 +88,7 @@ func runGraph(args []string) int {
 		return 2
 	}
 	if host != "127.0.0.1" {
-		// R17: «слушает только 127.0.0.1, привязка к 0.0.0.0 невозможна» —
+		// Слушаем только 127.0.0.1, привязка к 0.0.0.0 невозможна. Это
 		// проверяется здесь, ДО net.Listen, а не молчаливой заменой хоста:
 		// заменить на 127.0.0.1 за спиной значило бы дать пройти опечатке
 		// "--listen 0.0.0.0:8080" без единого сообщения.
@@ -113,7 +113,7 @@ func runGraph(args []string) int {
 
 	url := fmt.Sprintf("http://%s/", ln.Addr().String())
 	fmt.Println(url)
-	// --no-open существует по контракту (spec §6, критерий тикета 09), но
+	// --no-open существует по контракту CLI, но
 	// автоматическое открытие браузера здесь не реализовано — упрощение,
 	// названо явно, а не тихо пропущено:
 	//   - nosubprocess_test.go делает «сервер не форкает ничего, ни на одной
@@ -129,8 +129,8 @@ func runGraph(args []string) int {
 		fmt.Fprintln(os.Stderr, "mcp1c graph: автоматическое открытие браузера не реализовано — откройте адрес выше вручную")
 	}
 
-	// graphShutdownSignals — os.Interrupt (SIGINT/Ctrl+C) плюс SIGTERM (D04
-	// манифеста, поправка оркестратора): вынесено в именованную функцию и
+	// graphShutdownSignals: os.Interrupt (SIGINT/Ctrl+C) плюс SIGTERM (kill
+	// гасит процесс так же корректно, как Ctrl+C): вынесено в именованную функцию и
 	// вызывается ОТСЮДА И из graph_signal_unix_test.go — ревью качества
 	// поймало, что копия того же выражения в теле теста не проверяет ЭТУ
 	// строку продакшена (мутация: убрать второй аргумент здесь оставляла
@@ -200,8 +200,8 @@ func splitProjectSpec(spec string) (root, id string) {
 }
 
 // openGraphProjects валидирует и открывает каждый --project корень ДО того,
-// как поднят слушатель (spec §6: «индекса нет — ошибка с точной командой
-// reindex и ненулевым кодом возврата, ничего не индексируя»). Возвращает
+// как поднят слушатель (индекса нет: ошибка с точной командой
+// reindex и ненулевым кодом возврата, ничего не индексируя). Возвращает
 // ненулевой код при первом отказе — частично поднятая карта с половиной
 // проектов хуже честного отказа целиком.
 func openGraphProjects(ctx context.Context, roots []string, newProjects func(string) (*app.Projects, error), radiusCap int) ([]graphweb.ProjectHandle, int) {

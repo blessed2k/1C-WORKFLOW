@@ -89,7 +89,7 @@ func warningCodes(res Result) map[string]int {
 	return out
 }
 
-// TestInterceptorMovementsCarryDisplayName — пункт 3 таска 09: у движений
+// TestInterceptorMovementsCarryDisplayName: у движений
 // перехватчика From несёт DISPLAY-имя ("РасшА_ОбработкаПроведения"), как и у
 // базового обработчика ("ОбработкаПроведения"). До правки туда уходило
 // НОРМАЛИЗОВАННОЕ имя из resolve.Intercept, и в одной категории ответа
@@ -113,7 +113,7 @@ func TestInterceptorMovementsCarryDisplayName(t *testing.T) {
 	}
 }
 
-// TestInterceptorSymbolNotFoundWarns — пункт 2 таска 09: перехватчик в ответе
+// TestInterceptorSymbolNotFoundWarns: перехватчик в ответе
 // есть, а его символа в индексе нет, поэтому движений у него нет. Молчаливый
 // continue делал это неотличимым от «перехватчик ничего не пишет» —
 // обязано быть названо предупреждением.
@@ -128,7 +128,7 @@ func TestInterceptorSymbolNotFoundWarns(t *testing.T) {
 	}
 }
 
-// TestInterceptorSymbolAmbiguousWarns — пункт 2 таска 09, вторая половина:
+// TestInterceptorSymbolAmbiguousWarns (парный к TestInterceptorSymbolNotFoundWarns):
 // имени перехватчика в одном модуле расширения отвечают два символа. Выбор
 // первого совпадения молчком — тот же молчаливый выбор одного слоя, который
 // уже запрещён для &Вместо (instead_conflict).

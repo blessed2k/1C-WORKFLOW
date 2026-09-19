@@ -1,12 +1,12 @@
 // Package app: ObjectGraphService — единственный шов, через который граф
-// объектных рёбер (internal/store: object_data_edge/object_badge, таск 03/07)
-// читают оба будущих транспорта: HTTP (таск 09) и MCP-инструмент object_graph
-// (таск 11). Узел, соседи, транзитивный радиус с потолком, топ перегруженных
-// узлов, цепочка атрибуции ребра (тикет 08, spec §6, истории 25/26/31/32/43).
+// объектных рёбер (internal/store: object_data_edge/object_badge)
+// читают оба будущих транспорта: HTTP и MCP-инструмент object_graph.
+// Узел, соседи, транзитивный радиус с потолком, топ перегруженных
+// узлов, цепочка атрибуции ребра.
 //
 // Названо ObjectGraphService, а не GraphService: имя GraphService в этом
-// пакете уже занято (graph.go, тикет 11 — find_references/trace_call_graph по
-// СИМВОЛЬНОМУ графу вызовов, отдельная фича). Ссылка тикета 08 на «сервис
+// пакете уже занято (graph.go: find_references/trace_call_graph по
+// СИМВОЛЬНОМУ графу вызовов, отдельная фича). Упоминание «сервиса
 // GraphService» читается как образец устройства (см. doc-комментарий
 // graph.go: «GraphService.TraceCallGraph» — «образец»), а не как требование
 // занять то же имя типа в том же пакете: два типа с одинаковым именем в
@@ -45,9 +45,9 @@ const (
 	maxSearchLimit     = 100
 
 	// DefaultRadiusNodesCap — потолок узлов ответа Radius, применяется, когда
-	// вызывающий (cmd/mcp1c, таск 09) не передал свой через
+	// вызывающий (cmd/mcp1c) не передал свой через
 	// NewObjectGraphService: тот же дефолт, что у флага -graph-radius-nodes
-	// (cmd/mcp1c/options.go:62, таск 06) — совпадение чисел документирует
+	// (cmd/mcp1c/options.go:62): совпадение чисел документирует
 	// связь, значение задаёт процесс через флаг, не эта константа.
 	DefaultRadiusNodesCap = 300
 )
@@ -55,7 +55,7 @@ const (
 // ObjectTarget адресует один узел графа: либо готовый store id (все
 // {id}-маршруты HTTP §6.1 — Node тоже приходит уже с числом из предыдущего
 // ответа), либо пара вид+имя объекта метаданных (вход MCP-инструмента
-// object_graph, таск 11, у которого готового id ещё нет). Ровно один способ,
+// object_graph, у которого готового id ещё нет). Ровно один способ,
 // как ImpactTarget (impact.go) — та же причина: два транспорта, одно правило
 // разрешения.
 type ObjectTarget struct {
@@ -158,8 +158,8 @@ func multipleLayersWarning(rows []store.MetadataObjectRow, merged bool) []Warnin
 }
 
 // BadgeItem — один бейдж узла (has-dynamic/attribution-truncated/
-// attribution-stale, все три — R27/R14/D03 равноправны, фильтр не должен
-// терять ни один — interfaces.md, ревью таска 06).
+// attribution-stale, все три равноправны, фильтр не должен терять ни
+// один).
 type BadgeItem struct {
 	Badge string `json:"badge"`
 	Layer string `json:"layer,omitempty"`
@@ -294,7 +294,7 @@ type ObjectGraphService struct {
 }
 
 // NewObjectGraphService строит сервис поверх общего резолвера проектов.
-// radiusNodesCap<=0 берёт DefaultRadiusNodesCap: вызывающий (таск 09) обязан
+// radiusNodesCap<=0 берёт DefaultRadiusNodesCap: вызывающий (cmd/mcp1c) обязан
 // передать значение флага -graph-radius-nodes, тест — своё маленькое число,
 // чтобы проверить обрезание без фикстуры в сотни узлов.
 func NewObjectGraphService(p *Projects, radiusNodesCap int) *ObjectGraphService {
@@ -327,7 +327,7 @@ type NodeInput struct {
 	View string
 }
 
-// Node отдаёт карточку одного узла: сам объект плюс его бейджи (R27).
+// Node отдаёт карточку одного узла: сам объект плюс его бейджи.
 func (g *ObjectGraphService) Node(ctx context.Context, in NodeInput) (Response[NodeItem], error) {
 	op, err := g.projects.Active(ctx)
 	if err != nil {
@@ -421,9 +421,9 @@ type NeighborsInput struct {
 	Cursor        string
 }
 
-// Neighbors отдаёт одну страницу рёбер узла (R25: «клик по узлу догружает
-// соседей отдельным запросом»). Различает объект-не-найден (NotFound) от
-// объекта-без-соседей (200, пустой список, TotalCount=0) — R22.1/§43.
+// Neighbors отдаёт одну страницу рёбер узла (клик по узлу догружает
+// соседей отдельным запросом). Различает объект-не-найден (NotFound) от
+// объекта-без-соседей (200, пустой список, TotalCount=0).
 func (g *ObjectGraphService) Neighbors(ctx context.Context, in NeighborsInput) (Response[EdgeItem], error) {
 	op, err := g.projects.Active(ctx)
 	if err != nil {
@@ -575,8 +575,8 @@ type RadiusInput struct {
 	MinConfidence float64
 	Limit         int
 	Cursor        string
-	// ProjectRoot — разовый override активного проекта (тикет 11, spec.md
-	// §8, D3): непустой root резолвится через Projects.ByRoot и читает ИМЕННО
+	// ProjectRoot: разовый override активного проекта (D3,
+	// docs/architecture-graph.md): непустой root резолвится через Projects.ByRoot и читает ИМЕННО
 	// его данные, не трогая активный проект реестра. Пусто — обычный
 	// Projects.Active, как у всех остальных методов сервиса.
 	ProjectRoot string
@@ -605,7 +605,7 @@ type radiusTruncation struct {
 }
 
 // Radius — транзитивный обход от корня на глубину Depth, ответ ограничен
-// потолком узлов сервиса (R22, §26): упор в потолок ДАЁТ Warnings с кодом
+// потолком узлов сервиса: упор в потолок ДАЁТ Warnings с кодом
 // truncated и признаком confidence — при нехватке бюджета сначала обрезаются
 // рёбра/узлы с НАИМЕНЬШЕЙ достоверностью (candidates сортируются по
 // Confidence по убыванию перед распределением бюджета), молчаливого
@@ -921,7 +921,7 @@ type GodNodesInput struct {
 }
 
 // GodNodes отдаёт топ узлов по fan-in/fan-out, посчитанный по тем же рёбрам,
-// что видит карта (R28).
+// что видит карта.
 func (g *ObjectGraphService) GodNodes(ctx context.Context, in GodNodesInput) (Response[GodNodeItem], error) {
 	op, err := g.projects.Active(ctx)
 	if err != nil {

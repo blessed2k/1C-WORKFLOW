@@ -92,7 +92,7 @@ func TestDeleteBothAspectsRemovesIdentity(t *testing.T) {
 	}
 }
 
-// Закрепляющий тест раздела 15 (ревью №4): изменён CommonModules/X.xml,
+// Закрепляющий тест раздела 15: изменён CommonModules/X.xml,
 // Module.bsl не изменён -> uid и id всех symbols сохраняются, references на них
 // не трогаются, module_context.props обновлён.
 func TestXMLChangeKeepsSymbolIdentity(t *testing.T) {
@@ -163,7 +163,7 @@ func TestXMLChangeKeepsSymbolIdentity(t *testing.T) {
 	}
 }
 
-// Ключевая проверка порядка транзакции (ревью №5, шаг 1b): каскадный SET NULL
+// Ключевая проверка порядка транзакции: каскадный SET NULL
 // на resolved-строке обязан ГРОМКО валить транзакцию через CHECK, а не молча
 // портить XOR-автомат. Это архитектурное утверждение о поведении SQLite,
 // поэтому проверяется экспериментом: удаление файла БЕЗ шага (1b) обязано

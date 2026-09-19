@@ -1,4 +1,4 @@
-// Символьные инструменты (тикет 11): find_symbol, get_symbol,
+// Символьные инструменты: find_symbol, get_symbol,
 // get_module_structure. GraphService (find_references, trace_call_graph)
 // живёт рядом в graph.go — оба файла делят resolveModuleFileID,
 // componentIDs, clampLimit и построители resource URI.
@@ -42,14 +42,14 @@ type SymbolItem struct {
 	Async     bool               `json:"async,omitempty"`
 	Directive string             `json:"directive,omitempty"`
 	// Intercepts — перехватчики этого символа в расширениях, применяющихся
-	// к его компоненту (тикет 14, view=effective). Заполняется только
+	// к его компоненту (view=effective). Заполняется только
 	// get_symbol и get_module_structure (find_symbol не платит цену
 	// повторного разбора модулей расширений за каждую строку списка —
 	// упрощение, см. docs/tools-index.md).
 	Intercepts []InterceptItem `json:"intercepts,omitempty"`
 }
 
-// ParameterItem — параметр символа со значением по умолчанию (R25.1).
+// ParameterItem: параметр символа со значением по умолчанию.
 type ParameterItem struct {
 	Name       string `json:"name"`
 	ByVal      bool   `json:"byVal"`
@@ -74,7 +74,7 @@ type SymbolDetail struct {
 //
 // Regions честно пуст: symbol.region в store сегодня не заполняется публикацией
 // (internal/index/publish.go не передаёт Region в store.Symbol) — упрощение
-// пайплайна таска 09, не этого тикета. Response несёт явный warning
+// пайплайна индексации, не этого сервиса. Response несёт явный warning
 // "regions_not_indexed", а не молчаливо пустой список, выданный за «регионов
 // нет» (правило проекта: заметно меньше сделанного — сказать явно, не молчать).
 type ModuleStructureItem struct {
@@ -89,7 +89,7 @@ type ModuleStructureItem struct {
 }
 
 // FindSymbolInput — вход find_symbol. View принят для единообразия входа
-// индексных инструментов (тикет 14, п.5), но не влияет на выдачу — см.
+// индексных инструментов, но не влияет на выдачу, см.
 // doc-комментарий SymbolItem.Intercepts.
 type FindSymbolInput struct {
 	Name      string
@@ -119,7 +119,7 @@ type GetModuleStructureInput struct {
 }
 
 // SymbolService — сервис за find_symbol, get_symbol, get_module_structure и их
-// resource-выдачами (interfaces.md: по одному сервису на группу связанных
+// resource-выдачами (по одному сервису на группу связанных
 // инструментов, здесь — три метода плюс два resource-хелпера).
 type SymbolService struct{ projects *Projects }
 
@@ -199,7 +199,7 @@ func splitSymbolCursorKey(key string) (name string, id int64) {
 }
 
 // FindSymbol ищет символы по подстроке имени с опциональными фильтрами
-// (R25): точное имя — частный случай подстроки, отдельного режима не заведено.
+// (точное имя: частный случай подстроки, отдельного режима не заведено).
 func (s *SymbolService) FindSymbol(ctx context.Context, in FindSymbolInput) (Response[SymbolItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {
@@ -281,8 +281,8 @@ func (s *SymbolService) FindSymbol(ctx context.Context, in FindSymbolInput) (Res
 	return withSnapshot(resp, snap), nil
 }
 
-// GetSymbol читает один символ точно — по uid, либо по паре module+name
-// (R25). Тело режется из blob В ТОЙ ЖЕ read-транзакции, что и остальные
+// GetSymbol читает один символ точно: по uid либо по паре module+name.
+// Тело режется из blob В ТОЙ ЖЕ read-транзакции, что и остальные
 // выборки (§18.2): живой файл читается отдельно, только чтобы сравнить hash
 // для staleAgainstDisk, и не участвует в построении тела.
 func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Response[SymbolDetail], error) {
@@ -472,7 +472,7 @@ func fileDiffersOnDisk(op *openProject, componentID, relPath, indexedHash string
 }
 
 // GetModuleStructure отдаёт символы, переменные и счётчики модуля без его
-// текста (R38, §21: «модуль целиком не возвращается никогда»).
+// текста (архитектура §21: «модуль целиком не возвращается никогда»).
 func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStructureInput) (Response[ModuleStructureItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {
@@ -569,7 +569,7 @@ func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStru
 	resp := Response[ModuleStructureItem]{Generation: res.gen, Items: []ModuleStructureItem{item}, TotalCount: 1, Warnings: res.warn}
 	resp.Warnings = append(resp.Warnings, Warning{
 		Code:    "regions_not_indexed",
-		Message: "регионы модуля не хранятся индексом (symbol.region публикацией не заполняется — упрощение пайплайна таска 09)",
+		Message: "регионы модуля не хранятся индексом (публикация индекса не заполняет symbol.region: осознанное упрощение пайплайна)",
 		Hint:    "поле regions в ответе всегда пусто; для точного региона метода читайте doc/architecture-index.md §14 либо сам исходник",
 	})
 	return withSnapshot(resp, snap), nil

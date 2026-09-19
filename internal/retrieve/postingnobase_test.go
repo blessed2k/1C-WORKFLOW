@@ -12,7 +12,7 @@ import (
 // Документ БЕЗ базового модуля объекта — не выдуманный погранслучай, а
 // реальная конфигурация: у документа в выгрузке с расширениями каталога
 // Documents/<Имя>/Ext/ не существует вовсе (так и в самой базе), а расширение «РасширениеА» заимствует этот же путь и пишет
-// движения из &После("ОбработкаПроведения"). До таска 10 ответ был пуст и
+// движения из &После("ОбработкаПроведения"). Раньше ответ был пуст и
 // молчал: перехватчик — единственный исполняемый код проведения, и его не
 // было видно.
 const postingNoBaseTask = "Почему при проведении документа ВходящиеПлатежи не создаются движения"
@@ -120,7 +120,7 @@ func warningByCode(r Result, code string) (Warning, bool) {
 	return Warning{}, false
 }
 
-// TestPostingWithoutBaseHandlerShowsInterceptors — таск 10, пункты 1–3:
+// TestPostingWithoutBaseHandlerShowsInterceptors:
 // базового обработчика нет, перехватчик расширения есть и он единственный
 // исполняемый код проведения. Он обязан попасть в ответ со своим слоем, его
 // собственные движения — в movements с component расширения, а отсутствие
@@ -201,8 +201,8 @@ func TestPostingWithoutBaseHandlerShowsInterceptors(t *testing.T) {
 	}
 }
 
-// TestPostingWithoutBaseHandlerRawSpeaksButStaysBaseOnly — решение таска 10
-// по view=raw (ADR-034). Правило прогона «raw поведения не меняет» (R25)
+// TestPostingWithoutBaseHandlerRawSpeaksButStaysBaseOnly: решение
+// по view=raw (ADR-034). Правило «raw поведения не меняет»
 // сохранено в части ФАКТОВ: перехватчик расширения в raw не появляется.
 // Но пустота raw про документ, у которого проведение целиком написано
 // расширением, — не «сырой вид», а ложный ответ, поэтому предупреждение
@@ -223,17 +223,17 @@ func TestPostingWithoutBaseHandlerRawSpeaksButStaysBaseOnly(t *testing.T) {
 
 	for _, s := range res.Signatures {
 		if strings.EqualFold(s.Name, "расша_обработкапроведения") {
-			t.Errorf("raw отдал ФАКТ перехватчика расширения — R25 нарушено: %+v", s)
+			t.Errorf("raw отдал ФАКТ перехватчика расширения (raw не несёт фактов расширений): %+v", s)
 		}
 	}
 	for _, rel := range res.Relations {
 		if rel.Component == "ext-a" {
-			t.Errorf("raw отдал движение слоя расширения — R25 нарушено: %+v", rel)
+			t.Errorf("raw отдал движение слоя расширения (raw не несёт фактов расширений): %+v", rel)
 		}
 	}
 
 	// Ни одна категория, которую собирать было не от чего, не притворяется
-	// собранной (D03): complete_empty в raw здесь не имеет права появиться.
+	// собранной: complete_empty в raw здесь не имеет права появиться.
 	for _, cat := range []string{"posting_handler", "movements", "register_access"} {
 		cov, found := coverageOf(res, cat)
 		if !found {

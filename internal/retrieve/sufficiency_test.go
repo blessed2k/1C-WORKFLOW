@@ -15,8 +15,8 @@ func statusOf(t *testing.T, r Result, category string) CoverageStatus {
 	return c.Status
 }
 
-// TestHonestlyEmptyCategoriesDoNotSinkAnswer — критерии приёмки П3.1/П3.2
-// (R26, R27, R28, R31): документ Заказ ТОЛЬКО пишет движения — регистров он не
+// TestHonestlyEmptyCategoriesDoNotSinkAnswer: документ Заказ ТОЛЬКО пишет
+// движения, регистров он не
 // читает и подписок на него нет. Обе категории обязаны отчитаться
 // complete_empty («собрана, фактов нет»), не missing; ответ при этом остаётся
 // sufficient_inline и не называет их отсутствующими.
@@ -48,7 +48,7 @@ func TestHonestlyEmptyCategoriesDoNotSinkAnswer(t *testing.T) {
 }
 
 // TestBudgetStarvedCategoryStaysMissing — вторая половина того же критерия
-// приёмки (R26/R28): расщепление ветки returned==0 не должно проглотить
+// приёмки: расщепление ветки returned==0 не должно проглотить
 // НАСТОЯЩУЮ неполноту. Факты есть (totalCount=2), бюджета не хватает даже на
 // один — статус прежний missing, ответ прежний insufficient.
 func TestBudgetStarvedCategoryStaysMissing(t *testing.T) {
@@ -80,7 +80,7 @@ func TestBudgetStarvedCategoryStaysMissing(t *testing.T) {
 	}
 }
 
-// TestPostingSubscriptionsFilled — критерий приёмки П3.3 (R29, R30):
+// TestPostingSubscriptionsFilled:
 // категория subscriptions строится из event_subscription по источнику
 // «объект-анкер», включая подписки, ОБЪЯВЛЕННЫЕ расширением, которое
 // применяется к компоненту объекта. component/layer факта — компонент,
@@ -117,13 +117,13 @@ func TestPostingSubscriptionsFilled(t *testing.T) {
 	}
 }
 
-// TestUncollectedCategoriesStayMissing — D03 (§6 спецификации, находка ревью
-// таска 06): «собрана» — это ЗАЯВЛЕНИЕ сборщика, а не вывод из счёта.
+// TestUncollectedCategoriesStayMissing: «собрана» означает ЗАЯВЛЕНИЕ сборщика,
+// а не вывод из счёта.
 // Интент form в этот прогон не входит и ничего не заявляет: у документа Заказ
 // в фикстуре форм нет вовсе, ни одна из четырёх обязательных категорий не
-// собиралась — значит missing и insufficient, как до таска 06. Иначе ответ,
-// не нашедший ничего, объявляет себя полным (ровно та регрессия, что была
-// воспроизведена на реальной выгрузке).
+// собиралась, значит missing и insufficient, как до появления complete_empty.
+// Иначе ответ, не нашедший ничего, объявляет себя полным (ровно та
+// регрессия, что была воспроизведена на реальной выгрузке).
 func TestUncollectedCategoriesStayMissing(t *testing.T) {
 	st := openFixtureStore(t)
 	seedPostingFixture(t, st, postingFixtureOpts{})
@@ -155,7 +155,7 @@ func TestUncollectedCategoriesStayMissing(t *testing.T) {
 	}
 }
 
-// TestCollectionFailureRevokesDeclaration — D03, вторая половина: сбой чтения
+// TestCollectionFailureRevokesDeclaration: сбой чтения
 // источника не имеет права выглядеть как честная пустота. Отзыв сильнее
 // заявления и не перебивается удачным чтением по другому анкеру, поэтому
 // категория из семейства complete_* не получит.

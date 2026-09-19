@@ -8,7 +8,7 @@ import (
 )
 
 // TestIndexStatusServiceNoActiveProject: index_status без активного проекта
-// отдаёт no_active_project — критерий приёмки тикета 10, «а не пустоту».
+// отдаёт no_active_project, а не пустоту.
 func TestIndexStatusServiceNoActiveProject(t *testing.T) {
 	p, err := NewProjects("", nil, index.Config{})
 	if err != nil {
@@ -230,7 +230,7 @@ func TestIndexStatusServiceStatusBeforeAnyReindex(t *testing.T) {
 	}
 }
 
-// TestIndexStatusServiceReindexReportsStageTimings — R01/R05/R06:
+// TestIndexStatusServiceReindexReportsStageTimings:
 // reindex отдаёт разбивку
 // по этапам конвейера, и сумма этапов сходится с общим DurationMS. "commit"
 // определён как остаток общей длительности сверх измеренных этапов
@@ -272,7 +272,7 @@ func TestIndexStatusServiceReindexReportsStageTimings(t *testing.T) {
 	}
 }
 
-// TestIndexStatusServiceReindexIncrementalStageTimingsReconcile — R10: на
+// TestIndexStatusServiceReindexIncrementalStageTimingsReconcile: на
 // неизменном дереве инкрементальный reindex отдаёт ту же структуру (набор
 // имён этапов, сумма сходится с DurationMS). НЕ проверяет времена на близость
 // к нулю: reindex (в отличие от EnsureFresh/precheck) сознательно не заходит

@@ -14,10 +14,10 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// Файл: HTTP-связи между базами (веха В2, решение D10, ADR-039). Факты
+// Файл: HTTP-связи между базами (веха В2, D10 docs/architecture-graph.md, ADR-039). Факты
 // каждого проекта (http_call, http_endpoint) читаются из его индекса одной
 // read-транзакцией, вызов приписывается объекту-владельцу обходом графа
-// вызовов (resolve.AttributeSymbolFact, те же правила D6/D7, что у записи в
+// вызовов (resolve.AttributeSymbolFact, правила D6/D7 docs/architecture-graph.md, как у записи в
 // регистр), затем resolve.StitchHTTPCall сшивает вызовы с сервисами всех
 // переданных проектов по пути и маппингу хостов workspace. Индексы баз
 // остаются независимыми файлами: кросс-проектный join живёт здесь, при
@@ -31,7 +31,7 @@ const EdgeHTTPCall = "http-call"
 
 // Бейджи узла по HTTP.
 const (
-	// BadgeHasDynamicHTTP: адрес вызова не выводится (D7), ребра нет.
+	// BadgeHasDynamicHTTP: адрес вызова не выводится (D7, docs/architecture-graph.md), ребра нет.
 	BadgeHasDynamicHTTP = resolve.BadgeHasDynamicHTTP
 	// BadgeHasUnresolvedHTTP: адрес известен лишь частью и совпадения нет,
 	// или проект мапленного хоста не открыт: адресат не определён.

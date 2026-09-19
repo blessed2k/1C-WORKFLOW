@@ -6,8 +6,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Файл — типизированная выборка register_access для find_register_writes
-// (таск 12). SQL живёт только здесь (RuleSQLOnlyInStore).
+// Файл: типизированная выборка register_access для find_register_writes.
+// SQL живёт только здесь (RuleSQLOnlyInStore).
 
 // RegisterAccessRow — один доступ к регистру, с компонентом, в котором лежит
 // файл (join source_file: register_access своей колонки component_id не

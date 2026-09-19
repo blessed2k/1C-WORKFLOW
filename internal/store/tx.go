@@ -807,7 +807,8 @@ func (tx *WriteTx) InsertQueryReference(r QueryReference) error {
 
 // RegisterAccess — доступ к регистру: режим, транзакционность, статичность,
 // слой. Layer — 'base' либо id компонента-расширения, та же семантика, что у
-// dependency_edge: без него raw и effective неразличимы (D11). Пусто = base.
+// dependency_edge: без него raw и effective неразличимы (D11 в
+// docs/architecture-graph.md). Пусто = base.
 type RegisterAccess struct {
 	FileID           int64
 	SymbolID         int64

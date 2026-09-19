@@ -1,8 +1,8 @@
-// find_queries_using (тикет 12) — поверх query_reference, теперь реально
+// find_queries_using поверх query_reference, теперь реально
 // наполненной таблицы (см. internal/resolve/queries.go: DeriveQueryReference
 // группирует по литералу; internal/index/publishderive.go: publishQueryReferences
-// вставляет группы для static-текстов — долг тасков 08/09, закрытый этим же
-// тикетом). Partial/dynamic тексты query_reference по-прежнему не несут (см.
+// вставляет группы для static-текстов).
+// Partial/dynamic тексты query_reference по-прежнему не несут (см.
 // doc-комментарий resolve.DeriveQueryReference) — find_queries_using видит
 // ровно то, что опубликовано, честно, не имитирует полноту.
 package app
@@ -30,8 +30,8 @@ func NewQueryService(p *Projects) *QueryService { return &QueryService{projects:
 
 // FindQueriesUsingInput — вход find_queries_using: объект (Type+Name) ИЛИ
 // поле (Field, само по себе или вместе с объектом-владельцем), плюс cursor.
-// View принят для единообразия входа индексных инструментов (тикет 14,
-// п.5) и валидируется, но не меняет выдачу: query_reference уже несёт
+// View принят для единообразия входа индексных инструментов
+// и валидируется, но не меняет выдачу: query_reference уже несёт
 // component/layer в каждой строке через Owner (raw и без view уже
 // «эффективен» в смысле §20 — список не выбирает один слой из нескольких,
 // как это делает get_object, поэтому сливать здесь нечего).
@@ -60,7 +60,7 @@ type QueryOwnerRef struct {
 	Span   domain.Span `json:"span"`
 }
 
-// QueryUsageItem — одно использование объекта/поля в тексте запроса (R28).
+// QueryUsageItem: одно использование объекта/поля в тексте запроса.
 type QueryUsageItem struct {
 	Kind       string         `json:"kind"` // table|field|parameter|temp-table
 	Name       string         `json:"name"`
@@ -75,8 +75,7 @@ type QueryUsageItem struct {
 
 // FindQueriesUsing отвечает на find_queries_using: запросы, использующие
 // объект (любое поле) или конкретное поле, найденные по query_reference —
-// НЕ по подстроке в тексте (R28), staticity/confidence у каждого результата
-// (R28.1).
+// НЕ по подстроке в тексте, staticity/confidence у каждого результата.
 func (s *QueryService) FindQueriesUsing(ctx context.Context, in FindQueriesUsingInput) (Response[QueryUsageItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {

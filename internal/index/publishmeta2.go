@@ -48,7 +48,7 @@ func publishScheduledJob(tx *store.WriteTx, ts *txState, rel string, fileID int6
 }
 
 // publishRole вставляет identity роли (аспект — её собственный XML). Роль не
-// node-сущность (interfaces.md, таск 03): identity — имя внутри компонента.
+// node-сущность: identity это имя внутри компонента.
 // Строкой роли владеет этот файл: публикация Rights.xml её не переписывает
 // (store.RoleForRights).
 func publishRole(tx *store.WriteTx, rel string, fileID, objID int64, role *store.Role) error {
@@ -62,8 +62,8 @@ func publishRole(tx *store.WriteTx, rel string, fileID, objID int64, role *store
 
 // publishRoleRights вставляет права роли (Rights.xml, отдельный файл от
 // самой роли) СЫРЫМИ фактами, включая value=false строки — ИЛИ-агрегация
-// (resolve.EffectiveRoleObjectRights) остаётся делом читающего слоя (app,
-// таск 12+): здесь её вызывать не для чего, раз ничего из её результата не
+// (resolve.EffectiveRoleObjectRights) остаётся делом читающего слоя (app):
+// здесь её вызывать не для чего, раз ничего из её результата не
 // публикуется отдельной таблицей, а схема store для эффективных прав
 // отдельного места не резервирует. Роль уже есть (её XML опубликован этой
 // или прошлой транзакцией): берётся как есть. Нет (XML роли в выгрузке нет):

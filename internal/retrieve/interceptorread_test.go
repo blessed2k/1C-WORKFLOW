@@ -31,7 +31,7 @@ func (f *failingSymbolFinder) FindSymbols(q store.SymbolSearch) ([]store.SymbolR
 	return f.tx.FindSymbols(q)
 }
 
-// TestInterceptorSymbolReadFailedWarns — находка ревью по таску 09: из
+// TestInterceptorSymbolReadFailedWarns: из
 // четырёх исходов поиска символа перехватчика единственный БЕЗ теста — отказ
 // чтения. Ветка заведена ради того, чтобы сбой не выглядел пустотой, и
 // проверяется тем же способом, что остальные три: отказ гонится через шов

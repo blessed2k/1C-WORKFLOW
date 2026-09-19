@@ -1,6 +1,5 @@
-// Package app: ImpactService — find_impact (тикет 13, R44/R26.5, spec
-// истории 30-31, архитектура §19 «find_impact = обратный BFS от объекта/
-// символа по выбранным видам рёбер, ranked»).
+// Package app: ImpactService: find_impact (архитектура §19 «find_impact =
+// обратный BFS от объекта/символа по выбранным видам рёбер, ranked»).
 package app
 
 import (
@@ -17,7 +16,7 @@ import (
 
 // impactPageSize — размер страницы ranked-списка find_impact. BFS сам
 // ограничен Budget (общий лимит посещённых узлов), пагинация — отдельный,
-// более мелкий срез уже собранного результата (R61: лимит на каждый список).
+// более мелкий срез уже собранного результата (лимит на каждый список).
 const impactPageSize = 50
 
 // ImpactDefaultDepth/ImpactMaxDepth/ImpactDefaultBudget/ImpactMaxBudget —
@@ -41,7 +40,7 @@ type ImpactTarget struct {
 }
 
 // ImpactInput — вход find_impact (архитектура §21: «цель, kinds?, depth,
-// budget»; тело тикета 13 добавляет view и cursor).
+// budget» плюс view и cursor).
 type ImpactInput struct {
 	Target ImpactTarget
 	Kinds  []string
@@ -53,8 +52,7 @@ type ImpactInput struct {
 
 // ImpactPathStep — один шаг пути от цели до найденного элемента: вид ребра
 // на этом шаге, узел, в который ребро ведёт, и его provenance/confidence
-// (критерий приёмки тикета 13: «путь до каждого элемента называет вид ребра
-// на каждом шаге»).
+// (путь до каждого элемента называет вид ребра на каждом шаге).
 type ImpactPathStep struct {
 	EdgeKind   string            `json:"edgeKind"`
 	Detail     string            `json:"detail,omitempty"`
@@ -166,7 +164,7 @@ func (s *ImpactService) Impact(ctx context.Context, in ImpactInput) (Response[Im
 		}
 		var warn []Warning
 		if view == domain.ViewEffective && rootKind == "symbol" {
-			// упрощение (ADR-4/§20, тикет 14): перехватчики не хранятся как
+			// упрощение (ADR-4/§20): перехватчики не хранятся как
 			// ребро графа (intercepts не в store.ImpactEdgeKinds — таблица
 			// dependency_edge их не собирает, см. doc-комментарий
 			// internal/app/effective.go) — поэтому BFS их не проходит
@@ -267,7 +265,7 @@ func normalizeImpactTarget(t ImpactTarget) (ImpactTarget, error) {
 // tx.NodeID напрямую: identity_key символа равен его uid (internal/index/
 // identity.go:symbolIdentityKey, тот же приём, которым read_symbol.go
 // комментирует SymbolByID) — заводить свой примитив под то же самое незачем.
-// Объект метаданных — через tx.MetadataObjectsByName (readmeta.go, таск 12):
+// Объект метаданных ищется через tx.MetadataObjectsByName (readmeta.go):
 // она уже отдаёт все совпадения по виду+имени без фильтра по компоненту
 // (raw view умышленно видит все слои); Component входа сужает выбор, когда
 // он известен, иначе берётся первое совпадение (сортировка по component_id
@@ -290,7 +288,7 @@ func resolveImpactTarget(tx *store.ReadTx, t ImpactTarget) (kind string, id int6
 }
 
 // rootInterceptItems строит ImpactItem-ы для ПРЯМЫХ перехватчиков корня
-// обхода (тикет 14) — глубина 1, edgeKind="intercepts". Этот вид ребра не
+// обхода: глубина 1, edgeKind="intercepts". Этот вид ребра не
 // входит в store.ImpactEdgeKinds: факт не хранится, вычисляется на чтении
 // (см. doc-комментарий internal/app/effective.go) — поэтому runImpactBFS не
 // может пройти через него транзитивно, только корень.
@@ -357,8 +355,8 @@ func normalizeImpactKinds(kinds []string) ([]string, error) {
 // runImpactBFS — обратный BFS: от корня (rootKind, rootID) наружу по
 // IncomingEdges, cycle-safe за счёт visitKey, с лимитом узлов budget и
 // глубины depth. Возвращает найденные элементы (без корня) и признак
-// усечения по budget (тикет 13: «цикл не вешает обход; лимит узлов
-// соблюдается, усечение честно помечено»).
+// усечения по budget (цикл не вешает обход; лимит узлов соблюдается,
+// усечение честно помечено).
 func runImpactBFS(tx *store.ReadTx, rootKind string, rootID int64, kinds []string, depth, budget int) ([]ImpactItem, bool, error) {
 	type queueItem struct {
 		kind, comp, display string
@@ -438,7 +436,7 @@ func runImpactBFS(tx *store.ReadTx, rootKind string, rootID int64, kinds []strin
 	return items, truncated, nil
 }
 
-// sortImpactItems — ранжирование (тикет 13): ближе -> выше (Depth), точный
+// sortImpactItems ранжирует: ближе -> выше (Depth), точный
 // факт выше эвристики (Confidence по убыванию), затем стабильный
 // детерминированный tie-break по отображаемому имени.
 func sortImpactItems(items []ImpactItem) {

@@ -8,7 +8,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// TestDetectKind закрывает D01: internal/workspace/kind.go больше не разбирает
+// TestDetectKind: internal/workspace/kind.go больше не разбирает
 // XML сам через encoding/xml, а делегирует meta.DetectRoot. Тест доказывает
 // это не заглядыванием в исходники (grep неуместен как Go-тест), а тем, что
 // DetectKind даёт те же результаты на тех же фикстурах, что и раньше —

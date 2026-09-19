@@ -1,4 +1,4 @@
-// Метаданные и формы (тикет 12): get_object, get_form_handlers.
+// Метаданные и формы: get_object, get_form_handlers.
 // find_queries_using и find_register_writes живут рядом, в query.go и
 // register.go — все три файла делят resolveObjectRow/objectParts/componentFromInput.
 package app
@@ -13,8 +13,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// MetadataService — сервис за get_object и get_form_handlers (interfaces.md:
-// по одному сервису на группу связанных инструментов).
+// MetadataService: сервис за get_object и get_form_handlers (по
+// одному сервису на группу связанных инструментов).
 type MetadataService struct{ projects *Projects }
 
 // NewMetadataService строит сервис поверх общего резолвера проектов.
@@ -22,12 +22,12 @@ func NewMetadataService(p *Projects) *MetadataService { return &MetadataService{
 
 // --- вход ---
 
-// GetObjectInput — вход get_object (тикет 12: «type + name, parts?, view»).
+// GetObjectInput: вход get_object (type + name, parts?, view).
 // Component — НЕобязательное сужение: без него и без view=effective, когда
 // один и тот же объект заимствован в несколько компонентов (базовая
 // конфигурация + расширение), выбирается строка базового слоя (см.
 // pickObjectRow). View=effective без component сливает Members/Forms всех
-// слоёв (тикет 14, см. GetObject).
+// слоёв (см. GetObject).
 type GetObjectInput struct {
 	Type      string
 	Name      string
@@ -37,8 +37,8 @@ type GetObjectInput struct {
 }
 
 // GetFormHandlersInput — вход get_form_handlers (owner=type+name, form?).
-// View принимается и валидируется (тикет 14, п.5: «view добавляется во все
-// индексные инструменты»), но не меняет выдачу — обработчики форм расширений
+// View принимается и валидируется (view есть во всех
+// индексных инструментах), но не меняет выдачу: обработчики форм расширений
 // пока не сливаются с базовыми (docs/tools-index.md, раздел «Формы
 // расширений»); открытый пункт для отдельного тикета, не эта функция.
 type GetFormHandlersInput struct {
@@ -52,7 +52,7 @@ type GetFormHandlersInput struct {
 // --- выход: get_object ---
 
 // ObjectMemberItem — реквизит/ресурс/измерение/табличная часть или её
-// реквизит (R27: «реквизиты, ТЧ, измерения/ресурсы»).
+// реквизит.
 type ObjectMemberItem struct {
 	Kind    string   `json:"kind"`
 	Name    string   `json:"name"`
@@ -67,7 +67,7 @@ type ObjectMemberItem struct {
 	Layer string `json:"layer,omitempty"`
 }
 
-// ObjectFormItem — форма объекта со списком её команд (R27.1).
+// ObjectFormItem: форма объекта со списком её команд.
 type ObjectFormItem struct {
 	Name     string   `json:"name"`
 	Commands []string `json:"commands,omitempty"`
@@ -75,7 +75,7 @@ type ObjectFormItem struct {
 	Layer string `json:"layer,omitempty"`
 }
 
-// ObjectSubscriptionItem — подписка, чей источник — этот объект (R30, R30.1).
+// ObjectSubscriptionItem: подписка, источник которой этот объект.
 type ObjectSubscriptionItem struct {
 	Name       string `json:"name"`
 	SourceKind string `json:"sourceKind"`
@@ -96,7 +96,7 @@ type ObjectScheduledJobItem struct {
 	Resolution string `json:"resolution"`
 }
 
-// ObjectRoleRightItem — одно право одной роли на объект (R30, R30.2: сырой
+// ObjectRoleRightItem: одно право одной роли на объект (сырой
 // факт, включая value=false; ИЛИ-агрегация — дело читающего, см.
 // resolve.EffectiveRoleObjectRights).
 type ObjectRoleRightItem struct {
@@ -211,8 +211,8 @@ func pickObjectRow(rows []store.MetadataObjectRow, componentFilter string) (reso
 }
 
 // GetObject отвечает на get_object: структура объекта из индекса, а не из
-// XML (R27), с формами/командами (R27.1), подписками/заданиями/правами
-// (R30). parts сужает набор блоков и обращений к store.
+// XML, с формами/командами, подписками/заданиями/правами.
+// parts сужает набор блоков и обращений к store.
 func (s *MetadataService) GetObject(ctx context.Context, in GetObjectInput) (Response[ObjectItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {
@@ -398,7 +398,7 @@ func splitTypesJSON(raw string) []string {
 // --- выход: get_form_handlers ---
 
 // HandlerSymbolRef — символ-обработчик, на который разрешилась привязка
-// (R43: «binding + resolution в символ со span»). nil в FormHandlerItem,
+// (binding + resolution в символ со span). nil в FormHandlerItem,
 // когда Resolution != resolved.
 type HandlerSymbolRef struct {
 	UID    string      `json:"uid"`
@@ -407,10 +407,10 @@ type HandlerSymbolRef struct {
 	Span   domain.Span `json:"span"`
 }
 
-// FormHandlerItem — одна привязка обработчика к событию формы (R43).
-// Diagnostics непусто РОВНО когда Resolution=unresolved (R43.1: «обработчик
+// FormHandlerItem: одна привязка обработчика к событию формы.
+// Diagnostics непусто РОВНО когда Resolution=unresolved (обработчик
 // объявлен, но не найден в модуле — resolution=unresolved + diagnostic, а не
-// пустая выдача») — store.handler_binding не несёт отдельной строки
+// пустая выдача): store.handler_binding не несёт отдельной строки
 // diagnostic для этого случая (index/publishderive.go её не вставляет),
 // поэтому diagnostic синтезируется здесь, на чтении, из самого факта
 // unresolved-привязки — не имитация, тот же код что дал бы пайплайн.
@@ -426,7 +426,7 @@ type FormHandlerItem struct {
 
 // GetFormHandlers отвечает на get_form_handlers: обработчики формы
 // (или всех форм объекта, если form не задан), каждый — с resolution в
-// символ (R43, R43.1).
+// символ.
 func (s *MetadataService) GetFormHandlers(ctx context.Context, in GetFormHandlersInput) (Response[FormHandlerItem], error) {
 	op, err := s.projects.Active(ctx)
 	if err != nil {

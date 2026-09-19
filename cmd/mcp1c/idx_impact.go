@@ -12,8 +12,8 @@ func init() {
 	registerIndexTool(registerImpactTool)
 }
 
-// impactInput — вход find_impact (тикет 13, архитектура §21: «цель, kinds?,
-// depth, budget»; тело тикета добавляет view и cursor). Цель — ровно один из
+// impactInput: вход find_impact (архитектура §21: «цель, kinds?,
+// depth, budget»; плюс view и cursor). Цель: ровно один из
 // (symbolUid) или (objectType+objectName): проверка и нормализация — в
 // internal/app.ImpactService (транспорт не содержит бизнес-правил).
 type impactInput struct {
@@ -29,8 +29,8 @@ type impactInput struct {
 }
 
 // registerImpactTool регистрирует find_impact поверх internal/app.ImpactService,
-// построенного локально над deps.projects (interfaces.md, «Из таска 10»:
-// indexToolDeps не несёт готовых сервисов).
+// построенного локально над deps.projects (indexToolDeps не несёт
+// готовых сервисов).
 func registerImpactTool(server *mcp.Server, deps indexToolDeps) {
 	svc := app.NewImpactService(deps.projects)
 	falseHint := false

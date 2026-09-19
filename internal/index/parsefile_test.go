@@ -78,8 +78,8 @@ func TestEmptyParseDiagnosticIgnoresDirectiveOnlyFiles(t *testing.T) {
 // реальный модуль ut_demo, состоящий только из точек врезки БСП
 // ("//++ Локализация" / "//-- Локализация" внутри #Область/#КонецОбласти),
 // не должен ложно триггерить index_empty_parse — распространённейший
-// паттерн в реальных конфигурациях, не edge case (в отличие от таска 09,
-// где закрыт только BOM/директивный случай). Пропускается без ONEC_DUMP.
+// паттерн в реальных конфигурациях, не edge case (в отличие от первой
+// версии проверки, где закрыт только BOM/директивный случай). Пропускается без ONEC_DUMP.
 func TestEmptyParseDiagnosticIgnoresRealLocalizationMarkerModule(t *testing.T) {
 	root := realDumpRoot(t)
 	relPath := filepath.Join("CommonModules", "ДоговорыМеждуОрганизациямиЛокализацияКлиентСервер", "Ext", "Module.bsl")

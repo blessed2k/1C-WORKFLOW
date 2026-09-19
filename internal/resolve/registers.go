@@ -8,7 +8,7 @@ import (
 // RegisterAccessResult — один доступ к регистру (store.RegisterAccess без
 // file_id/symbol_id — их знает только вызывающий, у него источник файла и
 // владеющий символ). Mode различает read/write/movement/clear ровно так,
-// как их уже различил bsl.RegisterAccess (парсер, таск 05) — резолвер
+// как их уже различил bsl.RegisterAccess (парсер); резолвер
 // добавляет только object_id через поиск объекта метаданных по имени.
 type RegisterAccessResult struct {
 	RegisterNameNorm string

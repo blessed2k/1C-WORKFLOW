@@ -9,7 +9,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
-// TestXMLPropsChangePreservesSymbolIdentity — R32.3: правка XML-свойств
+// TestXMLPropsChangePreservesSymbolIdentity: правка XML-свойств
 // общего модуля (module_context) не трогает identity его Module.bsl —
 // source_file этого файла и id его символов не меняются, а зависимая
 // ссылка из ManagerModule.bsl переразрешается (её файл republish-ится

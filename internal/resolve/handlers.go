@@ -9,7 +9,7 @@ import (
 // модуля формы (store.HandlerBinding без form_id/origin_file_id — их знает
 // вызывающий). Resolution=unresolved, когда обработчик объявлен в
 // FormStructureFact, но метода с таким именем в модуле формы нет —
-// критерий приёмки R43.1: честный unresolved, а не пустая выдача.
+// критерий приёмки: честный unresolved, а не пустая выдача.
 type HandlerBindingResult struct {
 	Source          string
 	Event           string

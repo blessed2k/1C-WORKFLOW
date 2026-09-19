@@ -15,8 +15,8 @@ import (
 // отмену ctx даётся graceful shutdown с shutdownTimeout на завершение уже
 // идущих запросов; Serve возвращается, только когда http.Server.Serve
 // реально завершилась — так вызывающий не считает процесс погашенным, пока
-// горутина сервера ещё жива (spec §6, R18.1: «висящих goroutine не
-// остаётся»).
+// горутина сервера ещё жива (висящих goroutine не
+// остаётся).
 func Serve(ctx context.Context, ln net.Listener, handler http.Handler, shutdownTimeout time.Duration) error {
 	srv := &http.Server{Handler: handler}
 	errCh := make(chan error, 1)

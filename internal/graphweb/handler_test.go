@@ -60,7 +60,7 @@ func doGETErr(t *testing.T, h http.Handler, path string) (*httptest.ResponseReco
 // TestHandlerNodeFoundAndNotFound: маршрут /api/node/{id} отвечает 200 с
 // карточкой узла, когда объект есть, и 404 actionable-ошибкой, когда его
 // нет — это транспортная сериализация NotFound из app.ObjectGraphService.Node
-// в HTTP-статус, а не поведение самого графа (то уже проверено таском 08).
+// в HTTP-статус, а не поведение самого графа (то уже проверено тестами app).
 func TestHandlerNodeFoundAndNotFound(t *testing.T) {
 	tp := newTestProject(t, "graphweb-node")
 	o1, _, _, _ := seedTwoNodesWithEdge(t, tp)
@@ -83,8 +83,8 @@ func TestHandlerNodeFoundAndNotFound(t *testing.T) {
 	}
 }
 
-// TestHandlerNeighborsEmptyVsNotFound — критическое различение из тикета
-// (R22.1/§43): объект БЕЗ соседей отвечает 200 с пустым items и total=0
+// TestHandlerNeighborsEmptyVsNotFound: критическое различение:
+// объект БЕЗ соседей отвечает 200 с пустым items и total=0
 // (это не ошибка), а объект, которого вообще нет, отвечает 404. Спутать их
 // значило бы, что SPA не может отличить «граф пуст» от «опечатка в id».
 func TestHandlerNeighborsEmptyVsNotFound(t *testing.T) {
@@ -226,7 +226,7 @@ func TestHandlerRadiusCursorPagesThroughDistinctResults(t *testing.T) {
 
 // TestHandlerRadiusTruncationWarningReachesHTTPResponse: признак обрезания
 // радиуса (Warnings с кодом truncated), который ObjectGraphService.Radius
-// уже вычисляет (таск 08), обязан дойти до HTTP-тела ответа неискажённым —
+// уже вычисляет, обязан дойти до HTTP-тела ответа неискажённым:
 // именно это швом транспорта и рискует потеряться (сериализация неполного
 // среза, забытое поле). RadiusNodesCap=1 гарантированно упирается в потолок
 // на фикстуре с двумя рёбрами и тремя узлами.
@@ -265,7 +265,7 @@ func hasWarningCode(t *testing.T, ws []json.RawMessage, code string) bool {
 
 // TestHandlerGodNodesAndEdgeEvidence — оставшиеся два маршрута раздела 8.1:
 // проверяется только то, что запрос доходит и сериализуется (200), детали
-// ранжирования и evidence — зона таска 08.
+// ранжирования и evidence проверяются в app.
 func TestHandlerGodNodesAndEdgeEvidence(t *testing.T) {
 	tp := newTestProject(t, "graphweb-godnodes")
 	_, _, _, edgeID := seedTwoNodesWithEdge(t, tp)
@@ -345,7 +345,7 @@ func TestHandlerBadPathID(t *testing.T) {
 	}
 }
 
-// TestHandlerProjectSelection — история 48: несколько --project.
+// TestHandlerProjectSelection: несколько --project.
 // /api/projects перечисляет оба; без project= запрос отвечает ошибкой со
 // списком (не тихим выбором первого); с project=<неизвестный> — тоже
 // ошибкой; с валидным project= — маршрутизирует к правильному проекту, и

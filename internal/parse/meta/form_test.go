@@ -88,9 +88,9 @@ func TestParseFormStructure(t *testing.T) {
 	}
 }
 
-// R27.1: форма даёт ОДНУ identity из двух аспектов — объявление у владельца
+// Форма даёт ОДНУ identity из двух аспектов: объявление у владельца
 // (<Form>Имя</Form> в XML документа) и структура в Form.xml. Ключ обязан
-// совпасть, иначе индексный пайплайн (таск 09) построит два разных узла под
+// совпасть, иначе индексный пайплайн построит два разных узла под
 // одну и ту же форму.
 func TestFormDeclAndStructureShareIdentity(t *testing.T) {
 	ownerFacts, diags := ParseFile("Documents/АвансовыйОтчет.xml", []byte(documentOwnerFixture))
@@ -122,7 +122,7 @@ func TestFormDeclAndStructureShareIdentity(t *testing.T) {
 
 // Общая форма самоидентична: CommonForms/<Имя>.xml и есть форма, без
 // отдельного объекта-владельца. Ключ обязан совпасть с Form.xml того же
-// объекта — тот же критерий R27.1, другая форма источника.
+// объекта: тот же критерий одной identity, другая форма источника.
 func TestCommonFormDeclAndStructureShareIdentity(t *testing.T) {
 	ownerFacts, diags := ParseFile("CommonForms/АварийныйРежимИСМП.xml", []byte(commonFormFixture))
 	if len(diags) != 0 {

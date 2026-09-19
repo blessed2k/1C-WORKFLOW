@@ -32,7 +32,7 @@ func TestDeriveHandlerBindingResolved(t *testing.T) {
 	}
 }
 
-// TestDeriveHandlerBindingUnresolved — критерий приёмки R43.1: обработчик
+// TestDeriveHandlerBindingUnresolved: критерий приёмки: обработчик
 // объявлен, но метода в модуле формы нет — unresolved, а не пустая выдача.
 func TestDeriveHandlerBindingUnresolved(t *testing.T) {
 	formModule := "Catalogs/Товары/Forms/ФормаЭлемента/Ext/Form/Module.bsl"

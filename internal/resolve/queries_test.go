@@ -156,7 +156,7 @@ func TestDeriveQueryReferenceStaticQuery(t *testing.T) {
 
 // TestDeriveQueryReferenceSkipsPartial — литерал-фрагмент конкатенации
 // (Partial) НЕ разбирается этой функцией: сборка полного текста из
-// GapMarker-фрагментов — дело таска 09 (см. doc-комментарий DeriveQueryReference).
+// GapMarker-фрагментов: дело пайплайна index (см. doc-комментарий DeriveQueryReference).
 func TestDeriveQueryReferenceSkipsPartial(t *testing.T) {
 	// Литерал "ИЗ " не начинается с ВЫБРАТЬ/SELECT (иначе parser классифицирует
 	// его Static независимо от конкатенации — это отдельная эвристика
@@ -187,8 +187,8 @@ func TestDeriveQueryReferenceSkipsPartial(t *testing.T) {
 	}
 }
 
-// TestDeriveQueryReferenceGroupsByLiteral — критерий долга таска 12
-// (interfaces.md, «Из таска 09»): ДВА статичных литерала в одном модуле дают
+// TestDeriveQueryReferenceGroupsByLiteral: группировка по литералу:
+// ДВА статичных литерала в одном модуле дают
 // ДВЕ отдельные группы со своими LiteralIndex, а не один смешанный список —
 // иначе query_id второго литерала получил бы ссылки первого. Ожидаемые
 // имена таблиц посчитаны вручную по тексту, не взяты из вывода функции.

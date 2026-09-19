@@ -13,10 +13,9 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/app"
 )
 
-// Тикет 11 (v1-object-graph): тонкая обёртка object_graph поверх
-// ObjectGraphService.Radius. Тесты бьют ровно по швам, названным в тикете и
-// interfaces.md: депф-потолок 2 (жёсткое отклонение, а не тихое обрезание —
-// критерий приёмки тикета) и project= как настоящий разовый override, не
+// Тонкая обёртка object_graph поверх ObjectGraphService.Radius. Тесты бьют
+// ровно по двум швам: депф-потолок 2 (жёсткое отклонение, а не тихое
+// обрезание) и project= как настоящий разовый override, не
 // путающий данные разных проектов (contract возврата явно требует мутацию
 // именно на этих двух местах). Публичный интерфейс — реальный MCP-клиент
 // (mcp.NewInMemoryTransports + CallTool), как TestServerInfoTool/
@@ -183,7 +182,7 @@ func ogCall(t *testing.T, ctx context.Context, cs *mcp.ClientSession, args map[s
 	return res, out
 }
 
-// TestObjectGraphDepthCapEnforced — критерий приёмки тикета 11: «depth
+// TestObjectGraphDepthCapEnforced: критерий приёмки «depth
 // потолок 2, больше отвергается понятной ошибкой, не тихо обрезается» — и
 // отдельно, что глубина реально ДОХОДИТ до сервиса, а не подменяется
 // дефолтом при передаче (главная мутация, названная в тикете явно).
@@ -247,9 +246,9 @@ func TestObjectGraphDepthCapEnforced(t *testing.T) {
 	}
 }
 
-// TestObjectGraphProjectOverrideDoesNotMixData — критерий приёмки тикета 11:
+// TestObjectGraphProjectOverrideDoesNotMixData: критерий приёмки
 // «project= работает как разовый override: проект выбирается из реестра по
-// корню, активный проект процесса НЕ меняется» (spec.md §8, D3) и «несуще­
+// корню, активный проект процесса НЕ меняется» (D3, docs/architecture-graph.md) и «несуще­
 // ствующий проект даёт понятную ошибку». Contract возврата отдельно требует
 // мутацию именно здесь: «project= действительно переключает проект, не
 // путая данные разных проектов».
@@ -390,7 +389,7 @@ func TestObjectGraphProjectUnregisteredExistingDirRejected(t *testing.T) {
 	}
 }
 
-// TestObjectGraphResponsePagination — критерий приёмки тикета 11: «лимиты и
+// TestObjectGraphResponsePagination: критерий приёмки «лимиты и
 // обрезание тем же способом, что у соседних индексных инструментов ...
 // обрезание сообщается через Warnings и NextCursor», «ответ укладывается в
 // бюджет: дозировка проверена тестом, как у соседей» — тот же приём, что

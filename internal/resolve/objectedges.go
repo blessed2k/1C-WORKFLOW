@@ -11,21 +11,21 @@ import (
 // Файл — атрибуция код-фактов (§5 спецификации В1): кому принадлежит запись в
 // регистр, сделанная в коде. Правило одно: факт приписывается ОБЪЕКТУ, а не
 // модулю, где он физически написан. Общий модуль владельцем данных не
-// считается (решение D6, общие модули свёрнуты) — обход идёт сквозь него
+// считается (D6, docs/architecture-graph.md): обход идёт сквозь него
 // вверх по графу вызовов до объекта-владельца.
 //
 // Пакет ничего не пишет в store: рёбра и бейджи возвращаются значениями, их
-// публикует internal/index (таск 07).
+// публикует internal/index.
 
 // BadgeHasDynamic — бейдж «у объекта есть запись, которую статически
 // приписать регистру нельзя». Дыра атрибуции обязана быть видна со
-// счётчиком, а не замолчана (история 13).
+// счётчиком, а не замолчана.
 const BadgeHasDynamic = "has-dynamic"
 
 // BadgeAttributionTruncated — бейдж «обход атрибуции упёрся в жёсткий потолок».
 // Потолки обхода (attributionNodeBudget, attributionCallersPerNode) в отличие
 // от порогов ObjectEdgeTunables ребро действительно теряют: цепочка может не
-// успеть дойти до владельца. R16 запрещает резать рёбра МОЛЧА, поэтому усечение
+// успеть дойти до владельца. Резать рёбра МОЛЧА нельзя, поэтому усечение
 // оставляет след на объекте по тому же правилу подвешивания, что и
 // has-dynamic, включая случай, когда владелец не найден.
 const BadgeAttributionTruncated = "attribution-truncated"
@@ -38,7 +38,7 @@ type SymbolCall struct {
 }
 
 // SymbolOwner — модуль символа и объект-владелец этого модуля
-// (module.kind + module.owner_object_id, заполненная таском 04).
+// (module.kind + module.owner_object_id, заполняет internal/index).
 // ModuleKind сравнивается с bsl.ModuleCommon: у общего модуля владелец тоже
 // есть (объект ОбщийМодуль), но владельцем ДАННЫХ он не считается.
 type SymbolOwner struct {
@@ -54,7 +54,7 @@ func (o SymbolOwner) ownsData() bool {
 
 // ObjectEdgeGraph — всё, что атрибуции нужно знать о графе вызовов и о
 // владельцах модулей. Реализует вызывающий (internal/index) поверх
-// store.ReadTx: сам resolve в store не ходит (решение D02).
+// store.ReadTx: сам resolve в store не ходит.
 //
 // Методы ошибок не возвращают намеренно: обход зовёт их тысячи раз, и
 // протаскивать error через каждую вершину значит подменить алгоритм
@@ -78,7 +78,7 @@ type CallerPrefetcher interface {
 }
 
 // ObjectEdgeTunables — пороги атрибуции (§5). Порог не режет ребро: его
-// превышение снижает confidence, ребро остаётся (история 15).
+// превышение снижает confidence, ребро остаётся.
 type ObjectEdgeTunables struct {
 	ChainDepth   int     // длина цепочки, после которой каждое звено штрафуется
 	HubFanIn     int     // fan-in, выше которого процедура считается хабом
@@ -175,7 +175,7 @@ type ObjectBadge struct {
 //  5. несколько цепочек к одному факту — одно ребро с максимальным
 //     confidence, цепочка в evidence кратчайшая;
 //  6. цепочка, не дошедшая до объекта, ребра не даёт и ошибкой не является
-//     (ответ на этот случай — writes-declared из метаданных, таск 07).
+//     (ответ на этот случай: writes-declared из метаданных).
 func DeriveObjectDataEdges(in ObjectEdgeInput) ([]ObjectDataEdge, []ObjectBadge) {
 	if in.Graph == nil || len(in.Accesses) == 0 {
 		return nil, nil
@@ -205,7 +205,7 @@ type edgeKey struct {
 
 // edgeAgg — накопленное состояние одного ребра: максимальный confidence,
 // кратчайшая цепочка и объединение файлов ВСЕХ цепочек (по ним ребро
-// удаляется при инкрементальной пересборке, таск 07).
+// удаляется при инкрементальной пересборке).
 type edgeAgg struct {
 	confidence    float64
 	chain         []ChainStep
@@ -395,7 +395,7 @@ func inTransactionKey(v *bool) string {
 // В отличие от порогов потолок ребро действительно теряет: владелец может
 // оказаться за обрезанным краем. Поэтому упор в потолок НЕ молчаливый — он
 // поднимает флаг усечения, а тот становится бейджем BadgeAttributionTruncated
-// на объекте (R16: не резать рёбра молча). Граница записана в ADR-025.
+// на объекте (не резать рёбра молча). Граница записана в ADR-025.
 const (
 	attributionNodeBudget     = 500
 	attributionCallersPerNode = 200
@@ -482,12 +482,12 @@ func (a *edgeAccumulator) expand(cur walkState, best map[int64]float64) ([]walkS
 		penalized := cur.penalized || hub || len(cur.chain) > a.tunables.ChainDepth
 		if hub {
 			// Процедуру зовут слишком многие, чтобы цепочка через неё что-то
-			// объясняла: достоверность падает, ребро остаётся (R16).
+			// объясняла: достоверность падает, ребро остаётся.
 			conf *= a.tunables.HubPenalty
 		}
 		if len(cur.chain) > a.tunables.ChainDepth {
 			// Звено сверх порога глубины: чем длиннее цепочка, тем слабее
-			// объяснение — но ребро остаётся, порог не режет молча (R16).
+			// объяснение, но ребро остаётся: порог не режет молча.
 			conf *= a.tunables.DepthPenalty
 		}
 		if prev, seen := best[call.CallerID]; seen && conf <= prev {
@@ -517,7 +517,7 @@ func copyChain(chain []ChainStep) []ChainStep {
 	return out
 }
 
-// minConfidence — достоверность цепочки это её слабейшее звено (R13): одно
+// minConfidence: достоверность цепочки равна её слабейшему звену. Одно
 // сомнительное разрешение вызова обесценивает весь путь.
 func minConfidence(a, b float64) float64 {
 	if b < a {

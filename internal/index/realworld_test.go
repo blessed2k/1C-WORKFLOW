@@ -17,7 +17,7 @@ import (
 
 // dumpEnvVars — те же переменные, что internal/parse/{bsl,meta,query} и
 // internal/resolve (см. их realworld/corpus тесты): один прогон, один и тот
-// же путь к выгрузке, не зашитый в код (interfaces.md, §28).
+// же путь к выгрузке, не зашитый в код (§28).
 var dumpEnvVars = []string{"ONEC_DUMP", "MCP1C_SPIKE_DUMP"}
 
 func realDumpRoot(t *testing.T) string {
@@ -104,17 +104,16 @@ func firstN(d []domain.Diagnostic, n int) []domain.Diagnostic {
 	return d[:n]
 }
 
-// TestRealDumpIncrementalTwoFiles — R32/R89i: правка двух реальных .bsl
+// TestRealDumpIncrementalTwoFiles: правка двух реальных .bsl
 // файлов выгрузки даёт инкремент, время — число бюджета §28 (< 300 мс),
 // логируется без подгонки.
 func TestRealDumpIncrementalTwoFiles(t *testing.T) {
 	dumpRoot := realDumpRoot(t)
 	// Подвыборка реальной выгрузки (не весь ut_demo — копия 2.2 ГБ на
 	// каждый прогон теста того не стоит, а SafeJoin отказывает в симлинках
-	// наружу корня, R62, так что зеркало ссылками несовместимо с ним):
+	// наружу корня, так что зеркало ссылками несовместимо с ним):
 	// CommonModules — самостоятельный, немаленький (5478 файлов) срез
-	// реального кода. Тест правит файлы, исходную выгрузку трогать нельзя
-	// (interfaces.md).
+	// реального кода. Тест правит файлы, исходную выгрузку трогать нельзя.
 	// Владелец модуля (bsl.ClassifyModule) выводится из ПУТИ: первый сегмент
 	// обязан быть коллекцией выгрузки ("CommonModules"), поэтому копия
 	// сохраняет "CommonModules/..." — плоская копия одних внутренностей

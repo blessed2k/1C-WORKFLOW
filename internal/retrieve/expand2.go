@@ -155,7 +155,7 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			id: "regreadcount:" + obj.NameNorm, bucket: bucketFact, category: "register_reads",
 			display: obj.NameDisplay, detail: fmt.Sprintf("чтений: %d (не влияет на покрытие — эта категория не обязательна)", len(readRows)),
 			component: obj.ComponentID, confidence: 1,
-			whyIncluded: fmt.Sprintf("счётчик чтений %s, упомянут per spec §25 №3", obj.NameDisplay),
+			whyIncluded: fmt.Sprintf("счётчик чтений %s, справочный факт (пример 3 в docs/architecture-index.md §25)", obj.NameDisplay),
 			charCost:    40,
 		}
 		out = append(out, bctx.apply(sc, f))
@@ -189,10 +189,10 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if ferr != nil || len(forms) == 0 {
 		// Тип и компонент — в тексте, не только имя (находка третьего круга
 		// ревью, reindex-timings): omonym.NameDisplay совпадает у объектов
-		// РАЗНЫХ видов (D03), и без типа/компонента это no_forms читается
+		// РАЗНЫХ видов, и без типа/компонента это no_forms читается
 		// как противоречие рядом с настоящей находкой по одноимённому
 		// объекту другого вида — даже когда suppressFormNoiseWhenMatched
-		// корректно НЕ гасит его (это генуинно разные объекты, см. D02/D03).
+		// корректно НЕ гасит его (это генуинно разные объекты).
 		return nil, []Warning{{Code: "no_forms", Message: fmt.Sprintf(
 			"у объекта %s.%s (%s) не найдено форм в индексе", obj.MType, obj.NameDisplay, obj.ComponentID)}}
 	}
@@ -257,7 +257,7 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			out = append(out, serverCalls...)
 			warnings = append(warnings, serverWarn...)
 
-			// effective (D08, п.4б): модуль формы — обычный заимствуемый
+			// effective: модуль формы тоже обычный заимствуемый
 			// модуль, обработчик может быть перехвачен расширением тем же
 			// способом, что get_module_structure(view=effective) уже
 			// показывает per-символ (internal/app/symbol.go). "handler_intercepts" —
@@ -307,7 +307,7 @@ func expandForm(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if !matchedAny {
 		// Имя объекта в тексте — по той же причине, что у no_forms выше:
 		// без него предупреждение неотличимо от такого же про совсем другой
-		// объект того же имени (D02/D03).
+		// объект того же имени.
 		warnings = append(warnings, Warning{
 			Code: "form_binding_not_matched",
 			Message: fmt.Sprintf(
@@ -361,7 +361,7 @@ func expandAddAttribute(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 
 	warnings = append(warnings, Warning{
 		Code:    "exchange_edges_not_built",
-		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) не публикуется индексом (interfaces.md, долг тасков 08/09) — категория exchanges всегда missing",
+		Message: "принадлежность объекта плану обмена не выведена: dependency_edge(kind=exchange-plan-contains) пока не публикуется индексом, поэтому категория exchanges всегда missing",
 		Hint:    "проверьте состав плана обмена вручную через get_object ExchangePlan или find_metadata_usages",
 	})
 	return out, warnings
@@ -734,7 +734,7 @@ const postingObjectMType = "Document"
 // findPostingHandler ищет обработчик проведения, принадлежащий МОДУЛЮ САМОГО
 // объекта: путь модуля символа лежит внутри каталога МОДУЛЕЙ этого объекта
 // (objectModuleDirs по строке source_file его объявления) — факт из индекса,
-// а не вхождение имени объекта в путь модуля (П2.2/R19). Прежнее правило
+// а не вхождение имени объекта в путь модуля. Прежнее правило
 // (strings.Contains(modulePath, obj.NameNorm)) отдавало обработчик ЧУЖОГО
 // документа-омонима: путь "Documents/ЗаказКлиента/Ext/ObjectModule.bsl"
 // содержит подстроку "заказ", и первый же такой символ выигрывал.
@@ -753,7 +753,7 @@ const postingObjectMType = "Document"
 //
 // Третьим значением возвращается ПРИМЕНЁН ЛИ ОТКАТ. Это не деталь реализации:
 // откат — то самое правило, которое отдавало обработчик чужого документа
-// (D04), и ответ, построенный на нём, стоит слабее ответа по факту владения.
+// (омонима), и ответ, построенный на нём, стоит слабее ответа по факту владения.
 // Вызывающий обязан назвать это предупреждением, иначе исправленный дефект
 // возвращается тихо и неотличимо от штатного ответа.
 func findPostingHandler(tx *store.ReadTx, obj store.MetadataObjectRow) (store.SymbolRow, bool, bool, error) {
@@ -796,7 +796,7 @@ func findPostingHandler(tx *store.ReadTx, obj store.MetadataObjectRow) (store.Sy
 //
 // Исходов у отката ДВА, и общего текста у них нет. Откат, который отдал
 // символ, ставит под сомнение ПРИНАДЛЕЖНОСТЬ найденного обработчика (это и
-// есть дефект D04: путь чужого документа-омонима содержит имя нашего).
+// есть исходный дефект: путь чужого документа-омонима содержит имя нашего).
 // Откат, не нашедший ничего, не отдаёт омонима — он оставляет категорию
 // posting_handler пустой, и пустота эта ничего не доказывает. Один текст на
 // оба исхода отправлял потребителя искать в ответе омонима, которого там
@@ -913,7 +913,7 @@ func postingObjectModulePath(tx *store.ReadTx, obj store.MetadataObjectRow) (str
 	return built, true, nil
 }
 
-// postingBaseHandlerMissingWarning — пункт 3 таска 10: у объекта нет
+// postingBaseHandlerMissingWarning: у объекта нет
 // СОБСТВЕННОГО ОбработкаПроведения, и это обязано быть сказано вслух.
 // Молчание здесь хуже пустоты: агент, увидев posting_handler=missing и
 // movements=missing без единого слова, заключает, что проведение не
@@ -979,7 +979,7 @@ func expandPosting(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 			// Подписки собираются ДО поиска обработчика и независимо от того,
 			// нашёлся ли он: подписка дописывает движения мимо модуля объекта,
 			// поэтому документ без собственного ОбработкаПроведения — не повод
-			// промолчать про неё (П3.3/R29).
+			// промолчать про неё.
 			subCands, subWarnings := postingSubscriptions(bctx, a, obj)
 			out = append(out, subCands...)
 			warnings = append(warnings, subWarnings...)
@@ -1033,7 +1033,7 @@ func expandPosting(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	// (requiredCategoryMap её не называет): обязательная объявила бы
 	// недостаточным любой ответ по документу без расширений. Факты
 	// перехватчиков добавляются ТОЛЬКО при view=effective — raw остаётся
-	// прежним (R25).
+	// прежним (raw не несёт фактов расширений).
 	if bctx.view == domain.ViewEffective {
 		icCands, icWarnings := effectivePostingIntercepts(bctx, handler, ownerComponent)
 		out = append(out, icCands...)
@@ -1057,8 +1057,8 @@ func subscriptionSourceCandidates(mtype, nameDisplay string) []string {
 	}
 }
 
-// postingSubscriptions наполняет обязательную категорию subscriptions
-// (П3.3/R29, R30). Источник — event_subscription (store.
+// postingSubscriptions наполняет обязательную категорию subscriptions.
+// Источник: event_subscription (store.
 // EventSubscriptionsBySourceNames), отбор по источнику подписки: объект-анкер
 // в конкретной и в голой форме.
 //
@@ -1072,7 +1072,7 @@ func subscriptionSourceCandidates(mtype, nameDisplay string) []string {
 //
 // Подписки наполняются в ОБОИХ view: подписка — опубликованный факт
 // метаданных, а не вычисляемое на чтении слияние перехватчиков, поэтому
-// правило «raw не несёт фактов расширений» (R25) на неё не распространяется —
+// правило «raw не несёт фактов расширений» на неё не распространяется:
 // иначе raw объявлял бы категорию честно пустой, зная обратное.
 func postingSubscriptions(bctx *buildCtx, a Anchor, obj store.MetadataObjectRow) ([]*candidate, []Warning) {
 	readFailed := func(what string, err error) []Warning {
@@ -1092,7 +1092,7 @@ func postingSubscriptions(bctx *buildCtx, a Anchor, obj store.MetadataObjectRow)
 		return nil, readFailed("состав компонентов", cerr)
 	}
 	// Заявление делается ПОСЛЕ обоих удачных чтений и не зависит от того,
-	// нашлась ли хоть одна подписка: пустота здесь честная (D03).
+	// нашлась ли хоть одна подписка: пустота здесь честная.
 	bctx.declareCollected("subscriptions")
 	if len(rows) == 0 {
 		return nil, nil
@@ -1124,9 +1124,9 @@ func postingSubscriptions(bctx *buildCtx, a Anchor, obj store.MetadataObjectRow)
 // postingRegisterAccesses строит movements/register_access по обращениям
 // ОДНОГО символа. component факта берётся из самой строки register_access
 // (source_file.component_id), а не у документа-анкера: у перехватчика
-// расширения это его собственный слой (П2.4/R21).
+// расширения это его собственный слой.
 // Обе категории — movements и register_access — заявляются собранными
-// (D03) только по УДАЧНОМУ чтению register_access: сбой чтения отзывает
+// только по УДАЧНОМУ чтению register_access: сбой чтения отзывает
 // заявление и уходит предупреждением, иначе пустота категории соврала бы
 // ровно в том случае, ради честности которого complete_empty и введён.
 func postingRegisterAccesses(bctx *buildCtx, ownerComponent string, symbolID int64, fromDisplay, whySuffix string) ([]*candidate, []Warning) {

@@ -110,7 +110,7 @@ func newBSLFixtureProjectCfg(t *testing.T, id domain.ProjectID, cfg index.Config
 
 const fixtureModulePath = "CommonModules/УтилитыОбщие/Ext/Module.bsl"
 
-// TestFindSymbolExactAndSubstring — R25: find_symbol находит символ и по
+// TestFindSymbolExactAndSubstring: find_symbol находит символ и по
 // точному имени, и по подстроке, без чтения модуля (тело в ответе нет полей
 // вообще).
 func TestFindSymbolExactAndSubstring(t *testing.T) {
@@ -168,7 +168,7 @@ func TestFindSymbolKindFilterAndUnknownComponent(t *testing.T) {
 }
 
 // TestGetSymbolByUIDAndByModuleName — get_symbol находит один и тот же
-// символ обеими формами адресации (R25) и отдаёт его параметры.
+// символ обеими формами адресации и отдаёт его параметры.
 func TestGetSymbolByUIDAndByModuleName(t *testing.T) {
 	p, _ := newBSLFixtureProject(t, "sym-get")
 	svc := &SymbolService{projects: p}
@@ -300,7 +300,7 @@ func TestGetModuleStructureListsSymbolsWithoutModuleText(t *testing.T) {
 	}
 }
 
-// TestFindSymbolCursorExpiresAfterIncrement — R61: страница 2 после
+// TestFindSymbolCursorExpiresAfterIncrement: страница 2 после
 // инкремента (generation вырос) отдаёт cursor_expired.
 func TestFindSymbolCursorExpiresAfterIncrement(t *testing.T) {
 	p, op := newBSLFixtureProject(t, "sym-cursor")

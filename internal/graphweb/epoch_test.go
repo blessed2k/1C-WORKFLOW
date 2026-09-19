@@ -9,7 +9,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/graphweb"
 )
 
-// TestHandlerPicksUpEpochSwapWithoutRestart — R20.1/§44: «переживает
+// TestHandlerPicksUpEpochSwapWithoutRestart: граф «переживает
 // пересборку индекса под собой... следующий запрос отвечает из новой эпохи
 // без перезапуска». Это транспортный швейный тест на design-decision из
 // doc.go (internal/graphweb): ProjectHandle.Open строит СВЕЖИЙ app.Projects
@@ -20,8 +20,7 @@ import (
 //
 // rebuildTwoNodesWithEdgeNamed имитирует «другой процесс (обычный mcp1c,
 // вызванный пользователем через reindex mode=full) пересобрал индекс, пока
-// graph-сервер уже отвечал на запросы» — тот же сценарий, которым в
-// spec.md названа история 24/44.
+// graph-сервер уже отвечал на запросы».
 func TestHandlerPicksUpEpochSwapWithoutRestart(t *testing.T) {
 	tp := newTestProject(t, "graphweb-epoch")
 	o1, _, _, _ := seedTwoNodesWithEdgeNamed(t, tp, "-v1")

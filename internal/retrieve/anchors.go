@@ -348,8 +348,8 @@ func findAnchors(tx *store.ReadTx, req Request) ([]Anchor, []Ambiguity, error) {
 	return anchors, ambiguities, nil
 }
 
-// suppressPostingHandlerAmbiguity убирает из ambiguities ровно один вид шума
-// (П4/R32): омонимию по имени обработчика проведения, когда задача и так
+// suppressPostingHandlerAmbiguity убирает из ambiguities ровно один вид шума:
+// омонимию по имени обработчика проведения, когда задача и так
 // названа объектом. Условие узкое и именно такое — intent posting И среди
 // анкеров есть объект метаданных И subject нормализуется в имя обработчика
 // проведения: в этой тройке десятки одноимённых ОбработкаПроведения чужих

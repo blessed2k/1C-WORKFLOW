@@ -78,7 +78,7 @@ func TestPublishedCountsMatchDerivedFacts(t *testing.T) {
 				wantQuery++
 			}
 		}
-		// query_reference (таск 12, долг тасков 08/09): та же независимая
+		// query_reference: та же независимая
 		// арифметика, что publishQueryReferences использует для публикации —
 		// группа литерала считается ТОЛЬКО если у литерала есть query_id
 		// (литерал внутри метода, как у wantQuery выше).

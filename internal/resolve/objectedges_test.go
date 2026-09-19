@@ -8,7 +8,7 @@ import (
 )
 
 // graphFixture — граф вызовов и владельцы модулей, собранные в коде: те же
-// величины, которые таск 07 будет читать из store (call_edge, module,
+// величины, которые internal/index читает из store (call_edge, module,
 // module.owner_object_id), без самого store.
 type graphFixture struct {
 	callers map[int64][]SymbolCall
@@ -26,7 +26,7 @@ func (g *graphFixture) symbolInObject(symbolID, ownerObjectID, fileID int64) *gr
 }
 
 // symbolInCommon объявляет символ в общем модуле: владелец модуля есть
-// (объект ОбщийМодуль), но владельцем данных он не считается (D6).
+// (объект ОбщийМодуль), но владельцем данных он не считается (D6, docs/architecture-graph.md).
 func (g *graphFixture) symbolInCommon(symbolID, commonModuleObjectID, fileID int64) *graphFixture {
 	g.owners[symbolID] = SymbolOwner{ModuleKind: "common", OwnerObjectID: commonModuleObjectID, FileID: fileID}
 	return g
@@ -58,7 +58,7 @@ func movement(symbolID, fileID, registerObjectID int64, conf float64) store.Regi
 	}
 }
 
-// TestDeriveObjectDataEdgesDirectWrite — история 10: запись прямо из модуля
+// TestDeriveObjectDataEdgesDirectWrite: запись прямо из модуля
 // объекта даёт ребро writes-register от документа к регистру, mode и
 // in_transaction переносятся из породившей строки register_access.
 func TestDeriveObjectDataEdgesDirectWrite(t *testing.T) {
@@ -99,9 +99,9 @@ func TestDeriveObjectDataEdgesDirectWrite(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesThroughCommonModule — история 4 (R48): запись
+// TestDeriveObjectDataEdgesThroughCommonModule: запись
 // сделана в общем модуле, а приписывается документу, из которого его позвали.
-// Общий модуль узлом графа не становится (решение D6).
+// Общий модуль узлом графа не становится (решение D6, docs/architecture-graph.md).
 func TestDeriveObjectDataEdgesThroughCommonModule(t *testing.T) {
 	const обработкаПроведения, записьДвижений = int64(10), int64(20)
 	const документ, общийМодуль, регистр = int64(100), int64(300), int64(200)
@@ -138,7 +138,7 @@ func TestDeriveObjectDataEdgesThroughCommonModule(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesHubWithRegisterParameter — история 15а (R48): в
+// TestDeriveObjectDataEdgesHubWithRegisterParameter: в
 // хаб регистр приходит параметром, статически он не разрешён. Выдуманного
 // ребра быть не должно, но дыра обязана быть видна: владелец получает бейдж
 // has-dynamic со счётчиком.
@@ -174,7 +174,7 @@ func TestDeriveObjectDataEdgesHubWithRegisterParameter(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesCycleTerminates — история 16: цикл A->B->A в графе
+// TestDeriveObjectDataEdgesCycleTerminates: цикл A->B->A в графе
 // вызовов не вешает сборку и не удваивает ребро.
 func TestDeriveObjectDataEdgesCycleTerminates(t *testing.T) {
 	const обработкаПроведения, a, b = int64(10), int64(40), int64(50)
@@ -202,7 +202,7 @@ func TestDeriveObjectDataEdgesCycleTerminates(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesMinConfidenceAlongChain — история 12 (R13):
+// TestDeriveObjectDataEdgesMinConfidenceAlongChain:
 // достоверность ребра это минимум по цепочке. Факт разобран точно (1.0),
 // вызов разрешён с 0.6 — ребро получает 0.6.
 func TestDeriveObjectDataEdgesMinConfidenceAlongChain(t *testing.T) {
@@ -228,7 +228,7 @@ func TestDeriveObjectDataEdgesMinConfidenceAlongChain(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesCollapsesDuplicateChains — история 14 (R15): два
+// TestDeriveObjectDataEdgesCollapsesDuplicateChains: два
 // разных пути к одному факту дают ОДНО ребро с максимальным confidence, а в
 // evidence лежит кратчайшая из цепочек.
 func TestDeriveObjectDataEdgesCollapsesDuplicateChains(t *testing.T) {
@@ -263,7 +263,7 @@ func TestDeriveObjectDataEdgesCollapsesDuplicateChains(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesDepthPenaltyKeepsEdge — история 15 (R16):
+// TestDeriveObjectDataEdgesDepthPenaltyKeepsEdge:
 // цепочка длиннее порога глубины СНИЖАЕТ достоверность, но ребро остаётся.
 // Порог 2, штраф 0.5, звеньев три: одно звено сверх порога даёт 1.0*0.5.
 func TestDeriveObjectDataEdgesDepthPenaltyKeepsEdge(t *testing.T) {
@@ -295,8 +295,8 @@ func TestDeriveObjectDataEdgesDepthPenaltyKeepsEdge(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesHubFanInPenaltyKeepsEdge — вторая половина
-// истории 15: проход через процедуру-хаб (fan-in выше порога) снижает
+// TestDeriveObjectDataEdgesHubFanInPenaltyKeepsEdge: проход через
+// процедуру-хаб (fan-in выше порога) снижает
 // достоверность, ребро при этом не исчезает.
 func TestDeriveObjectDataEdgesHubFanInPenaltyKeepsEdge(t *testing.T) {
 	const обработкаПроведения = int64(10)
@@ -330,7 +330,7 @@ func TestDeriveObjectDataEdgesHubFanInPenaltyKeepsEdge(t *testing.T) {
 
 // TestDeriveObjectDataEdgesChainWithoutOwnerGivesNothing — решение п.7: цепочка,
 // не дошедшая до объекта-владельца, ребра не даёт, и это не ошибка. Ответом на
-// такой случай служит ребро writes-declared из метаданных (строит таск 07).
+// такой случай служит ребро writes-declared из метаданных (строит internal/index).
 func TestDeriveObjectDataEdgesChainWithoutOwnerGivesNothing(t *testing.T) {
 	const записьДвижений, общийМодуль, регистр, файл = int64(20), int64(300), int64(200), int64(2000)
 
@@ -379,7 +379,7 @@ func TestDeriveObjectDataEdgesReadAndWriteStaySeparate(t *testing.T) {
 	}
 }
 
-// TestDeriveObjectDataEdgesTruncationIsVisible — R16 («не режут рёбра молча»)
+// TestDeriveObjectDataEdgesTruncationIsVisible: правило «не резать рёбра молча»
 // касается и жёстких потолков обхода, а не только мягких порогов. Владелец
 // стоит за пределом attributionCallersPerNode: ребра не будет, но след
 // усечения обязан остаться, иначе связь исчезает бесследно и исход зависит от
@@ -498,7 +498,7 @@ func TestObjectEdgeDefaultTunables(t *testing.T) {
 }
 
 // TestDeriveObjectDataEdgesNodeBudgetTruncationIsVisible — вторая половина
-// R16 для жёстких потолков: обход упирается не в число вызывающих одной
+// того же правила для жёстких потолков: обход упирается не в число вызывающих одной
 // вершины (их везде ровно attributionCallersPerNode, то есть потолок не
 // превышен), а в бюджет узлов attributionNodeBudget. Владелец остаётся в
 // неразвёрнутом фронте, ребра нет — след усечения обязан быть.

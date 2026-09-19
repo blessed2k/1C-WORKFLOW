@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-// spaFS — HTML-страница и JS-приложение SPA (тикет 10, spec §7): один
+// spaFS: HTML-страница и JS-приложение SPA: один
 // HTML с инлайновым CSS, один JS-файл. Оба пишутся руками, без node-
 // тулчейна, поэтому не нуждаются в отдельной директории vendor.
 //
@@ -40,7 +40,7 @@ func serveEmbedded(fs embed.FS, name, contentType string) http.HandlerFunc {
 }
 
 // registerAssets вешает на mux маршруты раздела 8.1, отвечающие за отдачу
-// SPA (spec §6: «GET / -> SPA», «GET /assets/cytoscape.min.js»): статика,
+// SPA (GET / -> SPA, GET /assets/cytoscape.min.js): статика,
 // без обращения к ObjectGraphService и без параметра project — это ровно
 // то, что отличает их от маршрутов api/*, зарегистрированных в NewHandler.
 func registerAssets(mux *http.ServeMux) {

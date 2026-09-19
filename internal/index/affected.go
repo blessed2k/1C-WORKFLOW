@@ -78,7 +78,7 @@ func affectedByChange(comp domain.ComponentID, layer domain.Layer, env resolve.E
 	return resolve.AffectedKeys(delta)
 }
 
-// affectedByCommonModuleXMLChange — R32.3: правка ТОЛЬКО XML общего модуля
+// affectedByCommonModuleXMLChange: правка ТОЛЬКО XML общего модуля
 // (module_context) без изменения его Module.bsl — дельта охватывает ВСЕ
 // экспортные имена модуля (NameDelta doc: «изменение XML общего модуля...
 // Names = все его экспортные имена»), Global — было ИЛИ стало.

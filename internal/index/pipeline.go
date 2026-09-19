@@ -24,7 +24,7 @@ var testMidRunHook func()
 // разобранным в памяти mod.Methods/mod.Variables, без похода в store.
 //
 // Второе возвращаемое значение — ПОЛОН ли счёт. Это третий потребитель
-// корпуса, которому нужны разобранные факты (R15, ADR-028): у гидратированной
+// корпуса, которому нужны разобранные факты (ADR-028): у гидратированной
 // записи их нет, и её символы в сумму не попадают. Отказать, как это делает
 // buildEnvInput, здесь нельзя — снимок «до» берётся ровно тогда, когда корпус
 // законно гидратирован, и считать ещё нечего. Поэтому слепота названа явно:
@@ -419,7 +419,7 @@ func oldSnapshotIsRemoved(rel string, removed []string) (string, bool) {
 
 // deltaKeysForFile строит AffectedKeys для одного изменившегося/удалённого
 // файла: BSL-модуль — обычная дельта имён; XML общего модуля — дельта по
-// ВСЕМ его экспортным именам через связанный Module.bsl (R32.3).
+// ВСЕМ его экспортным именам через связанный Module.bsl.
 func deltaKeysForFile(comp domain.ComponentID, layer domain.Layer, env resolve.Env, corpus *componentCorpus, rel string, old *fileRecord) []resolve.KeyHash {
 	newRec := corpus.files[rel] // nil для удалённых
 

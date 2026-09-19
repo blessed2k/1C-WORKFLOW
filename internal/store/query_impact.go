@@ -5,31 +5,28 @@ import (
 	"fmt"
 )
 
-// Read-запросы для find_impact (таск 13, обратный BFS по типизированному
+// Read-запросы для find_impact (обратный BFS по типизированному
 // dependency graph, архитектура §19/§21). Отдельный файл — не tx.go — по той
 // же причине, по которой cmd/mcp1c/idx_*.go не делят один файл на несколько
-// тасков: internal/app здесь не единственный потребитель store в эту волну
-// (таски 11/12 работают параллельно над своими инструментами), и общий файл
+// инструментов: internal/app здесь не единственный потребитель store
+// (соседние инструменты читают его параллельно), и общий файл
 // стал бы точкой конфликта. Ничего из tx.go/schema.go этот файл не меняет —
 // только новые SELECT поверх уже существующей схемы раздела 15.
 //
-// Отклонение от исходного плана тикета 13 (интерфейсы.md, «Из таска 03» и
-// зона тикета 13 называют только internal/app/impact*.go и
-// cmd/mcp1c/idx_impact.go): store.ReadTx на момент начала этого таска не
+// Почему чтение живёт в store, а не только в internal/app/impact*.go и
+// cmd/mcp1c/idx_impact.go: store.ReadTx на момент появления find_impact не
 // экспортирует НИ ОДНОГО метода чтения фактов графа (Meta/GenerationNumber/
 // Blob/SourceFileID/NodeID/Validate — и всё). find_impact без обратного
 // BFS по call_edge/reference/handler_binding/register_access/role_right/
 // dependency_edge реализовать нельзя в принципе, а «SQL вне internal/store
 // запрещён» (RuleSQLOnlyInStore, internal/arch) не оставляет выбора, кроме
-// как положить недостающее чтение сюда. Смотри контракт тикета 13 —
-// «Отклонения от плана» — это то же самое ограничение, скорее всего, задевает
-// find_symbol/find_references (тикет 11) и find_register_writes (тикет 12);
+// как положить недостающее чтение сюда. То же ограничение, скорее всего,
+// задевает find_symbol/find_references и find_register_writes;
 // они не тронуты этим файлом и вольны завести свой.
 
 // Виды рёбер, которые понимает обратный BFS find_impact. query_reference
-// сюда намеренно не входит: таск 09 не публикует эту таблицу (interfaces.md,
-// «Из таска 09» и долг, переданный тикету 12) — она остаётся пустой, и
-// IncomingEdges не может отдать то, чего в store физически нет.
+// сюда намеренно не входит: индекс эту таблицу не публикует, она остаётся
+// пустой, и IncomingEdges не может отдать то, чего в store физически нет.
 const (
 	ImpactKindCallEdge       = "call_edge"
 	ImpactKindReference      = "reference"
@@ -72,9 +69,9 @@ type ImpactEdge struct {
 // Разрешение корня обхода в internal/app/impact.go НЕ заводит здесь новых
 // примитивов: символ адресуется через уже существующий tx.NodeID(uid) —
 // identity_key символа равен его uid (internal/index/identity.go:
-// symbolIdentityKey, тот же приём, которым read_symbol.go, таск 11,
+// symbolIdentityKey, тот же приём, которым read_symbol.go
 // комментирует свой SymbolByID); объект метаданных — через
-// tx.MetadataObjectsByName (readmeta.go, таск 12). Дублировать оба под
+// tx.MetadataObjectsByName (readmeta.go). Дублировать оба под
 // новым именем здесь означало бы третий способ найти то же самое.
 
 // IncomingEdges — один шаг обратного BFS find_impact: все непосредственные
@@ -202,10 +199,9 @@ func (tx *ReadTx) referencesIntoSymbol(symbolID int64) ([]ImpactEdge, error) {
 // (internal/index/publish.go) заполняет только ветки target_class="symbol" и
 // "platform" — target_object_id не проставляется НИ РАЗУ ни при какой
 // ссылке, хотя резолвер (internal/resolve) умеет отдавать
-// domain.TargetMetadata. Это разрыв публикации, обнаруженный этим тикетом, а
-// не изобретённое ограничение find_impact: чинить internal/index — вне зоны
-// тикета 13 (пакет уже «сдан» таском 09, явного допуска трогать его здесь
-// нет, в отличие от тикета 12 и query_reference). Запрос написан правильно
+// domain.TargetMetadata. Это разрыв публикации, обнаруженный при сборке
+// find_impact, а не изобретённое ограничение find_impact: чинить его нужно в
+// internal/index, а не здесь. Запрос написан правильно
 // на случай, если публикация когда-нибудь заполнит эту колонку.
 func (tx *ReadTx) referencesIntoObject(objectID int64) ([]ImpactEdge, error) {
 	return tx.referencesInto(`r.target_object_id = ? AND r.from_symbol_id IS NOT NULL`, objectID)
@@ -245,7 +241,7 @@ func (tx *ReadTx) referencesInto(where string, arg int64) ([]ImpactEdge, error) 
 // собственной колонки confidence — привязка приезжает из точного разбора
 // Form.xml (parser-xml), поэтому Confidence=1 у любой resolved-строки,
 // возвращённой этим запросом (WHERE уже требует конкретный handler_symbol_id,
-// то есть resolution='resolved' по построению публикации, таск 09).
+// то есть resolution='resolved' по построению публикации).
 func (tx *ReadTx) handlerBindingsInto(handlerSymbolID int64) ([]ImpactEdge, error) {
 	rows, err := tx.c.query(tx.ctx, `
 		SELECT hb.form_id, n.component_id, f.name_display, hb.source, hb.event, hb.resolution
@@ -351,7 +347,7 @@ func (tx *ReadTx) roleRightsInto(objectID int64) ([]ImpactEdge, error) {
 //
 // Честно: сегодня в store лежит только kind="field-typed-by", и его
 // from_node всегда metadata_member (единственный производитель —
-// resolve.DeriveDependencyEdges, interfaces.md «Из таска 08»/«Из таска 09»).
+// resolve.DeriveDependencyEdges).
 // Отображаемое имя поэтому строится ТОЛЬКО для случая
 // FromNodeKind="metadata_member" (реквизит/измерение/ресурс владеющего
 // объекта). Если появится ребро с другим from_node.kind, FromDisplay

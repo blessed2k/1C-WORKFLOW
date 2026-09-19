@@ -222,7 +222,7 @@ func TestScenario2SignatureChange(t *testing.T) {
 	assertBudgetInvariant(t, res, DefaultBudgetChars)
 }
 
-// TestScenario2SignatureChangeBudget500 — критерий приёмки тикета 15:
+// TestScenario2SignatureChangeBudget500:
 // budgetChars=500 на signature-change -> missingRequired непустой, бюджет
 // не превышен ни разу.
 func TestScenario2SignatureChangeBudget500(t *testing.T) {
@@ -329,7 +329,7 @@ func TestScenario4Form(t *testing.T) {
 
 // TestScenario5AddAttribute — §25 №5: структура + usages + формы + права +
 // обмены; тела модулей не попадают. exchanges — честный missing (dependency_edge
-// exchange-plan-contains не публикуется индексом, долг тасков 08/09).
+// exchange-plan-contains не публикуется индексом).
 func TestScenario5AddAttribute(t *testing.T) {
 	st := openFixtureStore(t)
 	seedScenarioFixture(t, st)

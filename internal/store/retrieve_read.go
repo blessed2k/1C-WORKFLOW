@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// Файл — типизированные выборки, нужные тикету 15 (get_context_for_task) и
-// которых не было ни у одного из тасков 11-13: список компонентов проекта
+// Файл: типизированные выборки, нужные get_context_for_task и
+// которых не было у других инструментов: список компонентов проекта
 // (кто из них extension — нужно для поиска перехватчиков в expansion),
 // поиск объекта метаданных по имени БЕЗ известного mtype (anchors по
 // свободному тексту задачи не называют вид объекта явно), подстрочный поиск
@@ -45,7 +45,7 @@ func (tx *ReadTx) Components() ([]Component, error) {
 
 // SymbolsByNameNormExact ищет символы РОВНО по нормализованному имени —
 // `name_norm = ?`, использует idx_symbol_name (раздел 15 схемы). Отдельная
-// функция от FindSymbols (read_symbol.go, таск 11) намеренно: FindSymbols
+// функция от FindSymbols (read_symbol.go) намеренно: FindSymbols
 // строит `name_norm LIKE '%x%'` (задача инструмента find_symbol — подстрочный
 // поиск), а LIKE с ведущим wildcard не может использовать B-tree индекс —
 // SQLite обязан пройти ВСЮ таблицу symbol. Стадия «точный lookup» anchors
@@ -254,7 +254,7 @@ func (tx *ReadTx) QueriesBySymbolID(symbolID int64) ([]QueryRow, error) {
 
 // RegisterAccessesBySymbol перечисляет ВСЕ доступы к регистрам одного
 // символа-владельца, любого регистра и режима — обратный разрез
-// register_access к RegisterAccessFilter (readregister.go, таск 12), который
+// register_access к RegisterAccessFilter (readregister.go), который
 // требует конкретное имя регистра (без него это был бы «любой режим у любого
 // регистра», а не «всё, что делает этот символ»). Нужен posting-intent
 // (§Конкретика: «обработчик + движения + register_access + подписки»).
@@ -292,8 +292,8 @@ func (tx *ReadTx) RegisterAccessesBySymbol(symbolID int64) ([]RegisterAccessRow,
 }
 
 // QueryReferencesByQueryID перечисляет ВСЕ таблицы/поля/параметры/ВТ ОДНОГО
-// текста запроса (query.id) — «схема» query-intent (spec: «используемые
-// таблицы и поля»). QueryReferenceFilter (readquery.go, таск 12) не несёт
+// текста запроса (query.id): «схема» query-intent («используемые
+// таблицы и поля»). QueryReferenceFilter (readquery.go) не несёт
 // query_id — там фильтр строился под find_queries_using (по object/field, а
 // не по конкретному запросу), эта функция — обратный разрез той же таблицы.
 func (tx *ReadTx) QueryReferencesByQueryID(queryID int64) ([]QueryReferenceRow, error) {

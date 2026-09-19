@@ -70,7 +70,7 @@ func walkFormItems(items []xmlItem, structure *FormStructureFact) {
 // formKeyFromStructurePath строит идентификатор формы из пути Form.xml:
 // всё, что стоит перед "/Ext/Form.xml". Тот же самый идентификатор строит
 // formKeyFromOwnerRef/parseMetadataObject у объявления формы — совпадение
-// ключей и есть проверка «одна identity, а не два объекта» (R27.1).
+// ключей и есть проверка «одна identity, а не два объекта».
 func formKeyFromStructurePath(relPath string) string {
 	norm := domain.NormalizeModulePath(relPath)
 	const suffix = "/Ext/Form.xml"

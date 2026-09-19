@@ -17,12 +17,12 @@ import (
 // эпох, кандидаты autodiscovery).
 //
 // Упрощение, назван явно: "счётчики" ограничены тем, что index.Service.Status
-// реально выставляет сегодня (interfaces.md, «Из таска 09») — там нет
+// реально выставляет сегодня: там нет
 // агрегатов по символам/ссылкам/рёбрам, только Store (размеры/generation) и
 // diagnostics/candidates. Живой count(*) по таблицам store тоже недоступен:
 // internal/store.ReadTx экспортирует Meta/GenerationNumber/Blob/SourceFileID/
-// NodeID/Validate — без агрегатов (interfaces.md, «Из таска 03»), а
-// расширение этого контракта вне зоны тикета 10 (internal/store уже сдан).
+// NodeID/Validate без агрегатов, а расширение этого контракта вне зоны
+// этого пакета (internal/store уже сдан).
 // Единственный публично доступный счётчик по видам факта —
 // ComponentResult.SymbolCount/FilesChanged/FilesRemoved из результата
 // Reindex; LastReindexCounts несёт ИМЕННО ЭТО, и только когда reindex уже был
@@ -107,7 +107,7 @@ type StatusInput struct {
 	IncludeAllDiagnostics bool `json:"includeAllDiagnostics,omitempty"`
 }
 
-// ReindexInput — вход инструмента reindex (тикет 10 п.6).
+// ReindexInput: вход инструмента reindex.
 type ReindexInput struct {
 	// IncludeAllDiagnostics отдаёт диагностики целиком, без урезания до
 	// diagnosticsSample. Дайджест приезжает в обоих случаях.
@@ -127,7 +127,7 @@ type ReindexInput struct {
 
 // ReindexResultItem — items[0] ответа reindex: итог, счётчики, новое поколение.
 //
-// Diagnostics здесь — ЕДИНСТВЕННОЕ место диагностик в ответе (R34). Раньше
+// Diagnostics здесь: ЕДИНСТВЕННОЕ место диагностик в ответе. Раньше
 // одна и та же запись приезжала дважды: в ReindexComponentResult.Diagnostics
 // и тут же в общем списке. Победил общий список, а не элемент компонента, по
 // двум причинам: дозировать (счётчик, выборка, разбивка по кодам) можно
@@ -162,8 +162,8 @@ type ReindexComponentResult struct {
 	Symbols      int                `json:"symbols"`
 }
 
-// IndexStatusService — сервис за index_status и reindex (interfaces.md:
-// internal/app.IndexStatusService, по одному методу на инструмент).
+// IndexStatusService: сервис за index_status и reindex, по одному методу на
+// инструмент.
 type IndexStatusService struct {
 	projects *Projects
 	now      func() time.Time
@@ -256,8 +256,8 @@ func (s *IndexStatusService) Status(ctx context.Context, in StatusInput) (Respon
 	return withSnapshot(resp, snap), nil
 }
 
-// Reindex отвечает на reindex: ручной форс инкремента или полной пересборки
-// (тикет 10 п.6). Component, не описанный в манифесте активного проекта, —
+// Reindex отвечает на reindex: ручной форс инкремента или полной пересборки.
+// Component, не описанный в манифесте активного проекта, это
 // component_not_registered ДО обращения к index.Service (манифест уже
 // загружен вместе с проектом, дважды спрашивать store незачем).
 //

@@ -15,8 +15,8 @@ import (
 )
 
 // projectQueryParam — общий query-параметр всех маршрутов, кроме
-// /api/projects: выбор проекта, когда --project указан несколько раз (spec
-// §6, история 48). Пути раздела 8.1 не меняются — они не несут проект в
+// /api/projects: выбор проекта, когда --project указан несколько раз.
+// Пути раздела 8.1 не меняются: они не несут проект в
 // самом пути, — поэтому адресация «пара проект+id» реализована query-
 // параметром, а не сегментом пути.
 const projectQueryParam = "project"
@@ -54,14 +54,14 @@ func NewHandler(projects []ProjectHandle) http.Handler {
 	mux.HandleFunc("GET /api/search", h.handleSearch)
 	// В2: HTTP-связи между открытыми проектами (crosslinks.go, ADR-039).
 	mux.HandleFunc("GET /api/crosslinks", h.handleCrosslinks)
-	registerAssets(mux) // тикет 10: SPA — GET / и GET /assets/cytoscape.min.js (assets.go)
+	registerAssets(mux) // SPA: GET / и GET /assets/cytoscape.min.js (assets.go)
 	return mux
 }
 
 // resolveProject выбирает целевой ProjectHandle по query-параметру project.
 // Без параметра: единственный открытый проект — выбирается им самим; больше
-// одного — actionable-ошибка с перечнем (spec §6: «запрос без проекта при
-// нескольких открытых даёт ошибку с перечнем, а не тихий выбор первого»).
+// одного: actionable-ошибка с перечнем (запрос без проекта при
+// нескольких открытых даёт ошибку с перечнем, а не тихий выбор первого).
 func (h *Handler) resolveProject(r *http.Request) (*ProjectHandle, *app.Error) {
 	want := strings.TrimSpace(r.URL.Query().Get(projectQueryParam))
 	if want == "" {
@@ -360,8 +360,8 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 // ProjectListItem — items[] ответа /api/projects: id/корень плюс свежесть
-// индекса (spec §6, история 48: «/api/projects перечисляет все со
-// свежестью индекса»). Поля зеркалят app.StatusItem (internal/app/
+// индекса (/api/projects перечисляет все проекты со
+// свежестью индекса). Поля зеркалят app.StatusItem (internal/app/
 // indexstatus.go) — то подмножество, что имеет смысл вне контекста одного
 // активного проекта; RebuildInProgress/ETA/diagnostics там же несут смысл,
 // которого здесь нет (reindex этого процесса графweb не запускает).

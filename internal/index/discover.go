@@ -32,8 +32,8 @@ type discoveredMeta struct {
 
 // walkComponent — общий обход корня компонента: фильтрация служебных
 // каталогов/файлов (workspace.IsIgnored — та же функция, что скрывает
-// workspace.SkipDir/SkipFile: файловая половина списка неиндексируемого,
-// долг таска 02) и include/exclude манифеста через workspace.MatchPath
+// workspace.SkipDir/SkipFile: файловая половина списка неиндексируемого)
+// и include/exclude манифеста через workspace.MatchPath
 // (единственный матчер шаблонов во всём коде). Один источник истины о ТОМ,
 // какие файлы входят в компонент — используется и discoverComponent (нужен
 // безопасный absPath для чтения содержимого), и discoverComponentMeta
@@ -98,7 +98,7 @@ func walkComponent(absRoot string, include, exclude []string, visit func(relSlas
 func discoverComponent(absRoot string, include, exclude []string) ([]discoveredFile, error) {
 	var out []discoveredFile
 	err := walkComponent(absRoot, include, exclude, func(relSlash, rel string, d fs.DirEntry) error {
-		// SafeJoin — единственная точка валидации путей (D01/interfaces.md):
+		// SafeJoin: единственная точка валидации путей:
 		// вычисляет безопасный absPath для downstream-чтения содержимого
 		// (fingerprint/parse). Симлинки walkComponent уже отсеял выше — сюда
 		// они не доходят, но SafeJoin остаётся ЕДИНСТВЕННЫМ местом, которое

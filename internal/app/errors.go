@@ -11,8 +11,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
-// ErrorCode — машинный код actionable-ошибки (spec §Формат структурированного
-// ответа, R60). Семь кодов ниже обязательны к существованию; значения сверх
+// ErrorCode: машинный код actionable-ошибки в структурированном ответе. Семь
+// кодов ниже обязательны к существованию; значения сверх
 // них заводятся там, где живёт их смысл (транспортные — в
 // internal/graphweb/errors.go).
 type ErrorCode string
@@ -34,7 +34,7 @@ const (
 
 // Error — actionable-ошибка индексных инструментов: машинный код, текст
 // по-русски, подсказка что делать, плюс активный проект и generation, если
-// они были известны в момент отказа (тикет 10 п.4).
+// они были известны в момент отказа.
 //
 // Реализует error. Наружу (в MCP-транспорт) уходит через err.Error() —
 // go-sdk's ToolHandlerFor маршалит structuredContent из типизированного Out
@@ -166,7 +166,7 @@ func ComponentNotRegisteredError(id domain.ComponentID, known []domain.Component
 // ResourceExpiredError — resource-ссылка (onec://src/..., onec://symbol/...,
 // onec://references/...) больше не воспроизводима: blob вычищен по TTL, или
 // generation ресурса разошлось с запрошенным (архитектура §21). Строится
-// здесь, используется инструментами тасков 11+, отдающими resource links.
+// здесь, используется инструментами, отдающими resource links.
 func ResourceExpiredError(uri, reason string) *Error {
 	return NewError(CodeResourceExpired,
 		fmt.Sprintf("ресурс %s больше не воспроизводим: %s", uri, reason),
@@ -186,7 +186,7 @@ func FromPathError(err error) *Error {
 }
 
 // FromIndexNotFresh переводит index.ErrIndexNotFresh (require-fresh не
-// дождался публикации в пределах deadline, R33.1) в actionable-ошибку.
+// дождался публикации в пределах deadline) в actionable-ошибку.
 // Возвращает nil, если err не об этом.
 func FromIndexNotFresh(err error) *Error {
 	var e *index.ErrIndexNotFresh

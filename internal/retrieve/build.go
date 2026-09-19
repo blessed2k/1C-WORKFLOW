@@ -75,14 +75,14 @@ func buildWithSeams(ctx context.Context, tx *store.ReadTx, seams readSeams, req 
 	intent := classifyIntent(task, req.FocusHints)
 	required := requiredCategories(intent.Primary)
 
-	// D08 (закрытие долга таска 15): view раньше принимался схемой input'а
+	// view раньше принимался схемой input'а
 	// (см. jsonschema в cmd/mcp1c/idx_context.go) и молча откатывался на raw
 	// для ЛЮБОГО значения != "raw" — включая опечатку. Теперь effective
 	// частично реализован (effective.go — definition/interceptors у
 	// bugfix/signature-change, handler_intercepts у form; см.
 	// effectiveAwareIntent ниже), и опечатка в view обязана быть замечена как
 	// ошибка, а не тихо стать raw — тот же принцип, что internal/app/effective.go:parseView
-	// уже применяет к get_symbol/get_object/get_module_structure (тикет 14).
+	// уже применяет к get_symbol/get_object/get_module_structure.
 	view := domain.View(strings.TrimSpace(req.View))
 	if view == "" {
 		view = domain.ViewRaw
@@ -107,7 +107,7 @@ func buildWithSeams(ctx context.Context, tx *store.ReadTx, seams readSeams, req 
 	if err != nil {
 		return Result{}, fmt.Errorf("get_context_for_task: anchors: %w", err)
 	}
-	// П4/R32: единственный вид шума, который снимается по классифицированному
+	// Единственный вид шума, который снимается по классифицированному
 	// intent'у, — омонимия по имени обработчика проведения при заданном
 	// объекте (см. suppressPostingHandlerAmbiguity в anchors.go).
 	ambiguities = suppressPostingHandlerAmbiguity(intent.Primary, anchors, ambiguities)
@@ -174,7 +174,7 @@ func buildWithSeams(ctx context.Context, tx *store.ReadTx, seams readSeams, req 
 
 	warnings = dedupWarnings(warnings)
 
-	// collectedEmptyCategories — заявления сборщиков (D03): только они дают
+	// collectedEmptyCategories: заявления сборщиков о собранной категории, только они дают
 	// пустой категории право на complete_empty.
 	packed, coverage, excluded, used := packBudget(allCandidates, required, budget, bctx.collectedEmptyCategories())
 
@@ -251,12 +251,12 @@ func expandForAnchor(bctx *buildCtx, intent string, a Anchor) ([]*candidate, []W
 }
 
 // effectiveAwareIntent — интенты, у которых typed expansion (expand.go/
-// expand2.go) реально консультируется с наложением слоёв при view=effective
-// (D08 п.4а/4б): bugfix/unknown и signature-change — "interceptors" на
+// expand2.go) реально консультируется с наложением слоёв при view=effective:
+// bugfix/unknown и signature-change: "interceptors" на
 // definition-анкере (effective.go:effectiveSignatureInterceptors), form —
 // "handler_intercepts" на обработчике формы, posting —
 // "posting_handler_intercepts" плюс движения самих перехватчиков на
-// обработчике проведения (effective.go:effectivePostingIntercepts, П2.1/R22).
+// обработчике проведения (effective.go:effectivePostingIntercepts).
 // ADR-035 добавил register ("writer_intercepts"), query ("query_intercepts" и
 // запросы перехватчиков), add-attribute и rights (заимствования объекта в
 // применяющихся расширениях, effective.BorrowedObjects), а также exchange и
@@ -274,7 +274,7 @@ func effectiveAwareIntent(intent string) bool {
 	}
 }
 
-// partialCoverageWarning: честная граница покрытия (D08 п.4): при
+// partialCoverageWarning: честная граница покрытия: при
 // view=effective intent, чей builder наложение не консультирует, получает
 // effective_view_partial_coverage. После ADR-035 классификатор такого intent
 // не выдаёт; ветка держит предел для будущего intent и закреплена
@@ -304,7 +304,7 @@ type anchorExpansion struct {
 }
 
 // suppressFormNoiseWhenMatched — находка F3 прогона reindex-timings, дважды
-// исправленная после ревью (Codex stop-gate, тот же прогон): у intent=form
+// исправленная после ревью: у intent=form
 // несколько анкеров могут называть один и тот же объект-омоним в разных
 // компонентах (findAnchors идёт по MetadataObjectsByNameNormAnyType без учёта
 // типа/компонента). Если анкер-омоним ОДНОГО с ним имени И ТИПА дал
@@ -334,7 +334,7 @@ type anchorExpansion struct {
 // в base и в расширении). Анкеры разных имён или разных типов друг на друга
 // не влияют никогда.
 //
-// Область — только intent=form (R19 брифа reindex-timings: точечный фикс,
+// Область: только intent=form (точечный фикс,
 // не переписывание intent form целиком); для остальных builder'ов то же
 // явление возможно, но решать его для каждого — отдельная задача.
 func suppressFormNoiseWhenMatched(expansions []anchorExpansion) {

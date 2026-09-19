@@ -22,7 +22,7 @@ type indexStatusInput struct {
 	IncludeAllDiagnostics bool   `json:"includeAllDiagnostics,omitempty" jsonschema:"every diagnostic, not only the first few plus diagnosticsDigest"`
 }
 
-// reindexInput — вход reindex (тикет 10 п.6; projectRoot — дозакрытие
+// reindexInput: вход reindex (projectRoot: дозакрытие
 // критического пробела: до него ни один production-инструмент не писал в
 // workspace.Registry, так что ни у одного пользователя не было способа
 // сделать хоть один индексный инструмент рабочим без ручной правки

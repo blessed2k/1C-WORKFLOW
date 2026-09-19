@@ -70,7 +70,7 @@ func appendPacked(out *packedOutput, c *candidate) {
 	}
 }
 
-// maxExcludedHighScoring — потолок excludedHighScoring[] (R47/R49: «показывает,
+// maxExcludedHighScoring: потолок excludedHighScoring[] (список «показывает,
 // что не влезло», не «показывает вообще всё, что не влезло»).
 const maxExcludedHighScoring = 20
 
@@ -135,8 +135,8 @@ func packBudget(cands []*candidate, required []string, budget int, collected map
 		entry := CoverageEntry{Category: cat, ReturnedCount: returned, TotalCount: total}
 		switch {
 		case total == 0 && collected[cat]:
-			// «Категория собрана, фактов нет» (ADR-030, R26/R28) — и только по
-			// ЗАЯВЛЕНИЮ сборщика (D03): документ, который ничего не читает из
+			// «Категория собрана, фактов нет» (ADR-030), и только по
+			// ЗАЯВЛЕНИЮ сборщика: документ, который ничего не читает из
 			// регистров и не имеет подписок, полон именно этой пустотой.
 			// Категория, которую никто не собирал (нет владельца-анкера, не
 			// совпало ничего, механизм не построен), остаётся missing: иначе

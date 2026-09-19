@@ -19,7 +19,7 @@ func openFixtureStore(t *testing.T) *store.Store {
 	return st
 }
 
-// TestReadTxSnapshotIsolatedFromConcurrentWrite — критерий приёмки тикета 10:
+// TestReadTxSnapshotIsolatedFromConcurrentWrite:
 // «одна read-транзакция на вызов — инкремент в середине вызова не виден
 // вызову». Тест реально коммитит write-транзакцию НА ТОМ ЖЕ store, пока
 // readTx ещё открыт, и доказывает через настоящий store.Store (не мок), что

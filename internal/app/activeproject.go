@@ -135,7 +135,7 @@ func (p *Projects) activateInProcess(entry workspace.ProjectEntry, manifest *wor
 
 // ensureDecidedLocked применяет правило старта без выгрузки. Берётся
 // сохранённый в реестре активный проект, а если его нет, но проект зарегистрирован ровно один, то
-// он (D2: единственный проиндексированный проект активен и для raw).
+// он (D2 в docs/architecture-graph.md: единственный проиндексированный проект активен и для raw).
 func (p *Projects) ensureDecidedLocked() {
 	if p.active.decided {
 		return
@@ -296,8 +296,8 @@ func unboundDumpError(dump, note string) *Error {
 
 // UseProject делает зарегистрированный проект активным в этом процессе, не
 // переписывая registry.json: graph-режим открывает конкретный проект
-// workspace (--project <workspace>#<id>), когда их в реестре несколько (D3,
-// веха В2: две базы одного workspace на одной карте).
+// workspace (--project <workspace>#<id>), когда их в реестре несколько (D3 в
+// docs/architecture-graph.md, веха В2: две базы одного workspace на одной карте).
 func (p *Projects) UseProject(id domain.ProjectID) error {
 	if p.registry == nil {
 		return p.noActiveProjectError()
