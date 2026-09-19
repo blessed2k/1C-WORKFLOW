@@ -104,8 +104,7 @@ type modulePublishState struct {
 // DeriveQueryReference — их FromKey/ObjectKey/MemberKey уже строка identity_key,
 // но узел нужно найти по ней так же, как по symbol_uid).
 type txState struct {
-	nodes    *txNodeCache
-	roleFile map[string]int64 // component+"\x00"+roleNameNorm -> file_id роли (для role_right.origin_file_id логики, см. publishmeta2.go)
+	nodes *txNodeCache
 
 	// fileID — relPath -> id файла, вставленного проходом 1. Проходу 2 и
 	// публикации объектного графа id нужен там, где у них на руках только
@@ -186,7 +185,7 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 			staleIDs = append(staleIDs, id)
 		}
 	}
-	ts := &txState{nodes: newTxNodeCache(), roleFile: make(map[string]int64),
+	ts := &txState{nodes: newTxNodeCache(),
 		fileID:         make(map[string]int64, len(in.republish)),
 		staleFiles:     make(map[int64]struct{}, len(staleIDs)),
 		publishedEdges: make(map[store.ObjectDataEdgeKey]struct{}),
@@ -419,7 +418,7 @@ func publishMetadataObject(tx *store.WriteTx, ts *txState, rel string, fileID in
 		}
 	}
 	if op.role != nil {
-		if err := publishRole(tx, ts, rel, fileID, objID, op.role); err != nil {
+		if err := publishRole(tx, rel, fileID, objID, op.role); err != nil {
 			return fmt.Errorf("role %s: %w", rel, err)
 		}
 	}

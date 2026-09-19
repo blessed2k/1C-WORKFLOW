@@ -349,7 +349,6 @@ type handlerBindingsPlan struct {
 }
 
 type roleRightsPlan struct {
-	roleKey string // ключ кэша ролей транзакции (roleCacheKey)
 	role    store.Role
 	objects []roleObjectPlan
 }
@@ -381,7 +380,7 @@ func planLinks(pc planContext, rel string, rec *fileRecord, methodKeys []string)
 		lp.handlers = hp
 	}
 	if rr := rec.metaFacts.RoleRights; rr != nil {
-		rp := &roleRightsPlan{roleKey: roleCacheKey(pc.component, rr.RoleNameNorm), role: store.Role{
+		rp := &roleRightsPlan{role: store.Role{
 			ComponentID: string(pc.component), NameNorm: rr.RoleNameNorm,
 			NameDisplay: rr.RoleNameDisplay, Layer: layerName(pc.layer),
 		}}

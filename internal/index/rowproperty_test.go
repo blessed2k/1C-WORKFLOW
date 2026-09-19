@@ -69,6 +69,139 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// переопубликуется дельтой имён. Итог тот же, что у чистой пересборки.
 		checkIncrementRows(t, 30, renameEdits)
 	})
+	t.Run("правка XML роли", func(t *testing.T) {
+		// Строка role пересоздаётся вместе со своим XML, а права лежат в
+		// нетронутом Rights.xml и держатся за неё каскадом role_right.role_id,
+		// не SET NULL: без возврата каскадных строк они пропадали до полной
+		// пересборки (issue #11, ADR-038).
+		checkIncrementRows(t, 30, roleXMLEdits)
+	})
+	t.Run("правка XML регистра", func(t *testing.T) {
+		// Кодовое и декларированное рёбра документа держатся за строку
+		// регистра каскадом object_data_edge.to_object_id; XML регистра в
+		// зависимостях рёбер нет, и их никто не пересобирает (issue #11).
+		checkIncrementRows(t, 30, registerXMLEdits)
+	})
+	t.Run("правка XML документа", func(t *testing.T) {
+		// Та же граница со стороны владельца: кодовое ребро документа зависит
+		// от модулей, а не от его XML, и держится каскадом from_object_id,
+		// бейдж has-dynamic держится каскадом object_badge.object_id.
+		// Декларированное ребро зависит от XML и пересобирается честно.
+		checkIncrementRows(t, 30, documentXMLEdits)
+	})
+	t.Run("два инкремента по Rights.xml", func(t *testing.T) {
+		// Правится только Rights.xml, дважды подряд. Строка роли принадлежит
+		// своему XML и не должна переходить к Rights.xml: иначе второй
+		// инкремент сносит её каскадом и вставляет без объекта роли
+		// (ревью issue #11, ADR-038).
+		checkIncrementRows(t, 30, rightsOnlyEdits)
+	})
+	t.Run("удаление XML регистра", func(t *testing.T) {
+		// Регистр удалён: снятые рёбра документа не возвращаются, конца
+		// у них больше нет. Итог тот же, что у чистой пересборки.
+		checkIncrementRows(t, 30, registerRemoveEdits)
+	})
+	t.Run("удаление XML роли при живом Rights.xml", func(t *testing.T) {
+		// Граница ADR-038: чистая пересборка создаёт роль из одного
+		// Rights.xml (file_id на нём, без объекта роли), а инкремент роль не
+		// воссоздаёт, и права Rights.xml пропадают: его никто не
+		// переопубликует. В выгрузке конфигуратора Rights.xml лежит в каталоге
+		// роли и удаляется вместе с её XML, поэтому случай патологический.
+		// Починка: добавлять Rights.xml удалённой роли в дельту публикации.
+		t.Skip("граница ADR-038: роль без своего XML инкремент не воссоздаёт из нетронутого Rights.xml")
+		checkIncrementRows(t, 30, roleXMLRemoveEdits)
+	})
+}
+
+var rightsOnlyEdits = incrementScenario{
+	seed: roleXMLEdits.seed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write("Roles/ЧтениеТоваров/Ext/Rights.xml", strings.Replace(allPointersRights, "<value>true</value>", "<value>false</value>", 1))
+	},
+	then: []func(write func(rel, content string), remove func(rel string)){
+		func(write func(rel, content string), remove func(rel string)) {
+			write("Roles/ЧтениеТоваров/Ext/Rights.xml", allPointersRights)
+		},
+	},
+	mustHave: []string{"object_id=node:" + metadataObjectIdentityKey("cfg", "Role", "чтениетоваров")},
+}
+
+var registerRemoveEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"))
+	},
+	// Декларированное ребро пропадает честно, а бейдж has-dynamic документа
+	// остаётся: сценарий создал граф, рёбра которого исчезают.
+	mustHave: []string{"badge=has-dynamic"},
+}
+
+var roleXMLRemoveEdits = incrementScenario{
+	seed: roleXMLEdits.seed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"))
+	},
+	mustHave: []string{"right_name=Read"},
+}
+
+var roleXMLEdits = incrementScenario{
+	seed: map[string]string{
+		workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"): fmt.Sprintf(allPointersRole, "исходный"),
+		"Roles/ЧтениеТоваров/Ext/Rights.xml":                   allPointersRights,
+	},
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"), fmt.Sprintf(allPointersRole, "правка свойства"))
+	},
+	mustHave: []string{"object_id=node:" + metadataObjectIdentityKey("cfg", "Catalog", "товары") + "|object_name_norm"},
+}
+
+const edgeDocument = `<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+  <Document uuid="44444444-4444-4444-4444-444444444444">
+    <Properties>
+      <Name>Отгрузка</Name>
+      <Comment>%s</Comment>
+      <RegisterRecords>
+        <xr:Item xsi:type="xr:MDObjectRef">AccumulationRegister.ТоварыНаСкладах</xr:Item>
+      </RegisterRecords>
+    </Properties>
+  </Document>
+</MetaDataObject>`
+
+// edgeSeed: документ с декларированным и кодовым ребром в регистр и
+// нестатической записью в модуле менеджера (бейдж has-dynamic).
+var edgeSeed = map[string]string{
+	workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"): fmt.Sprintf(allPointersRegister, "исходный"),
+	workspace.DumpDeclarationPath("Document", "Отгрузка"):                    fmt.Sprintf(edgeDocument, "исходный"),
+	workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleObject): `
+Процедура ОбработкаПроведения(Отказ, Режим)
+	Движения.ТоварыНаСкладах.Записать();
+КонецПроцедуры
+`,
+	workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleManager): `
+Процедура ПересчитатьОстатки() Экспорт
+	Набор = РегистрыНакопления.ТоварыНаСкладах.СоздатьНаборЗаписей();
+	Набор.Записать();
+КонецПроцедуры
+`,
+}
+
+var edgeMustHave = []string{"kind=writes-register", "kind=writes-declared", "badge=has-dynamic"}
+
+var registerXMLEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("AccumulationRegister", "ТоварыНаСкладах"), fmt.Sprintf(allPointersRegister, "правка свойства"))
+	},
+	mustHave: edgeMustHave,
+}
+
+var documentXMLEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write(workspace.DumpDeclarationPath("Document", "Отгрузка"), fmt.Sprintf(edgeDocument, "правка свойства"))
+	},
+	mustHave: edgeMustHave,
 }
 
 const allPointersCatalog = `<?xml version="1.0" encoding="UTF-8"?>
@@ -112,6 +245,20 @@ const allPointersRole = `<?xml version="1.0" encoding="UTF-8"?>
   </Role>
 </MetaDataObject>`
 
+const allPointersRights = `<?xml version="1.0" encoding="UTF-8"?>
+<Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<setForNewObjects>false</setForNewObjects>
+	<setForAttributesByDefault>true</setForAttributesByDefault>
+	<independentRightsOfChildObjects>false</independentRightsOfChildObjects>
+	<object>
+		<name>Catalog.Товары</name>
+		<right>
+			<name>Read</name>
+			<value>true</value>
+		</right>
+	</object>
+</Rights>`
+
 var allPointerEdits = incrementScenario{
 	seed: map[string]string{
 		"Catalogs/Товары.xml": fmt.Sprintf(allPointersCatalog, "исходный"),
@@ -148,19 +295,7 @@ var allPointerEdits = incrementScenario{
 КонецПроцедуры
 `,
 		workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"): fmt.Sprintf(allPointersRole, "исходный"),
-		"Roles/ЧтениеТоваров/Ext/Rights.xml": `<?xml version="1.0" encoding="UTF-8"?>
-<Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<setForNewObjects>false</setForNewObjects>
-	<setForAttributesByDefault>true</setForAttributesByDefault>
-	<independentRightsOfChildObjects>false</independentRightsOfChildObjects>
-	<object>
-		<name>Catalog.Товары</name>
-		<right>
-			<name>Read</name>
-			<value>true</value>
-		</right>
-	</object>
-</Rights>`,
+		"Roles/ЧтениеТоваров/Ext/Rights.xml":                   allPointersRights,
 		"CommonModules/Отчеты/Ext/Module.bsl": `
 Функция Артикулы() Экспорт
 	Запрос = Новый Запрос;
@@ -183,13 +318,12 @@ var allPointerEdits = incrementScenario{
 	Возврат "ok, но иначе";
 КонецФункции
 `)
+		// XML роли правится вместе с XML справочника: права Rights.xml
+		// держатся за роль каскадом, а за справочник указателем (ADR-038).
+		write(workspace.DumpDeclarationPath("Role", "ЧтениеТоваров"), fmt.Sprintf(allPointersRole, "правка свойства"))
 	},
-	// XML роли не правится: её переопубликование сносит права Rights.xml
-	// каскадом role_right.role_id (не SET NULL, ADR-037 «Граница»). Указатель
-	// role.object_id на практике пуст (строку роли переписывает публикация
-	// Rights.xml), поэтому таблица role сверяется построчно, но её указатель
-	// сценарием не проверяется.
 	mustHave: []string{
+		"object_id=node:" + metadataObjectIdentityKey("cfg", "Role", "чтениетоваров"), // role
 		"handler_name_norm=приоткрытии|handler_symbol_id=node:",
 		"method_name_norm=commonmodule.утилитыобщие.помощь|handler_symbol_id=node:",
 		"member_id=node:",
@@ -215,6 +349,8 @@ type incrementScenario struct {
 	seed map[string]string
 	// edit применяет правки: write пишет файл со сдвигом mtime, remove удаляет.
 	edit func(write func(rel, content string), remove func(rel string))
+	// then: следующие раунды правок, после каждого свой инкремент.
+	then []func(write func(rel, content string), remove func(rel string))
 	// mustHave: подстроки, каждая из которых обязана встретиться в строках
 	// чистой пересборки: иначе сценарий не создал то, что проверяет.
 	mustHave []string
@@ -349,9 +485,11 @@ func checkIncrementRows(t *testing.T, fillers int, sc incrementScenario) {
 			t.Fatal(err)
 		}
 	}
-	sc.edit(write, remove)
-	if _, err := svcA.Reindex(ctx, ModeIncremental, ""); err != nil {
-		t.Fatalf("A: Reindex(incremental): %v", err)
+	for i, edit := range append([]func(func(string, string), func(string)){sc.edit}, sc.then...) {
+		edit(write, remove)
+		if _, err := svcA.Reindex(ctx, ModeIncremental, ""); err != nil {
+			t.Fatalf("A: Reindex(incremental) №%d: %v", i+1, err)
+		}
 	}
 
 	stB := openTestStore(t)

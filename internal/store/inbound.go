@@ -137,6 +137,9 @@ func (tx *WriteTx) ReplaceSourceFiles(fileIDs []int64, insert func() error) erro
 			return fmt.Errorf("входящие указатели %s: %w", k.name(), err)
 		}
 	}
+	if err := tx.saveCascades(files); err != nil {
+		return err
+	}
 	if err := tx.DeleteSourceFiles(fileIDs...); err != nil {
 		return err
 	}
@@ -144,6 +147,11 @@ func (tx *WriteTx) ReplaceSourceFiles(fileIDs []int64, insert func() error) erro
 		return err
 	}
 	if err := tx.check(); err != nil {
+		return err
+	}
+	// Каскадные строки возвращаются раньше указателей: у них прежние id, и
+	// возврат указателя по row_id находит уже вернувшуюся строку.
+	if err := tx.restoreCascades(); err != nil {
 		return err
 	}
 	for i, k := range inboundKinds {
