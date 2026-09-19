@@ -77,6 +77,9 @@ type HTTPCallFact struct {
 	HostStatic bool
 	Path       string
 	PathKind   string // static|prefix|dynamic
+	// PathSuffix: статический конец пути после вычисляемой части (только
+	// prefix): сужает шаблоны до тех, что им кончаются.
+	PathSuffix string
 }
 
 // HTTPEndpointFact: метод сервиса проекта.
@@ -242,6 +245,9 @@ func matchEndpoints(call HTTPCallFact, eps []HTTPEndpointFact) ([]HTTPEndpointFa
 		if !templateMatches(rest[len(root):], tpl, isPrefix, lastPartial) {
 			continue
 		}
+		if isPrefix && call.PathSuffix != "" && !templateEndsWith(tpl, len(rest)-len(root), lastPartial, call.PathSuffix) {
+			continue
+		}
 		k := tplKey{ep.Project, ep.ServiceID, ep.Template}
 		if _, seen := byTemplate[k]; !seen {
 			order = append(order, k)
@@ -304,6 +310,56 @@ func templateMatches(tail, tpl []string, isPrefix, lastPartial bool) bool {
 	return len(tail) == len(tpl)
 }
 
+// templateEndsWith: шаблон кончается статическим концом пути вызова. known
+// сегментов шаблона уже заняты известным началом (последний из них оборван,
+// если lastPartial); конец не может на них налезать. Вычисляемая часть между
+// ними непуста: при целых сегментах с обеих сторон она занимает хотя бы
+// один сегмент. Конец, начатый не с '/', дописывает вычисляемый сегмент: его
+// первый сегмент сравнивается как окончание сегмента шаблона. Параметр
+// {Имя} совпадает с любым сегментом, "*" в шаблоне принимает любой конец.
+func templateEndsWith(tpl []string, known int, lastPartial bool, suffix string) bool {
+	if i := strings.IndexAny(suffix, "?#"); i >= 0 {
+		suffix = suffix[:i]
+	}
+	firstPartial := !strings.HasPrefix(suffix, "/")
+	segs, _ := pathSegments(suffix, false)
+	if len(segs) == 0 {
+		return true
+	}
+	for _, t := range tpl {
+		if t == "*" {
+			return true
+		}
+	}
+	off := len(tpl) - len(segs)
+	minOff := known
+	switch {
+	case !lastPartial && !firstPartial:
+		minOff = known + 1 // вычисляемая часть: целый сегмент между началом и концом
+	case lastPartial && firstPartial:
+		minOff = known - 1 // вычисляемая часть внутри одного сегмента
+	}
+	if off < minOff {
+		return false
+	}
+	for i, s := range segs {
+		t := tpl[off+i]
+		if strings.HasPrefix(t, httpTemplateParamPrefix) && strings.HasSuffix(t, "}") {
+			continue
+		}
+		if i == 0 && firstPartial {
+			if !strings.HasSuffix(t, s) {
+				return false
+			}
+			continue
+		}
+		if t != s {
+			return false
+		}
+	}
+	return true
+}
+
 // prefixMatches: оборванное начало пути совпадает с началом корня (для
 // причины prefix-before-root, чтобы отличить её от «сервиса нет»).
 func prefixMatches(rest, root []string, lastPartial bool) bool {
@@ -337,7 +393,7 @@ func segsEqualFold(a, b []string) bool {
 // полным URL, запрос (?...) и фрагмент отбрасываются, пустые сегменты
 // пропускаются. prefix=true: путь: известное начало; второе значение
 // отвечает, оборван ли его последний сегмент ("/a/b" + Х: да, "/a/b/" + Х
-//: нет).
+// : нет).
 func pathSegments(p string, prefix bool) ([]string, bool) {
 	p = strings.TrimSpace(p)
 	if i := strings.Index(p, "://"); i >= 0 {

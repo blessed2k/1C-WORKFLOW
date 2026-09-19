@@ -52,8 +52,11 @@ type HTTPCall struct {
 	HostStatic bool
 	// Path: путь запроса (HTTPPathStatic) или его статическое начало
 	// (HTTPPathPrefix); пусто у динамического.
-	Path       string
-	PathKind   HTTPPathKind
+	Path     string
+	PathKind HTTPPathKind
+	// PathSuffix: статический конец пути после вычисляемой части
+	// ("/base/hs/svc/" + Версия + "/GetIBParameters"), только у HTTPPathPrefix.
+	PathSuffix string
 	Confidence domain.Confidence
 	Provenance domain.Provenance
 }
@@ -72,8 +75,9 @@ type httpHost struct {
 }
 
 type httpPath struct {
-	path string
-	kind HTTPPathKind
+	path   string
+	kind   HTTPPathKind
+	suffix string
 }
 
 var dynamicPath = httpPath{kind: HTTPPathDynamic}
@@ -230,6 +234,7 @@ func (p *parser) collectHTTPVerb(i int) {
 		HostStatic: connBound && conn.static,
 		Path:       path.path,
 		PathKind:   path.kind,
+		PathSuffix: path.suffix,
 		Confidence: ConfidenceHTTPCall,
 		Provenance: domain.Provenance{Source: domain.SourceHeuristic, File: p.opts.File, Detail: "http-call-" + string(methodTok.lit)},
 	})
@@ -279,7 +284,7 @@ func (p *parser) classifyPath(start, end int) httpPath {
 		next+1 < end && isPunct(p.toks[next], '(') && p.toks[next+1].kind == tokString:
 		tmpl := unquoteBSL(p.toks[next+1].lit)
 		if k := strings.IndexByte(tmpl, '%'); k >= 0 {
-			return httpPath{path: tmpl[:k], kind: HTTPPathPrefix}
+			return httpPath{path: tmpl[:k], kind: HTTPPathPrefix, suffix: templateTail(tmpl)}
 		}
 		return httpPath{path: tmpl, kind: HTTPPathStatic}
 	case first.kind == tokIdent && (start == 0 || !isPunct(p.toks[start-1], '.')):
@@ -311,7 +316,37 @@ func (p *parser) classifyPath(start, end int) httpPath {
 	if j >= end && head.kind == HTTPPathStatic {
 		return httpPath{path: path, kind: HTTPPathStatic}
 	}
-	return httpPath{path: path, kind: HTTPPathPrefix}
+	return httpPath{path: path, kind: HTTPPathPrefix, suffix: p.concatTail(j, end)}
+}
+
+// concatTail: статический конец склейки после вычисляемой части: литералы,
+// стоящие последними операндами (... + Версия + "/GetIBParameters"). Пусто,
+// если выражение кончается вычисляемым операндом.
+func (p *parser) concatTail(from, end int) string {
+	k := end
+	for k-2 >= from && p.toks[k-1].kind == tokString && isPunct(p.toks[k-2], '+') {
+		k -= 2
+	}
+	var b strings.Builder
+	for i := k; i < end; i++ {
+		if p.toks[i].kind == tokString {
+			b.WriteString(unquoteBSL(p.toks[i].lit))
+		}
+	}
+	return b.String()
+}
+
+// templateTail: текст шаблона СтрШаблон после последней подстановки %N.
+func templateTail(tmpl string) string {
+	k := strings.LastIndexByte(tmpl, '%')
+	if k < 0 {
+		return ""
+	}
+	k++
+	for k < len(tmpl) && tmpl[k] >= '0' && tmpl[k] <= '9' {
+		k++
+	}
+	return tmpl[k:]
 }
 
 // stringLiteral: выражение ровно из одного строкового литерала.

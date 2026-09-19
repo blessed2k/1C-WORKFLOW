@@ -35,6 +35,7 @@ CREATE TABLE http_call(
   host_static INTEGER NOT NULL,
   path TEXT NOT NULL,
   path_kind TEXT NOT NULL,
+  path_suffix TEXT NOT NULL,
   confidence REAL NOT NULL,
   byte_start INTEGER NOT NULL,
   byte_end INTEGER NOT NULL,
@@ -81,6 +82,7 @@ type HTTPCall struct {
 	HostStatic bool
 	Path       string
 	PathKind   string // static|prefix|dynamic
+	PathSuffix string // статический конец пути после вычисляемой части (prefix)
 	Confidence float64
 	Span       domain.Span
 	Layer      string
@@ -92,8 +94,8 @@ func (tx *WriteTx) InsertHTTPCall(c HTTPCall) error {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO http_call(file_id,symbol_id,verb,host,host_static,path,path_kind,
-		confidence,byte_start,byte_end,start_line,layer) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-		c.FileID, nullID(c.SymbolID), c.Verb, c.Host, boolInt(c.HostStatic), c.Path, c.PathKind,
+		path_suffix,confidence,byte_start,byte_end,start_line,layer) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		c.FileID, nullID(c.SymbolID), c.Verb, c.Host, boolInt(c.HostStatic), c.Path, c.PathKind, c.PathSuffix,
 		c.Confidence, c.Span.StartByte, c.Span.EndByte, c.Span.StartLine, layerOrBase(c.Layer))
 }
 
@@ -157,7 +159,7 @@ func (tx *ReadTx) HTTPCalls() ([]HTTPCallRow, error) {
 		return nil, err
 	}
 	rows, err := tx.c.query(tx.ctx, `SELECT c.id, c.file_id, COALESCE(c.symbol_id,0), c.verb, c.host, c.host_static,
-			c.path, c.path_kind, c.confidence, c.byte_start, c.byte_end, c.start_line, c.layer,
+			c.path, c.path_kind, c.path_suffix, c.confidence, c.byte_start, c.byte_end, c.start_line, c.layer,
 			f.rel_path, f.component_id, COALESCE(s.name_display,''),
 			COALESCE(m.kind,''), COALESCE(m.owner_object_id,0)
 		FROM http_call c
@@ -175,7 +177,7 @@ func (tx *ReadTx) HTTPCalls() ([]HTTPCallRow, error) {
 		var r HTTPCallRow
 		var hostStatic int
 		if err := rows.Scan(&r.ID, &r.FileID, &r.SymbolID, &r.Verb, &r.Host, &hostStatic,
-			&r.Path, &r.PathKind, &r.Confidence, &r.Span.StartByte, &r.Span.EndByte, &r.Span.StartLine, &r.Layer,
+			&r.Path, &r.PathKind, &r.PathSuffix, &r.Confidence, &r.Span.StartByte, &r.Span.EndByte, &r.Span.StartLine, &r.Layer,
 			&r.RelPath, &r.ComponentID, &r.SymbolName, &r.ModuleKind, &r.ModuleOwnerID); err != nil {
 			return nil, err
 		}

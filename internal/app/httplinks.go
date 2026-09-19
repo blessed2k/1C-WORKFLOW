@@ -46,13 +46,14 @@ type HTTPLinkEndpoint struct {
 
 // HTTPCallSite: место вызова в коде: «почему ребро существует».
 type HTTPCallSite struct {
-	File     string `json:"file"`
-	Line     int    `json:"line"`
-	Symbol   string `json:"symbol,omitempty"`
-	Verb     string `json:"verb,omitempty"`
-	Host     string `json:"host,omitempty"`
-	Path     string `json:"path,omitempty"`
-	PathKind string `json:"pathKind"`
+	File       string `json:"file"`
+	Line       int    `json:"line"`
+	Symbol     string `json:"symbol,omitempty"`
+	Verb       string `json:"verb,omitempty"`
+	Host       string `json:"host,omitempty"`
+	Path       string `json:"path,omitempty"`
+	PathKind   string `json:"pathKind"`
+	PathSuffix string `json:"pathSuffix,omitempty"`
 	// Attributed: false: цепочка вызовов до объекта не дошла, и концом
 	// ребра стал сам модуль вызова (например, общий модуль).
 	Attributed bool `json:"attributed"`
@@ -154,9 +155,9 @@ func ReadHTTPFacts(ctx context.Context, op *openProject) (ProjectHTTPFacts, Snap
 		for _, c := range calls {
 			ac := attributedHTTPCall{
 				fact: resolve.HTTPCallFact{Verb: c.Verb, Host: c.Host, HostStatic: c.HostStatic,
-					Path: c.Path, PathKind: c.PathKind},
+					Path: c.Path, PathKind: c.PathKind, PathSuffix: c.PathSuffix},
 				site: HTTPCallSite{File: c.RelPath, Line: c.Span.StartLine, Symbol: c.SymbolName,
-					Verb: c.Verb, Host: c.Host, Path: c.Path, PathKind: c.PathKind},
+					Verb: c.Verb, Host: c.Host, Path: c.Path, PathKind: c.PathKind, PathSuffix: c.PathSuffix},
 			}
 			attrs, cut := resolve.AttributeSymbolFact(resolve.SymbolFact{
 				SymbolID: c.SymbolID, FileID: c.FileID, Span: c.Span, Confidence: c.Confidence,
@@ -246,7 +247,7 @@ func StitchCrossLinks(hosts workspace.HTTPHosts, facts []ProjectHTTPFacts) Cross
 							ExternalHost: st.Host, Reason: st.Reason}
 						links[id] = l
 					}
-					addCallSite(l, c.site, 0)
+					addCallSite(l, c.site, owner.confidence)
 				case resolve.HTTPStitched:
 					byService := map[domain.ProjectID]map[int64][]resolve.HTTPEndpointFact{}
 					for _, ep := range st.Endpoints {

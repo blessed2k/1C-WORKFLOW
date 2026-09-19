@@ -536,7 +536,7 @@ func planHTTPCalls(pc planContext, rec *fileRecord, methodKeys []string) []httpC
 	for i, c := range calls {
 		out[i] = httpCallPlan{symbolKey: methodKey(methodKeys, c.Method), row: store.HTTPCall{
 			Verb: c.Verb, Host: c.Host, HostStatic: c.HostStatic, Path: c.Path,
-			PathKind: string(c.PathKind), Confidence: float64(c.Confidence), Span: c.Span,
+			PathKind: string(c.PathKind), PathSuffix: c.PathSuffix, Confidence: float64(c.Confidence), Span: c.Span,
 			Layer: layerName(pc.layer),
 		}}
 	}
