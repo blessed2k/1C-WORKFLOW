@@ -14,17 +14,20 @@ import (
 // индексов и функция, отвечающая, какой проект стоит за хостом.
 //
 // Правила одни на всё:
-//  1. путь, который из текста не выводится (HTTPPathDynamic), ребра не даёт
-//     никогда: вызов виден бейджем has-dynamic-http у вызывающего (D7);
-//  2. хост из литерала сопоставляется конфигом воркспейса; немапленный хост
-//     не ищется по путям чужих баз вовсе: это внешний сервис, «внешний HTTP»;
-//  3. мапленный хост ищет сервис по пути только в своём проекте: не нашёлся,
-//     значит тоже внешний, с причиной «адресат не найден»;
-//  4. хост вычисляется (соединение из параметра, настройки): сервис ищется
-//     по пути во всех переданных проектах, с меньшей достоверностью;
+//  1. литеральный хост сопоставляется конфигом воркспейса; немапленный хост
+//     это внешний сервис («внешний HTTP», external), что бы ни было в пути;
+//  2. путь, который из текста не выводится (dynamic), ребра не даёт никогда:
+//     вызов виден бейджем has-dynamic-http (D7);
+//  3. мапленный хост ищет сервис по пути только в своём проекте, вычисляемый
+//     хост ищет во всех переданных проектах с меньшей достоверностью;
+//  4. external только в двух случаях: хост известен и не в маппинге, либо
+//     путь известен целиком (от /hs/) и сервиса по нему нет. Путь, известный
+//     лишь частью, без совпадения, и мапленный проект, который не открыт,
+//     дают «адресат не определён» (unknown), а не внешний HTTP;
 //  5. путь сопоставляется так, как его публикует платформа:
-//     /<публикация>/hs/<RootURL><Template>, параметры {Имя} занимают ровно
-//     один сегмент, "*" забирает остаток.
+//     /<публикация>/hs/<RootURL><Template>, имя публикации не сверяется,
+//     параметры {Имя} занимают ровно один сегмент, "*" забирает остаток,
+//     сегменты сравниваются без учёта регистра.
 
 // BadgeHasDynamicHTTP: бейдж «у объекта есть HTTP-вызов, адрес которого
 // статически не выводится». Отдельное имя, а не has-dynamic: счётчики
@@ -54,6 +57,9 @@ const (
 	HTTPExternal HTTPStitchKind = "external"
 	// HTTPDynamic: путь не выводится, ребра нет.
 	HTTPDynamic HTTPStitchKind = "dynamic"
+	// HTTPUnknown: адресат не определён: путь известен лишь частью и
+	// совпадения нет, либо проект мапленного хоста не открыт.
+	HTTPUnknown HTTPStitchKind = "unknown"
 )
 
 // Причины исхода, машинные коды для ответа.
@@ -65,22 +71,14 @@ const (
 	ReasonNoEndpoint        = "no-endpoint"
 	ReasonDynamicPath       = "dynamic-path"
 	ReasonPrefixBeforeRoot  = "prefix-before-root"
+	ReasonPrefixWithoutHS   = "prefix-without-hs"
 	ReasonVerbNotAllowed    = "verb-not-allowed"
 	httpServicePathSegment  = "hs"
 	httpTemplateParamPrefix = "{"
 )
 
-// HTTPCallFact: вызов, как его видит сшивка.
-type HTTPCallFact struct {
-	Verb       string
-	Host       string
-	HostStatic bool
-	Path       string
-	PathKind   string // static|prefix|dynamic
-	// PathSuffix: статический конец пути после вычисляемой части (только
-	// prefix): сужает шаблоны до тех, что им кончаются.
-	PathSuffix string
-}
+// HTTPCallFact: вызов, как его видит сшивка (общий тип адреса вызова).
+type HTTPCallFact = domain.HTTPTarget
 
 // HTTPEndpointFact: метод сервиса проекта.
 type HTTPEndpointFact struct {
@@ -120,25 +118,41 @@ func StitchHTTPCall(call HTTPCallFact, endpoints map[domain.ProjectID][]HTTPEndp
 	if call.HostStatic {
 		host = domain.NormalizeHTTPHost(call.Host)
 	}
-	if call.PathKind == string(pathDynamic) || call.PathKind == "" {
-		return HTTPStitch{Kind: HTTPDynamic, Reason: ReasonDynamicPath, Host: host}
-	}
-	prefix := call.PathKind == string(pathPrefix)
+	var project domain.ProjectID
 	if host != "" {
-		project, ok := domain.ProjectID(""), false
+		ok := false
 		if hosts != nil {
 			project, ok = hosts(host)
 		}
 		if !ok {
 			return HTTPStitch{Kind: HTTPExternal, Reason: ReasonHostUnmapped, Host: host}
 		}
+	}
+	if call.PathKind == domain.HTTPPathDynamic || call.PathKind == "" {
+		reason := ReasonDynamicPath
+		if call.DynamicReason != "" {
+			reason = call.DynamicReason
+		}
+		return HTTPStitch{Kind: HTTPDynamic, Reason: reason, Host: host, Project: project}
+	}
+	prefix := call.PathKind == domain.HTTPPathPrefix
+	// notFound: сервиса по пути нет. Внешний HTTP только при пути, известном
+	// целиком; у известного лишь частью пути адресат не определён.
+	notFound := func(reason string) HTTPStitch {
+		kind := HTTPExternal
+		if prefix || reason == ReasonPrefixBeforeRoot || reason == ReasonPrefixWithoutHS {
+			kind = HTTPUnknown
+		}
+		return HTTPStitch{Kind: kind, Reason: reason, Host: host, Project: project}
+	}
+	if host != "" {
 		eps, loaded := endpoints[project]
 		if !loaded {
-			return HTTPStitch{Kind: HTTPExternal, Reason: ReasonProjectNotLoaded, Host: host, Project: project}
+			return HTTPStitch{Kind: HTTPUnknown, Reason: ReasonProjectNotLoaded, Host: host, Project: project}
 		}
 		matched, reason := matchEndpoints(call, eps)
 		if len(matched) == 0 {
-			return HTTPStitch{Kind: HTTPExternal, Reason: reason, Host: host, Project: project}
+			return notFound(reason)
 		}
 		conf := StitchMappedStatic
 		if prefix {
@@ -161,7 +175,7 @@ func StitchHTTPCall(call HTTPCallFact, endpoints map[domain.ProjectID][]HTTPEndp
 	for _, p := range projects {
 		matched, reason := matchEndpoints(call, endpoints[p])
 		if len(matched) == 0 {
-			if reason == ReasonPrefixBeforeRoot {
+			if reason != ReasonNoEndpoint {
 				lastReason = reason
 			}
 			continue
@@ -170,7 +184,11 @@ func StitchHTTPCall(call HTTPCallFact, endpoints map[domain.ProjectID][]HTTPEndp
 		all = append(all, matched...)
 	}
 	if len(all) == 0 {
-		return HTTPStitch{Kind: HTTPExternal, Reason: lastReason}
+		if len(projects) == 0 {
+			// Ни одного проекта для поиска: сказать «не наш» не по чему.
+			return HTTPStitch{Kind: HTTPUnknown, Reason: ReasonProjectNotLoaded}
+		}
+		return notFound(lastReason)
 	}
 	conf := StitchPathOnlyStatic
 	if prefix {
@@ -183,20 +201,11 @@ func StitchHTTPCall(call HTTPCallFact, endpoints map[domain.ProjectID][]HTTPEndp
 	return HTTPStitch{Kind: HTTPStitched, Reason: reason, Endpoints: all, Confidence: conf}
 }
 
-// Виды пути (значения bsl.HTTPPathKind, повторены строками: resolve не
-// тащит парсер ради трёх констант сравнения).
-type pathKindText string
-
-const (
-	pathDynamic pathKindText = "dynamic"
-	pathPrefix  pathKindText = "prefix"
-)
-
 // matchEndpoints: методы, чей шаблон совпал с путём вызова, с учётом
 // HTTP-метода. Второе значение: причина, если совпадений нет, либо
 // verb-not-allowed, если путь совпал, а метод вызова шаблон не обрабатывает.
 func matchEndpoints(call HTTPCallFact, eps []HTTPEndpointFact) ([]HTTPEndpointFact, string) {
-	isPrefix := call.PathKind == string(pathPrefix)
+	isPrefix := call.PathKind == domain.HTTPPathPrefix
 	segs, lastPartial := pathSegments(call.Path, isPrefix)
 	known := len(segs) // сегменты, известные целиком
 	if lastPartial {
@@ -211,7 +220,11 @@ func matchEndpoints(call HTTPCallFact, eps []HTTPEndpointFact) ([]HTTPEndpointFa
 	}
 	if hs < 0 {
 		// Без сегмента hs это не адрес HTTP-сервиса 1С (сторонний API,
-		// веб-сервис, OData): сервиса по такому пути нет ни в одной базе.
+		// веб-сервис, OData). У пути, известного лишь началом, сегмент hs
+		// мог оказаться в вычисляемой части: адресат не определён.
+		if isPrefix {
+			return nil, ReasonPrefixWithoutHS
+		}
 		return nil, ReasonNoEndpoint
 	}
 	rest := segs[hs+1:]
@@ -300,9 +313,9 @@ func templateMatches(tail, tpl []string, isPrefix, lastPartial bool) bool {
 		}
 		param := strings.HasPrefix(t, httpTemplateParamPrefix) && strings.HasSuffix(t, "}")
 		if lastPartial && i == len(tail)-1 {
-			return param || strings.HasPrefix(t, tail[i])
+			return param || hasPrefixFold(t, tail[i])
 		}
-		if !param && t != tail[i] {
+		if !param && !strings.EqualFold(t, tail[i]) {
 			return false
 		}
 	}
@@ -347,12 +360,12 @@ func templateEndsWith(tpl []string, known int, lastPartial bool, suffix string) 
 			continue
 		}
 		if i == 0 && firstPartial {
-			if !strings.HasSuffix(t, s) {
+			if !hasSuffixFold(t, s) {
 				return false
 			}
 			continue
 		}
-		if t != s {
+		if !strings.EqualFold(t, s) {
 			return false
 		}
 	}
@@ -367,13 +380,21 @@ func prefixMatches(rest, root []string, lastPartial bool) bool {
 	}
 	for i := range rest {
 		if lastPartial && i == len(rest)-1 {
-			return strings.HasPrefix(strings.ToLower(root[i]), strings.ToLower(rest[i]))
+			return hasPrefixFold(root[i], rest[i])
 		}
 		if !strings.EqualFold(rest[i], root[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+func hasPrefixFold(s, prefix string) bool {
+	return strings.HasPrefix(strings.ToLower(s), strings.ToLower(prefix))
+}
+
+func hasSuffixFold(s, suffix string) bool {
+	return strings.HasSuffix(strings.ToLower(s), strings.ToLower(suffix))
 }
 
 func segsEqualFold(a, b []string) bool {
@@ -439,6 +460,10 @@ type Attribution struct {
 	ObjectID   int64
 	Confidence float64
 	Chain      []ChainStep
+	// Direct: хотя бы одна цепочка до владельца не прошла через хаб и не
+	// длиннее порога глубины (пороги ADR-025, ObjectEdgeTunables). Бейдж
+	// динамического вызова ставится только таким владельцам.
+	Direct bool
 }
 
 // AttributeSymbolFact приписывает факт объектам-владельцам по тем же
@@ -461,9 +486,10 @@ func AttributeSymbolFact(f SymbolFact, g ObjectEdgeGraph, t ObjectEdgeTunables) 
 		i, seen := byObject[h.objectID]
 		if !seen {
 			byObject[h.objectID] = len(owners)
-			owners = append(owners, Attribution{ObjectID: h.objectID, Confidence: h.confidence, Chain: h.chain})
+			owners = append(owners, Attribution{ObjectID: h.objectID, Confidence: h.confidence, Chain: h.chain, Direct: !h.penalized})
 			continue
 		}
+		owners[i].Direct = owners[i].Direct || !h.penalized
 		if h.confidence > owners[i].Confidence {
 			owners[i].Confidence = h.confidence
 		}

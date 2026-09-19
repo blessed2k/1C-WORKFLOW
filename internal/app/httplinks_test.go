@@ -304,3 +304,158 @@ func TestObjectHTTPLinksBothEnds(t *testing.T) {
 		t.Errorf("со стороны сервиса: %+v", got)
 	}
 }
+
+// Фикстура шума бейджа (п.4 ревью) и потерянных вызовов (п.5): вызов с
+// вычисляемым адресом в общем модуле зовут документ напрямую и три документа
+// через процедуру-хаб; вторая процедура получает соединение параметром.
+const noiseExchangeModule = `
+Процедура ОтправитьПоНастройке(Настройки) Экспорт
+	Соединение = Новый HTTPСоединение(Настройки.Сервер);
+	Ответ = Соединение.Получить(Новый HTTPЗапрос(Настройки.Путь));
+КонецПроцедуры
+
+Процедура ОтправитьЧерез(Соединение, Запрос) Экспорт
+	Ответ = Соединение.ОтправитьДляОбработки(Запрос);
+КонецПроцедуры
+`
+
+const noiseHubModule = `
+Процедура Отправить() Экспорт
+	ОбменСЕРП.ОтправитьПоНастройке(Неопределено);
+КонецПроцедуры
+`
+
+func noiseDocModule(viaHub bool) string {
+	if viaHub {
+		return "\nПроцедура ОбработкаПроведения(Отказ, Режим)\n\tХабОбмена.Отправить();\nКонецПроцедуры\n"
+	}
+	return "\nПроцедура ОбработкаПроведения(Отказ, Режим)\n\tОбменСЕРП.ОтправитьПоНастройке(Неопределено);\n\tОбменСЕРП.ОтправитьЧерез(Неопределено, Неопределено);\nКонецПроцедуры\n"
+}
+
+func noiseBase() map[domain.ProjectID]map[string]string {
+	files := map[string]string{
+		workspace.DumpDeclarationPath("CommonModule", "ОбменСЕРП"):                    commonModuleServerXML("ОбменСЕРП"),
+		workspace.DumpModulePath("CommonModule", "ОбменСЕРП", workspace.ModuleCommon): noiseExchangeModule,
+		workspace.DumpDeclarationPath("CommonModule", "ХабОбмена"):                    strings.ReplaceAll(commonModuleServerXML("ХабОбмена"), "555555555555", "555555555556"),
+		workspace.DumpModulePath("CommonModule", "ХабОбмена", workspace.ModuleCommon): noiseHubModule,
+		workspace.DumpDeclarationPath("Document", "ЗаказКлиента"):                     documentXML("ЗаказКлиента"),
+		workspace.DumpModulePath("Document", "ЗаказКлиента", workspace.ModuleObject):  noiseDocModule(false),
+	}
+	for _, name := range []string{"Возврат", "Поступление", "Перемещение"} {
+		files[workspace.DumpDeclarationPath("Document", name)] = strings.ReplaceAll(documentXML(name), "555555555555", "55555555555"+string(rune('0'+len(name)%10)))
+		files[workspace.DumpModulePath("Document", name, workspace.ModuleObject)] = noiseDocModule(true)
+	}
+	return map[domain.ProjectID]map[string]string{"shop": files}
+}
+
+func badgesByNode(item CrossLinksItem) map[string]HTTPBadge {
+	out := map[string]HTTPBadge{}
+	for _, b := range item.Badges {
+		out[b.Node.Type+"."+b.Node.Name+"/"+b.Badge] = b
+	}
+	return out
+}
+
+// TestDynamicBadgeOnlyOnDirectOwners (п.4): бейдж динамического вызова
+// получает документ, зовущий общий модуль напрямую; документы за хабом его
+// не получают, вместо них бейдж у модуля вызова.
+func TestDynamicBadgeOnlyOnDirectOwners(t *testing.T) {
+	ConfigureGraphTunables(0, 2, 0, 0) // хаб: больше двух вызывающих
+	t.Cleanup(func() { ConfigureGraphTunables(0, 0, 0, 0) })
+	p, _ := newHTTPWorkspace(t, "", noiseBase())
+	p.activateInProcess(mustEntry(t, p, "shop"), nil)
+	resp, err := NewObjectGraphService(p, 0).CrossLinks(context.Background(), CrossLinksInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := badgesByNode(resp.Items[0])
+	direct, ok := got["Document.ЗаказКлиента/has-dynamic-http"]
+	if !ok || direct.Reasons["dynamic-path"] != 1 || direct.Confidence <= 0 || direct.Confidence >= 1 {
+		t.Errorf("прямой владелец: %+v (все: %+v)", direct, got)
+	}
+	for _, name := range []string{"Возврат", "Поступление", "Перемещение"} {
+		if b, ok := got["Document."+name+"/has-dynamic-http"]; ok {
+			t.Errorf("документ за хабом получил бейдж: %+v", b)
+		}
+	}
+	module, ok := got["CommonModule.ОбменСЕРП/has-dynamic-http"]
+	if !ok || module.Reasons["dynamic-path"] != 1 {
+		t.Errorf("бейдж модуля вызова за хабом: %+v (все: %+v)", module, got)
+	}
+}
+
+// TestConnectionFromParameterBadge (п.5): вызов, где соединение и запрос
+// пришли параметрами, не пропадает: бейдж на модуле вызова с причиной
+// connection-from-parameter, даже когда у процедуры есть вызывающий документ.
+func TestConnectionFromParameterBadge(t *testing.T) {
+	p, _ := newHTTPWorkspace(t, "", noiseBase())
+	p.activateInProcess(mustEntry(t, p, "shop"), nil)
+	resp, err := NewObjectGraphService(p, 0).CrossLinks(context.Background(), CrossLinksInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := badgesByNode(resp.Items[0])
+	module, ok := got["CommonModule.ОбменСЕРП/has-dynamic-http"]
+	if !ok || module.Reasons["connection-from-parameter"] != 1 {
+		t.Fatalf("бейдж модуля с причиной connection-from-parameter: %+v (все: %+v)", module, got)
+	}
+	if d := got["Document.ЗаказКлиента/has-dynamic-http"]; d.Reasons["connection-from-parameter"] != 0 {
+		t.Errorf("соединение из параметра не приписывается вызывающим: %+v", d)
+	}
+}
+
+// TestHTTPFactsCachedByGeneration (п.7): повторное чтение того же поколения
+// берёт факты из кэша, новое поколение строит их заново.
+func TestHTTPFactsCachedByGeneration(t *testing.T) {
+	p, roots := newHTTPWorkspace(t, erpHostsJSON, twoBases())
+	svc := NewObjectGraphService(p, 0)
+	p.activateInProcess(mustEntry(t, p, "shop"), nil)
+	ctx := context.Background()
+	before := httpFactsBuilds.Load()
+	if _, err := svc.CrossLinks(ctx, CrossLinksInput{ProjectRoots: []string{roots["erp"]}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := httpFactsBuilds.Load() - before; got != 2 {
+		t.Fatalf("первое чтение: построений %d, ожидалось 2 (по проекту)", got)
+	}
+	if _, err := svc.CrossLinks(ctx, CrossLinksInput{ProjectRoots: []string{roots["erp"]}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := httpFactsBuilds.Load() - before; got != 2 {
+		t.Fatalf("повторное чтение того же поколения: построений %d, ожидалось 2", got)
+	}
+	op, err := p.ByRoot(ctx, roots["shop"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := op.Service.Reindex(ctx, index.ModeFull, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CrossLinks(ctx, CrossLinksInput{ProjectRoots: []string{roots["erp"]}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := httpFactsBuilds.Load() - before; got != 3 {
+		t.Fatalf("после пересборки shop: построений %d, ожидалось 3", got)
+	}
+}
+
+// TestRadiusHTTPOnlyKindsWarns (п.6): kinds только из http-call не дают
+// молчаливой пустоты радиуса.
+func TestRadiusHTTPOnlyKindsWarns(t *testing.T) {
+	p, roots := newHTTPWorkspace(t, "", noiseBase())
+	resp, err := NewObjectGraphService(p, 0).Radius(context.Background(), RadiusInput{
+		Target:      ObjectTarget{ObjectType: "Document", ObjectName: "ЗаказКлиента"},
+		Kinds:       []string{EdgeHTTPCall},
+		ProjectRoot: roots["shop"],
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, w := range resp.Warnings {
+		found = found || w.Code == "http_call_not_in_radius"
+	}
+	if !found {
+		t.Errorf("нет предупреждения http_call_not_in_radius: %+v", resp.Warnings)
+	}
+}

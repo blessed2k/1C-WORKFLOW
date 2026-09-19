@@ -33,7 +33,7 @@ type objectGraphInput struct {
 	ObjectName    string   `json:"objectName,omitempty" jsonschema:"object name; with objectType"`
 	Component     string   `json:"component,omitempty" jsonschema:"component, when the name is in base and extension"`
 	Direction     string   `json:"direction,omitempty" jsonschema:"in, out or both (default); also callers (in) or callees (out)"`
-	Kinds         []string `json:"kinds,omitempty" jsonschema:"writes-register (code), writes-declared (RegisterRecords); default both"`
+	Kinds         []string `json:"kinds,omitempty" jsonschema:"writes-register (code), writes-declared (RegisterRecords), reads-register, reads-query; default all data edges. http-call adds the httpLinks block (HTTP calls between bases); alone it yields no radius items and a warning"`
 	Depth         int      `json:"depth,omitempty" jsonschema:"default 2, max 2; more is an error"`
 	MinConfidence float64  `json:"minConfidence,omitempty" jsonschema:"minimum confidence (0..1]"`
 	View          string   `json:"view,omitempty" jsonschema:"raw (base only), effective (with extensions, borrowed objects merged) or diff (edges added by extensions); default: layers as stored"`
@@ -128,26 +128,8 @@ func registerObjectGraphTool(server *mcp.Server, deps indexToolDeps) {
 			if err != nil {
 				return nil, objectGraphOutput{}, err
 			}
-			if len(links.Items) > 0 {
-				out.HTTPLinks = &links.Items[0]
-			}
-			out.Stale = out.Stale || links.Stale
-			for _, w := range links.Warnings {
-				if !hasWarning(out.Warnings, w) {
-					out.Warnings = append(out.Warnings, w)
-				}
-			}
+			out.Response, out.HTTPLinks = app.WithHTTPLinks(out.Response, links)
 		}
 		return nil, out, nil
 	})
-}
-
-// hasWarning: the same freshness warning comes from both reads of one call.
-func hasWarning(ws []app.Warning, w app.Warning) bool {
-	for _, x := range ws {
-		if x == w {
-			return true
-		}
-	}
-	return false
 }

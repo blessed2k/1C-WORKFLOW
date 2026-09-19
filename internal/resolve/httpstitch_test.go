@@ -59,7 +59,7 @@ func TestStitchHTTPCall(t *testing.T) {
 			HTTPExternal, ReasonNoEndpoint, nil, 0},
 		{"мапленный хост на незагруженный проект",
 			HTTPCallFact{Verb: "GET", Host: "archive.example.local", HostStatic: true, Path: "/a/hs/x/y", PathKind: "static"},
-			HTTPExternal, ReasonProjectNotLoaded, nil, 0},
+			HTTPUnknown, ReasonProjectNotLoaded, nil, 0},
 		{"динамический путь ребра не даёт",
 			HTTPCallFact{Verb: "GET", Host: "erp.example.local", HostStatic: true, PathKind: "dynamic"},
 			HTTPDynamic, ReasonDynamicPath, nil, 0},
@@ -74,10 +74,10 @@ func TestStitchHTTPCall(t *testing.T) {
 			HTTPStitched, ReasonHostMapped, []string{"ПодтверждениеPost"}, StitchMappedPrefix},
 		{"статический конец, которого нет ни у одного шаблона",
 			HTTPCallFact{Verb: "GET", Host: "erp.example.local", HostStatic: true, Path: "/erp/hs/exchange/v1/", PathKind: "prefix", PathSuffix: "/missing/extra"},
-			HTTPExternal, ReasonNoEndpoint, nil, 0},
+			HTTPUnknown, ReasonNoEndpoint, nil, 0},
 		{"начало пути, оборванное внутри корня",
 			HTTPCallFact{Verb: "GET", Host: "erp.example.local", HostStatic: true, Path: "/erp/hs/exch", PathKind: "prefix"},
-			HTTPExternal, ReasonPrefixBeforeRoot, nil, 0},
+			HTTPUnknown, ReasonPrefixBeforeRoot, nil, 0},
 		{"шаблон со звёздочкой забирает остаток",
 			HTTPCallFact{Verb: "PUT", Host: "erp.example.local", HostStatic: true, Path: "/erp/hs/files/a/b/c.txt", PathKind: "static"},
 			HTTPStitched, ReasonHostMapped, []string{"ФайлыAny"}, StitchMappedStatic},
@@ -87,9 +87,21 @@ func TestStitchHTTPCall(t *testing.T) {
 		{"лишний сегмент не совпадает с шаблоном",
 			HTTPCallFact{Verb: "GET", Host: "erp.example.local", HostStatic: true, Path: "/erp/hs/exchange/version/extra", PathKind: "static"},
 			HTTPExternal, ReasonNoEndpoint, nil, 0},
-		{"начало пути без /hs/ тоже не сервис 1С",
+		{"начало пути без /hs/: адресат не определён, а не внешний",
 			HTTPCallFact{Verb: "GET", Path: "/epd/v1/GetQR/?uid=", PathKind: "prefix"},
-			HTTPExternal, ReasonNoEndpoint, nil, 0},
+			HTTPUnknown, ReasonPrefixWithoutHS, nil, 0},
+		{"немапленный хост внешний и при динамическом пути",
+			HTTPCallFact{Verb: "GET", Host: "api.partner.example", HostStatic: true, PathKind: "dynamic"},
+			HTTPExternal, ReasonHostUnmapped, nil, 0},
+		{"причина динамики из факта: соединение из параметра",
+			HTTPCallFact{Verb: "GET", PathKind: "dynamic", DynamicReason: "connection-from-parameter"},
+			HTTPDynamic, "connection-from-parameter", nil, 0},
+		{"путь от /hs/ при вычисляемой публикации (СтрШаблон \"/%1/hs/.../v1/%2\")",
+			HTTPCallFact{Verb: "GET", Path: "/hs/exchange/v1/", PathKind: "prefix", PathAnchored: true},
+			HTTPStitched, ReasonPathOnly, []string{"ЗаказGet"}, StitchPathOnlyPrefix},
+		{"сегменты шаблона без учёта регистра",
+			HTTPCallFact{Verb: "POST", Host: "erp.example.local", HostStatic: true, Path: "/erp/HS/Exchange/V1/Orders/42", PathKind: "static"},
+			HTTPStitched, ReasonHostMapped, []string{"ЗаказPost"}, StitchMappedStatic},
 		{"путь без /hs/ не сервис 1С",
 			HTTPCallFact{Verb: "GET", Path: "/api/v2/items", PathKind: "static"},
 			HTTPExternal, ReasonNoEndpoint, nil, 0},
@@ -168,5 +180,37 @@ func TestAttributeSymbolFact(t *testing.T) {
 	lonely := newGraph().symbolInCommon(1, 900, 9)
 	if owners, _ := AttributeSymbolFact(SymbolFact{SymbolID: 1, FileID: 9, Confidence: 0.85}, lonely, ObjectEdgeTunables{}); len(owners) != 0 {
 		t.Errorf("владельцев быть не должно: %+v", owners)
+	}
+}
+
+// TestAttributeSymbolFactDirect: владелец за хабом или за длинной цепочкой
+// не Direct (бейдж HTTP ему не ставится), прямой вызывающий Direct.
+func TestAttributeSymbolFactDirect(t *testing.T) {
+	g := newGraph().
+		symbolInCommon(1, 900, 9).  // место вызова
+		symbolInObject(2, 100, 10). // прямой вызывающий
+		symbolInCommon(3, 901, 11). // хаб: его зовут трое
+		symbolInObject(4, 200, 12).
+		symbolInObject(5, 201, 13).
+		symbolInObject(6, 202, 14).
+		calledFrom(1, 2, 0.9).
+		calledFrom(1, 3, 0.9).
+		calledFrom(3, 4, 0.9).
+		calledFrom(3, 5, 0.9).
+		calledFrom(3, 6, 0.9)
+	owners, _ := AttributeSymbolFact(SymbolFact{SymbolID: 1, FileID: 9, Confidence: 0.85}, g, ObjectEdgeTunables{HubFanIn: 2})
+	direct := map[int64]bool{}
+	for _, o := range owners {
+		direct[o.ObjectID] = o.Direct
+	}
+	if len(owners) != 4 || !direct[100] || direct[200] || direct[201] || direct[202] {
+		t.Errorf("Direct по владельцам %v (%+v): прямой 100 да, за хабом 200..202 нет", direct, owners)
+	}
+	// Порог глубины: цепочка 1 <- 3 <- 4 длиннее ChainDepth=1.
+	owners, _ = AttributeSymbolFact(SymbolFact{SymbolID: 1, FileID: 9, Confidence: 0.85}, g, ObjectEdgeTunables{ChainDepth: 1, HubFanIn: 50})
+	for _, o := range owners {
+		if o.ObjectID != 100 && o.Direct {
+			t.Errorf("владелец %d за цепочкой длиннее порога не должен быть Direct", o.ObjectID)
+		}
 	}
 }

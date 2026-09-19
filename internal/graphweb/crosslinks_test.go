@@ -147,10 +147,21 @@ func TestHandlerCrossLinksTwoProjects(t *testing.T) {
 	if all := decodeCrossLinks(t, env); len(all.Links) != 1 || len(all.Projects) != 2 {
 		t.Errorf("без projects=: %+v", all)
 	}
-	// Только вызывающий проект: сервис не загружен, связь внешняя с причиной.
+	// Только вызывающий проект: проект мапленного хоста не открыт, адресат не
+	// определён. Это не внешний HTTP: ребра нет, у модуля вызова бейдж.
 	_, env = doGET(t, h, "/api/crosslinks?projects=shop")
-	if only := decodeCrossLinks(t, env); len(only.Links) != 1 || !only.Links[0].External || only.Links[0].Reason != "project-not-loaded" {
-		t.Errorf("один проект: %+v", only.Links)
+	only := decodeCrossLinks(t, env)
+	if len(only.Links) != 0 {
+		t.Errorf("один проект: связей быть не должно: %+v", only.Links)
+	}
+	unresolved := 0
+	for _, b := range only.Badges {
+		if b.Badge == "has-unresolved-http" && b.Reasons["project-not-loaded"] == 1 {
+			unresolved++
+		}
+	}
+	if unresolved != 1 {
+		t.Errorf("один проект: ожидался бейдж has-unresolved-http с причиной project-not-loaded: %+v", only.Badges)
 	}
 }
 

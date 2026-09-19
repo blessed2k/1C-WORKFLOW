@@ -7,8 +7,8 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 )
 
-// Файл: исходящие HTTP-вызовы модуля (веха В2, решение D10): кто и куда
-// ходит через HTTPСоединение. Факт строится по форме кода внутри одного
+// Файл: исходящие HTTP-вызовы модуля (веха В2, решение D10, ADR-039): кто и
+// куда ходит через HTTPСоединение. Факт строится по форме кода внутри одного
 // метода, без резолвера:
 //
 //	Соединение = Новый HTTPСоединение("erp.example.local");
@@ -16,21 +16,20 @@ import (
 //	Ответ = Соединение.ОтправитьДляОбработки(Запрос);
 //
 // Привязки переменных локальны методу (как у регистров, registerBinding) и
-// сбрасываются вместе с p.binds. Адрес, который форма кода не даёт узнать
-// (параметр метода, поле структуры, вызов функции), честно помечается
-// динамическим: такой вызов рёбер не даёт, а даёт бейдж (§6.3, D7).
+// сбрасываются вместе с p.binds. Адрес собирается как последовательность
+// частей: литералы и вычисляемые куски (склейка через '+', подстановки
+// СтрШаблон, строковые переменные метода). Из частей выводится, что о пути
+// известно: целиком, начало с концом или путь от сегмента /hs/ при
+// вычисляемом начале (СтруктураURI.ПутьНаСервере + "/hs/..."). Остальное
+// честно динамическое: ребра не даёт, даёт бейдж (§6.3, D7).
 
-// HTTPPathKind: насколько путь запроса известен статически.
-type HTTPPathKind string
+// HTTPPathKind и его значения живут в domain (общий тип вызова).
+type HTTPPathKind = domain.HTTPPathKind
 
 const (
-	// HTTPPathStatic: путь целиком из литерала.
-	HTTPPathStatic HTTPPathKind = "static"
-	// HTTPPathPrefix: статическое начало и вычисляемый хвост:
-	// "/base/hs/svc/" + Номер, СтрШаблон("/base/hs/svc/%1", Номер).
-	HTTPPathPrefix HTTPPathKind = "prefix"
-	// HTTPPathDynamic: путь не выводится из текста метода.
-	HTTPPathDynamic HTTPPathKind = "dynamic"
+	HTTPPathStatic  = domain.HTTPPathStatic
+	HTTPPathPrefix  = domain.HTTPPathPrefix
+	HTTPPathDynamic = domain.HTTPPathDynamic
 )
 
 // ConfidenceHTTPCall: достоверность факта HTTP-вызова: связь переменной с
@@ -38,25 +37,12 @@ const (
 // эвристикой.
 const ConfidenceHTTPCall domain.Confidence = 0.85
 
-// HTTPCall: исходящий HTTP-вызов: метод соединения с известным запросом или
-// с соединением, созданным в этом же методе.
+// HTTPCall: исходящий HTTP-вызов: метод соединения с известным запросом, с
+// соединением, созданным в этом же методе, или с соединением из параметра.
 type HTTPCall struct {
-	Span   domain.Span // Соединение.Метод
-	Method int
-	// Verb: HTTP-метод вызова (GET, POST, ...); пусто, если не выводится
-	// (ВызватьHTTPМетод с вычисляемым именем метода).
-	Verb string
-	// Host: сервер из литерала конструктора HTTPСоединение как написан;
-	// HostStatic=false, если сервер вычисляется или соединение пришло извне.
-	Host       string
-	HostStatic bool
-	// Path: путь запроса (HTTPPathStatic) или его статическое начало
-	// (HTTPPathPrefix); пусто у динамического.
-	Path     string
-	PathKind HTTPPathKind
-	// PathSuffix: статический конец пути после вычисляемой части
-	// ("/base/hs/svc/" + Версия + "/GetIBParameters"), только у HTTPPathPrefix.
-	PathSuffix string
+	domain.HTTPTarget
+	Span       domain.Span // Соединение.Метод(...)
+	Method     int
 	Confidence domain.Confidence
 	Provenance domain.Provenance
 }
@@ -65,8 +51,8 @@ type HTTPCall struct {
 // запрос или строка. Ключ: нормализованное имя переменной.
 type httpBinds struct {
 	conns    map[string]httpHost
-	requests map[string]httpPath
-	strs     map[string]httpPath
+	requests map[string][]pathPart
+	strs     map[string][]pathPart
 }
 
 type httpHost struct {
@@ -74,13 +60,13 @@ type httpHost struct {
 	static bool
 }
 
-type httpPath struct {
-	path   string
-	kind   HTTPPathKind
-	suffix string
+// pathPart: часть адреса: литерал (dyn=false) или вычисляемый кусок.
+type pathPart struct {
+	lit string
+	dyn bool
 }
 
-var dynamicPath = httpPath{kind: HTTPPathDynamic}
+var dynParts = []pathPart{{dyn: true}}
 
 // httpVerbs: методы HTTPСоединение, отправляющие запрос первым аргументом
 // (bsl_syntax, тип HTTPСоединение), и их HTTP-метод.
@@ -93,7 +79,16 @@ var httpVerbs = map[string]string{
 	"удалить": "DELETE", "delete": "DELETE", "удалитьасинх": "DELETE", "deleteasync": "DELETE",
 }
 
-// httpCallMethod: ВызватьHTTPМетод(<HTTPМетод>, <HTTPЗапрос>, ...): метод
+// httpOnlyVerbs: методы, которых нет у коллекций (Соответствие.Получить,
+// Структура.Удалить): по ним соединение из параметра узнаётся без привязки.
+var httpOnlyVerbs = map[string]bool{
+	"получитьзаголовки": true, "head": true, "отправитьдляобработки": true, "post": true,
+	"получитьасинх": true, "getasync": true, "получитьзаголовкиасинх": true, "headasync": true,
+	"отправитьдляобработкиасинх": true, "postasync": true, "записатьасинх": true, "putasync": true,
+	"изменитьасинх": true, "patchasync": true, "удалитьасинх": true, "deleteasync": true,
+}
+
+// isHTTPCallMethod: ВызватьHTTPМетод(<HTTPМетод>, <HTTPЗапрос>, ...): метод
 // первым аргументом, запрос вторым.
 func isHTTPCallMethod(lit []byte) bool {
 	return eqAny(lit, "ВызватьHTTPМетод", "CallHTTPMethod", "ВызватьHTTPМетодАсинх", "CallHTTPMethodAsync")
@@ -129,7 +124,7 @@ func (p *parser) collectHTTP(i int) {
 		name := domain.NormalizeName(string(t.lit))
 		if _, ok := p.http.requests[name]; ok {
 			end := p.statementEnd(i + 4)
-			p.http.requests[name] = p.classifyPath(i+4, end)
+			p.http.requests[name] = p.exprParts(i+4, end)
 		}
 		return
 	}
@@ -164,43 +159,47 @@ func (p *parser) collectHTTPConstructor(i int) {
 		p.ensureHTTPBinds()
 		p.http.conns[varName] = host
 	case eqAny(typeTok.lit, "HTTPЗапрос", "HTTPRequest"):
-		path := httpPath{path: "", kind: HTTPPathStatic}
+		parts := []pathPart{{lit: ""}}
 		if len(args) > 0 {
-			path = p.classifyPath(args[0][0], args[0][1])
+			parts = p.exprParts(args[0][0], args[0][1])
 		}
 		p.ensureHTTPBinds()
-		p.http.requests[varName] = path
+		p.http.requests[varName] = parts
 	}
 }
 
-// bindHTTPString запоминает переменную, которой присвоена строка или склейка
-// со строкой в начале: Адрес = "/base/hs/svc/" + Номер. Присваивание другого
-// выражения стирает прежнюю привязку: последнее присваивание в тексте метода
-// и есть то, что увидит следующий за ним вызов.
+// bindHTTPString запоминает переменную, которой присвоено выражение с хотя
+// бы одним литералом: Адрес = СтруктураURI.ПутьНаСервере + "/hs/svc/version",
+// Шаблон = "/%1/hs/svc/v1/%2". Присваивание выражения без литералов стирает
+// прежнюю привязку: последнее присваивание в тексте метода и есть то, что
+// увидит следующий за ним вызов.
 func (p *parser) bindHTTPString(i int) {
 	name := domain.NormalizeName(string(p.toks[i].lit))
 	end := p.statementEnd(i + 2)
-	path := p.classifyPath(i+2, end)
-	if path.kind == HTTPPathDynamic {
+	parts := p.exprParts(i+2, end)
+	if !hasLiteral(parts) {
 		if p.http.strs != nil {
 			delete(p.http.strs, name)
 		}
 		return
 	}
 	p.ensureHTTPBinds()
-	p.http.strs[name] = path
+	p.http.strs[name] = parts
 }
 
 // collectHTTPVerb разбирает Соединение.Метод(...) и даёт факт, если
-// соединение создано в этом методе или запрос известен.
+// соединение создано в этом методе, запрос известен или соединение пришло
+// параметром метода (тогда адрес честно неизвестен).
 func (p *parser) collectHTTPVerb(i int) {
 	methodTok := p.toks[i+2]
-	verb, isVerb := httpVerbs[strings.ToLower(string(methodTok.lit))]
+	methodLower := strings.ToLower(string(methodTok.lit))
+	verb, isVerb := httpVerbs[methodLower]
 	callMethod := isHTTPCallMethod(methodTok.lit)
 	if !isVerb && !callMethod {
 		return
 	}
-	conn, connBound := p.http.conns[domain.NormalizeName(string(p.toks[i].lit))]
+	receiver := domain.NormalizeName(string(p.toks[i].lit))
+	conn, connBound := p.http.conns[receiver]
 	args, closeIdx := p.argRanges(i + 3)
 	reqArg := 0
 	if callMethod {
@@ -212,37 +211,67 @@ func (p *parser) collectHTTPVerb(i int) {
 			}
 		}
 	}
-	path, reqKnown := httpPath{}, false
+	var parts []pathPart
+	reqKnown, reqParam := false, false
 	if reqArg < len(args) {
-		path, reqKnown = p.requestArg(args[reqArg][0], args[reqArg][1])
+		parts, reqKnown = p.requestArg(args[reqArg][0], args[reqArg][1])
+		reqParam = !reqKnown && args[reqArg][1]-args[reqArg][0] == 1 && p.isParam(p.toks[args[reqArg][0]].lit)
 	}
-	if !connBound && !reqKnown {
+	target := domain.HTTPTarget{Verb: verb, Host: conn.host, HostStatic: connBound && conn.static}
+	switch {
+	case reqKnown:
+		target = withParts(target, parts)
+	case connBound:
+		target.PathKind = HTTPPathDynamic
+		if reqParam {
+			target.DynamicReason = domain.HTTPDynamicRequestParam
+		}
+	case p.isParam(p.toks[i].lit) && (httpOnlyVerbs[methodLower] || callMethod || looksLikeConnection(receiver)):
+		// Соединение пришло параметром, запрос тоже не собран здесь: адреса
+		// нет, но вызов не должен пропасть молча (бейдж на модуле вызова).
+		target.PathKind = HTTPPathDynamic
+		target.DynamicReason = domain.HTTPDynamicConnectionParam
+	default:
 		return // не отличить от Соответствие.Получить(Ключ)
-	}
-	if !reqKnown {
-		path = dynamicPath
 	}
 	end := methodTok.sp.end
 	if closeIdx > 0 && closeIdx < len(p.toks) {
 		end = p.toks[closeIdx].sp.end
 	}
 	p.mod.HTTPCalls = append(p.mod.HTTPCalls, HTTPCall{
+		HTTPTarget: target,
 		Span:       p.li.Span(p.toks[i].sp.start, end),
 		Method:     p.method,
-		Verb:       verb,
-		Host:       conn.host,
-		HostStatic: connBound && conn.static,
-		Path:       path.path,
-		PathKind:   path.kind,
-		PathSuffix: path.suffix,
 		Confidence: ConfidenceHTTPCall,
 		Provenance: domain.Provenance{Source: domain.SourceHeuristic, File: p.opts.File, Detail: "http-call-" + string(methodTok.lit)},
 	})
 }
 
+// looksLikeConnection: имя переменной говорит о соединении (HTTPСоединение,
+// Соединение, Connection): так соединение из параметра отличается от
+// коллекции с методом Получить.
+func looksLikeConnection(nameNorm string) bool {
+	return strings.Contains(nameNorm, "соединени") || strings.Contains(nameNorm, "connection") ||
+		strings.Contains(nameNorm, "http")
+}
+
+// isParam: имя является параметром разбираемого метода.
+func (p *parser) isParam(lit []byte) bool {
+	if p.method < 0 || p.method >= len(p.mod.Methods) {
+		return false
+	}
+	name := domain.NormalizeName(string(lit))
+	for _, prm := range p.mod.Methods[p.method].Params {
+		if prm.NameNorm == name {
+			return true
+		}
+	}
+	return false
+}
+
 // requestArg: запрос в аргументе метода соединения: переменная, за которой
 // закреплён запрос, или прямо Новый HTTPЗапрос(...).
-func (p *parser) requestArg(start, end int) (httpPath, bool) {
+func (p *parser) requestArg(start, end int) ([]pathPart, bool) {
 	if end-start == 1 && p.toks[start].kind == tokIdent {
 		r, ok := p.http.requests[domain.NormalizeName(string(p.toks[start].lit))]
 		return r, ok
@@ -251,102 +280,193 @@ func (p *parser) requestArg(start, end int) (httpPath, bool) {
 		eqAny(p.toks[start+1].lit, "HTTPЗапрос", "HTTPRequest") && isPunct(p.toks[start+2], '(') {
 		args, _ := p.argRanges(start + 2)
 		if len(args) == 0 {
-			return httpPath{kind: HTTPPathStatic}, true
+			return []pathPart{{lit: ""}}, true
 		}
-		return p.classifyPath(args[0][0], args[0][1]), true
+		return p.exprParts(args[0][0], args[0][1]), true
 	}
-	return httpPath{}, false
+	return nil, false
 }
 
-// classifyHost: сервер соединения: литерал (или переменная со статической
-// строкой) либо ничего.
+// classifyHost: сервер соединения: литерал (или переменная с литералом)
+// либо ничего.
 func (p *parser) classifyHost(start, end int) httpHost {
-	path := p.classifyPath(start, end)
-	if path.kind != HTTPPathStatic || strings.TrimSpace(path.path) == "" {
+	parts := p.exprParts(start, end)
+	if len(parts) != 1 || parts[0].dyn || strings.TrimSpace(parts[0].lit) == "" {
 		return httpHost{}
 	}
-	return httpHost{host: path.path, static: true}
+	return httpHost{host: parts[0].lit, static: true}
 }
 
-// classifyPath: выражение адреса [start,end): литерал, склейка с литералом
-// в начале, СтрШаблон с литералом шаблона или переменная со строкой.
-func (p *parser) classifyPath(start, end int) httpPath {
+// exprParts раскладывает выражение [start,end) на части по '+' верхнего
+// уровня: литерал, СтрШаблон с известным шаблоном (литерал или строковая
+// переменная метода), строковая переменная метода; остальное вычисляется.
+func (p *parser) exprParts(start, end int) []pathPart {
 	if start >= end || end > len(p.toks) {
-		return dynamicPath
+		return dynParts
+	}
+	var parts []pathPart
+	depth, opStart := 0, start
+	for j := start; j <= end; j++ {
+		if j < end {
+			t := p.toks[j]
+			switch {
+			case isPunct(t, '(') || isPunct(t, '['):
+				depth++
+				continue
+			case isPunct(t, ')') || isPunct(t, ']'):
+				depth--
+				continue
+			case !(isPunct(t, '+') && depth == 0):
+				continue
+			}
+		}
+		parts = append(parts, p.operandParts(opStart, j)...)
+		opStart = j + 1
+	}
+	return mergeParts(parts)
+}
+
+// operandParts: части одного операнда склейки [start,end).
+func (p *parser) operandParts(start, end int) []pathPart {
+	if start >= end {
+		return dynParts
 	}
 	first := p.toks[start]
-	var head httpPath
-	next := start + 1
 	switch {
-	case first.kind == tokString:
-		head = httpPath{path: unquoteBSL(first.lit), kind: HTTPPathStatic}
+	case end-start == 1 && first.kind == tokString:
+		return []pathPart{{lit: unquoteBSL(first.lit)}}
+	case end-start == 1 && first.kind == tokIdent && (start == 0 || !isPunct(p.toks[start-1], '.')):
+		if s, ok := p.http.strs[domain.NormalizeName(string(first.lit))]; ok {
+			return s
+		}
 	case first.kind == tokIdent && eqAny(first.lit, "СтрШаблон", "StrTemplate") &&
-		next+1 < end && isPunct(p.toks[next], '(') && p.toks[next+1].kind == tokString:
-		tmpl := unquoteBSL(p.toks[next+1].lit)
-		if k := strings.IndexByte(tmpl, '%'); k >= 0 {
-			return httpPath{path: tmpl[:k], kind: HTTPPathPrefix, suffix: templateTail(tmpl)}
+		start+1 < end && isPunct(p.toks[start+1], '('):
+		args, closeIdx := p.argRanges(start + 1)
+		if closeIdx != end-1 || len(args) == 0 {
+			return dynParts
 		}
-		return httpPath{path: tmpl, kind: HTTPPathStatic}
-	case first.kind == tokIdent && (start == 0 || !isPunct(p.toks[start-1], '.')):
-		if next < end && !isPunct(p.toks[next], '+') {
-			return dynamicPath // Структура.Поле, Функция(...)
+		tmpl := p.exprParts(args[0][0], args[0][1])
+		if len(tmpl) != 1 || tmpl[0].dyn {
+			return dynParts // шаблон вычисляется: подставлять некуда
 		}
-		s, ok := p.http.strs[domain.NormalizeName(string(first.lit))]
-		if !ok {
-			return dynamicPath
-		}
-		head = s
-	default:
-		return dynamicPath
+		return templateParts(tmpl[0].lit)
 	}
-	if next >= end {
-		return head
-	}
-	if !isPunct(p.toks[next], '+') {
-		return dynamicPath
-	}
-	// Склейка: статическим остаётся только начало, хвост вычисляется. Два
-	// литерала подряд ("/a" + "/b") склеиваются в начало целиком.
-	path := head.path
-	j := next
-	for head.kind == HTTPPathStatic && j+1 < end && isPunct(p.toks[j], '+') && p.toks[j+1].kind == tokString {
-		path += unquoteBSL(p.toks[j+1].lit)
-		j += 2
-	}
-	if j >= end && head.kind == HTTPPathStatic {
-		return httpPath{path: path, kind: HTTPPathStatic}
-	}
-	return httpPath{path: path, kind: HTTPPathPrefix, suffix: p.concatTail(j, end)}
+	return dynParts
 }
 
-// concatTail: статический конец склейки после вычисляемой части: литералы,
-// стоящие последними операндами (... + Версия + "/GetIBParameters"). Пусто,
-// если выражение кончается вычисляемым операндом.
-func (p *parser) concatTail(from, end int) string {
-	k := end
-	for k-2 >= from && p.toks[k-1].kind == tokString && isPunct(p.toks[k-2], '+') {
-		k -= 2
-	}
-	var b strings.Builder
-	for i := k; i < end; i++ {
-		if p.toks[i].kind == tokString {
-			b.WriteString(unquoteBSL(p.toks[i].lit))
+// templateParts раскладывает шаблон СтрШаблон: подстановки %1...%10 это
+// вычисляемые части, %% это знак процента.
+func templateParts(tmpl string) []pathPart {
+	var parts []pathPart
+	var lit strings.Builder
+	for k := 0; k < len(tmpl); k++ {
+		if tmpl[k] != '%' || k+1 >= len(tmpl) {
+			lit.WriteByte(tmpl[k])
+			continue
 		}
+		if tmpl[k+1] == '%' {
+			lit.WriteByte('%')
+			k++
+			continue
+		}
+		if tmpl[k+1] < '0' || tmpl[k+1] > '9' {
+			lit.WriteByte(tmpl[k])
+			continue
+		}
+		for k+1 < len(tmpl) && tmpl[k+1] >= '0' && tmpl[k+1] <= '9' {
+			k++
+		}
+		parts = append(parts, pathPart{lit: lit.String()}, pathPart{dyn: true})
+		lit.Reset()
 	}
-	return b.String()
+	parts = append(parts, pathPart{lit: lit.String()})
+	return mergeParts(parts)
 }
 
-// templateTail: текст шаблона СтрШаблон после последней подстановки %N.
-func templateTail(tmpl string) string {
-	k := strings.LastIndexByte(tmpl, '%')
-	if k < 0 {
-		return ""
+// mergeParts склеивает соседние литералы и соседние вычисляемые части,
+// пустые литералы выбрасывает (но выражение из одного пустого литерала
+// остаётся литералом).
+func mergeParts(in []pathPart) []pathPart {
+	var out []pathPart
+	for _, pt := range in {
+		if !pt.dyn && pt.lit == "" {
+			continue
+		}
+		if n := len(out); n > 0 && out[n-1].dyn == pt.dyn {
+			if !pt.dyn {
+				out[n-1].lit += pt.lit
+			}
+			continue
+		}
+		out = append(out, pt)
 	}
-	k++
-	for k < len(tmpl) && tmpl[k] >= '0' && tmpl[k] <= '9' {
-		k++
+	if len(out) == 0 && len(in) > 0 && !in[0].dyn {
+		return []pathPart{{lit: ""}}
 	}
-	return tmpl[k:]
+	return out
+}
+
+func hasLiteral(parts []pathPart) bool {
+	for _, pt := range parts {
+		if !pt.dyn {
+			return true
+		}
+	}
+	return false
+}
+
+// withParts выводит из частей адреса, что о пути известно:
+//   - только литералы: путь целиком;
+//   - известное начало с сегментом /hs/: начало и статический конец после
+//     последней вычисляемой части;
+//   - вычисляемое начало, но дальше литерал с /hs/: путь от /hs/ (имя
+//     публикации неизвестно, сшивка его и не сверяет), целиком или с концом;
+//   - остальное: путь динамический.
+func withParts(t domain.HTTPTarget, parts []pathPart) domain.HTTPTarget {
+	if len(parts) == 0 {
+		t.PathKind = HTTPPathDynamic
+		return t
+	}
+	if !parts[0].dyn && len(parts) == 1 {
+		t.Path, t.PathKind = parts[0].lit, HTTPPathStatic
+		return t
+	}
+	suffix := ""
+	if last := parts[len(parts)-1]; !last.dyn {
+		suffix = last.lit
+	}
+	if !parts[0].dyn && hsIndex(parts[0].lit) >= 0 {
+		t.Path, t.PathKind, t.PathSuffix = parts[0].lit, HTTPPathPrefix, suffix
+		return t
+	}
+	for k, pt := range parts {
+		if pt.dyn {
+			continue
+		}
+		at := hsIndex(pt.lit)
+		if at < 0 {
+			continue
+		}
+		t.PathAnchored = true
+		t.Path = pt.lit[at:]
+		if k == len(parts)-1 {
+			t.PathKind = HTTPPathStatic
+			return t
+		}
+		t.PathKind, t.PathSuffix = HTTPPathPrefix, suffix
+		return t
+	}
+	t.PathKind = HTTPPathDynamic
+	return t
+}
+
+// hsIndex: позиция сегмента "/hs/" (без учёта регистра) в литерале.
+func hsIndex(lit string) int {
+	lower := strings.ToLower(lit)
+	if i := strings.Index(lower, "/hs/"); i >= 0 {
+		return i
+	}
+	return -1
 }
 
 // stringLiteral: выражение ровно из одного строкового литерала.
@@ -410,10 +530,10 @@ func (p *parser) ensureHTTPBinds() {
 		p.http.conns = make(map[string]httpHost)
 	}
 	if p.http.requests == nil {
-		p.http.requests = make(map[string]httpPath)
+		p.http.requests = make(map[string][]pathPart)
 	}
 	if p.http.strs == nil {
-		p.http.strs = make(map[string]httpPath)
+		p.http.strs = make(map[string][]pathPart)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/app"
-	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
 // handleCrosslinks: GET /api/crosslinks?projects=a,b (веха В2, §8.1,
@@ -35,9 +34,7 @@ func (h *Handler) handleCrosslinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var warnings []app.Warning
-	var maps []workspace.HTTPHosts
-	seenRoot := map[string]bool{}
+	roots := make([]string, 0, len(handles))
 	facts := make([]app.ProjectHTTPFacts, 0, len(handles))
 	snaps := make([]app.Snapshot, 0, len(handles))
 	seenProject := map[string]bool{}
@@ -46,16 +43,7 @@ func (h *Handler) handleCrosslinks(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		seenProject[string(ph.ID)] = true
-		if !seenRoot[ph.Root] {
-			seenRoot[ph.Root] = true
-			m, err := workspace.LoadHTTPHosts(ph.Root)
-			if err != nil {
-				warnings = append(warnings, app.Warning{Code: "http_hosts_invalid", Message: err.Error(),
-					Hint: "исправьте " + workspace.HTTPHostsFileName + ", формат в README"})
-			} else {
-				maps = append(maps, m)
-			}
-		}
+		roots = append(roots, ph.Root)
 		gs, closeFn, aerr := h.openGraphService(r, ph)
 		if aerr != nil {
 			respondErr(w, aerr)
@@ -70,11 +58,7 @@ func (h *Handler) handleCrosslinks(w http.ResponseWriter, r *http.Request) {
 		facts = append(facts, f)
 		snaps = append(snaps, snap)
 	}
-	hosts, conflicts := workspace.MergeHTTPHosts(maps...)
-	for _, c := range conflicts {
-		warnings = append(warnings, app.Warning{Code: "http_hosts_conflict", Message: c})
-	}
-	writeJSON(w, http.StatusOK, app.CrossLinksResponse(hosts, facts, snaps, warnings))
+	writeJSON(w, http.StatusOK, app.AssembleCrossLinks(roots, facts, snaps))
 }
 
 func (h *Handler) projectByID(id string) *ProjectHandle {

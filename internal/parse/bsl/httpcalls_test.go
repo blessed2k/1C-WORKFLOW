@@ -17,6 +17,8 @@ func TestHTTPCalls(t *testing.T) {
 		path       string
 		kind       HTTPPathKind
 		suffix     string
+		anchored   bool
+		reason     string
 	}
 	cases := []struct {
 		name string
@@ -28,13 +30,13 @@ func TestHTTPCalls(t *testing.T) {
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\", 443);\n" +
 				"Запрос = Новый HTTPЗапрос(\"/erp/hs/exchange/v1/orders\", Заголовки);\n" +
 				"Ответ = Соединение.ОтправитьДляОбработки(Запрос);\n",
-			want: []want{{"POST", "erp.example.local", true, "/erp/hs/exchange/v1/orders", HTTPPathStatic, ""}},
+			want: []want{{"POST", "erp.example.local", true, "/erp/hs/exchange/v1/orders", HTTPPathStatic, "", false, ""}},
 		},
 		{
 			name: "английские имена и запрос прямо в аргументе",
 			body: "Conn = New HTTPConnection(\"erp.example.local\");\n" +
 				"Resp = Conn.Get(New HTTPRequest(\"/erp/hs/exchange/version\"));\n",
-			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, ""}},
+			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, "", false, ""}},
 		},
 		{
 			name: "строковая переменная и склейка с хвостом",
@@ -42,14 +44,14 @@ func TestHTTPCalls(t *testing.T) {
 				"Соединение = Новый HTTPСоединение(Сервер);\n" +
 				"Запрос = Новый HTTPЗапрос(Адрес);\n" +
 				"Ответ = Соединение.Получить(Запрос);\n",
-			want: []want{{"GET", "", false, "/erp/hs/exchange/v1/orders/", HTTPPathPrefix, ""}},
+			want: []want{{"GET", "", false, "/erp/hs/exchange/v1/orders/", HTTPPathPrefix, "", false, ""}},
 		},
 		{
 			name: "СтрШаблон даёт начало до подстановки",
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
 				"Запрос = Новый HTTPЗапрос(СтрШаблон(\"/erp/hs/exchange/%1\", Метод));\n" +
 				"Ответ = Соединение.Удалить(Запрос);\n",
-			want: []want{{"DELETE", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, ""}},
+			want: []want{{"DELETE", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, "", false, ""}},
 		},
 		{
 			name: "АдресРесурса переписывает путь запроса",
@@ -57,41 +59,89 @@ func TestHTTPCalls(t *testing.T) {
 				"Запрос = Новый HTTPЗапрос();\n" +
 				"Запрос.АдресРесурса = \"/erp/hs/exchange/version\";\n" +
 				"Ответ = Соединение.ВызватьHTTPМетод(\"patch\", Запрос);\n",
-			want: []want{{"PATCH", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, ""}},
+			want: []want{{"PATCH", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, "", false, ""}},
 		},
 		{
 			name: "путь из поля структуры динамический",
 			body: "Соединение = Новый HTTPСоединение(Параметры.Сервер);\n" +
 				"Запрос = Новый HTTPЗапрос(Параметры.Путь);\n" +
 				"Ответ = Соединение.Записать(Запрос);\n",
-			want: []want{{"PUT", "", false, "", HTTPPathDynamic, ""}},
+			want: []want{{"PUT", "", false, "", HTTPPathDynamic, "", false, ""}},
 		},
 		{
 			name: "запрос, пришедший параметром, динамический",
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
 				"Ответ = Соединение.Получить(ЗапросИзвне);\n",
-			want: []want{{"GET", "erp.example.local", true, "", HTTPPathDynamic, ""}},
+			want: []want{{"GET", "erp.example.local", true, "", HTTPPathDynamic, "", false, "request-from-parameter"}},
 		},
 		{
 			name: "метод ВызватьHTTPМетод с вычисляемым именем",
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
 				"Запрос = Новый HTTPЗапрос(\"/erp/hs/exchange/version\");\n" +
 				"Ответ = Соединение.ВызватьHTTPМетод(ИмяМетода, Запрос);\n",
-			want: []want{{"", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, ""}},
+			want: []want{{"", "erp.example.local", true, "/erp/hs/exchange/version", HTTPPathStatic, "", false, ""}},
 		},
 		{
 			name: "статический конец пути после вычисляемой части",
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
 				"Запрос = Новый HTTPЗапрос(\"/erp/hs/exchange/\" + Версия + \"/GetIBParameters\");\n" +
 				"Ответ = Соединение.Получить(Запрос);\n",
-			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, "/GetIBParameters"}},
+			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, "/GetIBParameters", false, ""}},
 		},
 		{
 			name: "СтрШаблон с концом после подстановки",
 			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
 				"Запрос = Новый HTTPЗапрос(СтрШаблон(\"/erp/hs/exchange/%1/GetFilePart\", Версия));\n" +
 				"Ответ = Соединение.Получить(Запрос);\n",
-			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, "/GetFilePart"}},
+			want: []want{{"GET", "erp.example.local", true, "/erp/hs/exchange/", HTTPPathPrefix, "/GetFilePart", false, ""}},
+		},
+		{
+			name: "вычисляемое начало и путь от /hs/ (транспорт обмена БСП)",
+			body: "Соединение = Новый HTTPСоединение(Сервер);\n" +
+				"АдресРесурса = Параметры.ПутьНаСервере + \"/hs/exchange_dsl_1_0_0_1/version\";\n" +
+				"Запрос = Новый HTTPЗапрос(АдресРесурса, Заголовки);\n" +
+				"Ответ = Соединение.Получить(Запрос);\n",
+			want: []want{{"GET", "", false, "/hs/exchange_dsl_1_0_0_1/version", HTTPPathStatic, "", true, ""}},
+		},
+		{
+			name: "СтрШаблон с шаблоном в переменной метода",
+			body: "Соединение = Новый HTTPСоединение(Сервер);\n" +
+				"АдресРесурсаШаблон = \"/%1/hs/exchange_dsl_1_0_0_1/v1/%2?%3\";\n" +
+				"АдресРесурса = СтрШаблон(АдресРесурсаШаблон, Параметры.ПутьНаСервере, Метод, Ключ);\n" +
+				"Запрос = Новый HTTPЗапрос(АдресРесурса);\n" +
+				"Ответ = Соединение.ОтправитьДляОбработки(Запрос);\n",
+			want: []want{{"POST", "", false, "/hs/exchange_dsl_1_0_0_1/v1/", HTTPPathPrefix, "", true, ""}},
+		},
+		{
+			name: "СтрШаблон из ревью: публикация и метод подставляются",
+			body: "Соединение = Новый HTTPСоединение(Сервер);\n" +
+				"Запрос = Новый HTTPЗапрос(СтрШаблон(\"/%1/hs/exchange_dsl_1_0_0_1/v1/%2\", Параметры.ПутьНаСервере, Метод));\n" +
+				"Ответ = Соединение.Получить(Запрос);\n",
+			want: []want{{"GET", "", false, "/hs/exchange_dsl_1_0_0_1/v1/", HTTPPathPrefix, "", true, ""}},
+		},
+		{
+			name: "СтрШаблон с вычисляемым шаблоном динамический",
+			body: "Соединение = Новый HTTPСоединение(Сервер);\n" +
+				"Запрос = Новый HTTPЗапрос(СтрШаблон(Параметры.Шаблон, Метод));\n" +
+				"Ответ = Соединение.Получить(Запрос);\n",
+			want: []want{{"GET", "", false, "", HTTPPathDynamic, "", false, ""}},
+		},
+		{
+			name: "известное начало без /hs/ динамическое",
+			body: "Соединение = Новый HTTPСоединение(\"erp.example.local\");\n" +
+				"Запрос = Новый HTTPЗапрос(\"/download/\" + Номер);\n" +
+				"Ответ = Соединение.Получить(Запрос);\n",
+			want: []want{{"GET", "erp.example.local", true, "", HTTPPathDynamic, "", false, ""}},
+		},
+		{
+			name: "соединение из параметра не пропадает",
+			body: "Ответ = HTTPСоединение.Получить(ЗапросИзвне);\n" +
+				"Ответ = Соединение.ОтправитьДляОбработки(ЗапросИзвне);\n" +
+				"Значение = Параметры.Получить(Ключ);\n",
+			want: []want{
+				{"GET", "", false, "", HTTPPathDynamic, "", false, "connection-from-parameter"},
+				{"POST", "", false, "", HTTPPathDynamic, "", false, "connection-from-parameter"},
+			},
 		},
 		{
 			name: "Соответствие.Получить не HTTP-вызов",
@@ -102,7 +152,7 @@ func TestHTTPCalls(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			src := []byte("Процедура Обмен(Параметры, ЗапросИзвне, Номер, Сервер, Метод, ИмяМетода, Ключ, Версия)\n" +
+			src := []byte("Процедура Обмен(Параметры, ЗапросИзвне, Номер, Сервер, Метод, ИмяМетода, Ключ, Версия, HTTPСоединение, Соединение)\n" +
 				tc.body + "КонецПроцедуры\n")
 			mod, diags := Parse(src, Options{File: "CommonModules/ОбменССайтом/Ext/Module.bsl"})
 			if len(diags) != 0 {
@@ -114,7 +164,7 @@ func TestHTTPCalls(t *testing.T) {
 			}
 			for i, w := range tc.want {
 				c := mod.HTTPCalls[i]
-				got := want{c.Verb, c.Host, c.HostStatic, c.Path, c.PathKind, c.PathSuffix}
+				got := want{c.Verb, c.Host, c.HostStatic, c.Path, c.PathKind, c.PathSuffix, c.PathAnchored, c.DynamicReason}
 				if got != w {
 					t.Errorf("вызов %d: %+v, ожидалось %+v", i, got, w)
 				}

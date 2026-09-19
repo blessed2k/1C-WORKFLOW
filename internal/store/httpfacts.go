@@ -36,6 +36,8 @@ CREATE TABLE http_call(
   path TEXT NOT NULL,
   path_kind TEXT NOT NULL,
   path_suffix TEXT NOT NULL,
+  path_anchored INTEGER NOT NULL,
+  dynamic_reason TEXT NOT NULL,
   confidence REAL NOT NULL,
   byte_start INTEGER NOT NULL,
   byte_end INTEGER NOT NULL,
@@ -75,14 +77,9 @@ func (tx *WriteTx) InsertHTTPEndpoint(e HTTPEndpoint) error {
 
 // HTTPCall: исходящий HTTP-вызов в коде.
 type HTTPCall struct {
+	domain.HTTPTarget
 	FileID     int64
 	SymbolID   int64 // 0: вызов вне метода
-	Verb       string
-	Host       string
-	HostStatic bool
-	Path       string
-	PathKind   string // static|prefix|dynamic
-	PathSuffix string // статический конец пути после вычисляемой части (prefix)
 	Confidence float64
 	Span       domain.Span
 	Layer      string
@@ -94,9 +91,10 @@ func (tx *WriteTx) InsertHTTPCall(c HTTPCall) error {
 		return err
 	}
 	return tx.c.exec(tx.ctx, `INSERT INTO http_call(file_id,symbol_id,verb,host,host_static,path,path_kind,
-		path_suffix,confidence,byte_start,byte_end,start_line,layer) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		c.FileID, nullID(c.SymbolID), c.Verb, c.Host, boolInt(c.HostStatic), c.Path, c.PathKind, c.PathSuffix,
-		c.Confidence, c.Span.StartByte, c.Span.EndByte, c.Span.StartLine, layerOrBase(c.Layer))
+		path_suffix,path_anchored,dynamic_reason,confidence,byte_start,byte_end,start_line,layer)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		c.FileID, nullID(c.SymbolID), c.Verb, c.Host, boolInt(c.HostStatic), c.Path, string(c.PathKind), c.PathSuffix,
+		boolInt(c.PathAnchored), c.DynamicReason, c.Confidence, c.Span.StartByte, c.Span.EndByte, c.Span.StartLine, layerOrBase(c.Layer))
 }
 
 // HTTPEndpointRow: метод сервиса вместе с объектом-сервисом.
@@ -159,7 +157,7 @@ func (tx *ReadTx) HTTPCalls() ([]HTTPCallRow, error) {
 		return nil, err
 	}
 	rows, err := tx.c.query(tx.ctx, `SELECT c.id, c.file_id, COALESCE(c.symbol_id,0), c.verb, c.host, c.host_static,
-			c.path, c.path_kind, c.path_suffix, c.confidence, c.byte_start, c.byte_end, c.start_line, c.layer,
+			c.path, c.path_kind, c.path_suffix, c.path_anchored, c.dynamic_reason, c.confidence, c.byte_start, c.byte_end, c.start_line, c.layer,
 			f.rel_path, f.component_id, COALESCE(s.name_display,''),
 			COALESCE(m.kind,''), COALESCE(m.owner_object_id,0)
 		FROM http_call c
@@ -175,14 +173,79 @@ func (tx *ReadTx) HTTPCalls() ([]HTTPCallRow, error) {
 	var out []HTTPCallRow
 	for rows.Next() {
 		var r HTTPCallRow
-		var hostStatic int
+		var hostStatic, anchored int
 		if err := rows.Scan(&r.ID, &r.FileID, &r.SymbolID, &r.Verb, &r.Host, &hostStatic,
-			&r.Path, &r.PathKind, &r.PathSuffix, &r.Confidence, &r.Span.StartByte, &r.Span.EndByte, &r.Span.StartLine, &r.Layer,
+			&r.Path, &r.PathKind, &r.PathSuffix, &anchored, &r.DynamicReason, &r.Confidence, &r.Span.StartByte, &r.Span.EndByte, &r.Span.StartLine, &r.Layer,
 			&r.RelPath, &r.ComponentID, &r.SymbolName, &r.ModuleKind, &r.ModuleOwnerID); err != nil {
 			return nil, err
 		}
-		r.HostStatic = hostStatic != 0
+		r.HostStatic, r.PathAnchored = hostStatic != 0, anchored != 0
 		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// CallersOfSymbols: вызывающие каждого из символов (обратные рёбра call_edge,
+// как CallEdgesTo) одним запросом на весь список. Порядок внутри символа тот
+// же, что у CallEdgesTo (по id ребра): обход атрибуции режет список по
+// потолку, и срез обязан быть тем же, что при точечном чтении.
+func (tx *ReadTx) CallersOfSymbols(symbolIDs []int64) (map[int64][]CallEdgeRow, error) {
+	if err := tx.check(); err != nil {
+		return nil, err
+	}
+	out := make(map[int64][]CallEdgeRow, len(symbolIDs))
+	if len(symbolIDs) == 0 {
+		return out, nil
+	}
+	rows, err := tx.c.query(tx.ctx, `SELECT `+callEdgeSelectColumns+` FROM call_edge
+		WHERE callee_id IN (SELECT value FROM json_each(?)) ORDER BY id`, int64ListJSON(symbolIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		e, err := scanCallEdgeRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[e.CalleeID] = append(out[e.CalleeID], e)
+	}
+	return out, rows.Err()
+}
+
+// SymbolModuleOwner: файл символа и модуль этого файла с объектом-владельцем.
+type SymbolModuleOwner struct {
+	SymbolID      int64
+	FileID        int64
+	ModuleKind    string // пусто, если у файла нет модуля
+	OwnerObjectID int64
+}
+
+// SymbolModuleOwners: то же, что SymbolByID + ModuleByFile, одним запросом на
+// список символов. Символа нет в индексе: его нет и в ответе.
+func (tx *ReadTx) SymbolModuleOwners(symbolIDs []int64) (map[int64]SymbolModuleOwner, error) {
+	if err := tx.check(); err != nil {
+		return nil, err
+	}
+	out := make(map[int64]SymbolModuleOwner, len(symbolIDs))
+	if len(symbolIDs) == 0 {
+		return out, nil
+	}
+	rows, err := tx.c.query(tx.ctx, `SELECT s.id, s.origin_file_id, COALESCE(mo.kind,''), COALESCE(mo.owner_object_id,0)
+		FROM symbol s
+		LEFT JOIN module_code mc ON mc.file_id = s.origin_file_id
+		LEFT JOIN module mo ON mo.id = mc.module_id
+		WHERE s.id IN (SELECT value FROM json_each(?))`, int64ListJSON(symbolIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r SymbolModuleOwner
+		if err := rows.Scan(&r.SymbolID, &r.FileID, &r.ModuleKind, &r.OwnerObjectID); err != nil {
+			return nil, err
+		}
+		out[r.SymbolID] = r
 	}
 	return out, rows.Err()
 }
