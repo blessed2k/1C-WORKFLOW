@@ -45,6 +45,12 @@ var bslEnglish = map[string]string{
 	"Количество": "Count",
 	"Индекс":     "IndexOf",
 
+	// Interceptor annotations of an extension.
+	"Перед":              "Before",
+	"После":              "After",
+	"Вместо":             "Around",
+	"ИзменениеИКонтроль": "ChangeAndValidate",
+
 	// Posting handlers of the object module.
 	"ОбработкаПроведения":         "Posting",
 	"ОбработкаУдаленияПроведения": "UndoPosting",

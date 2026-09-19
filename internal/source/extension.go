@@ -33,16 +33,24 @@ type Interceptor struct {
 
 // reAnnotation matches an interceptor annotation line. BSL keywords are
 // case-insensitive; English synonyms are legal even in Russian configurations.
-var reAnnotation = regexp.MustCompile(`(?i)^\s*&(Перед|После|Вместо|ИзменениеИКонтроль|Before|After|Around|ChangeAndValidate)\("([^"]+)"\)`)
+var reAnnotation = regexp.MustCompile(`(?i)^\s*&(` + wordAlt(interceptorKinds...) + `)\("([^"]+)"\)`)
 
 // reMethodHead matches a procedure/function header line and captures the name.
 var reMethodHead = regexp.MustCompile(`(?i)^\s*(?:Асинх\s+|Async\s+)?(Процедура|Функция|Procedure|Function)\s+([\p{L}\d_]+)`)
 
+// interceptorKinds are the annotations of an extension method interceptor.
+var interceptorKinds = []string{"Перед", "После", "Вместо", "ИзменениеИКонтроль"}
+
 // canonicalKind normalizes an annotation keyword to its canonical Russian form.
-var canonicalKind = map[string]string{
-	"перед": "Перед", "после": "После", "вместо": "Вместо", "изменениеиконтроль": "ИзменениеИКонтроль",
-	"before": "Перед", "after": "После", "around": "Вместо", "changeandvalidate": "ИзменениеИКонтроль",
-}
+var canonicalKind = func() map[string]string {
+	out := map[string]string{}
+	for _, kind := range interceptorKinds {
+		for _, word := range bilingual(kind) {
+			out[strings.ToLower(word)] = kind
+		}
+	}
+	return out
+}()
 
 // ExtensionContext analyses the export at s.root as an extension. baseDump, when
 // non-empty, is the base configuration export used to resolve the original text
@@ -92,7 +100,7 @@ func (s *XMLSource) ExtensionContext(_ context.Context, baseDump string) (*Exten
 		}
 		rel, _ := filepath.Rel(s.root, path)
 		rel = filepath.ToSlash(rel)
-		for _, ic := range parseInterceptors(string(stripBOM(data))) {
+		for _, ic := range parseInterceptors(stripBOM(data)) {
 			ic.Module = rel
 			if baseDump != "" {
 				ic.Original = originalMethod(filepath.Join(baseDump, filepath.FromSlash(rel)), ic.Target)
@@ -107,28 +115,18 @@ func (s *XMLSource) ExtensionContext(_ context.Context, baseDump string) (*Exten
 	return out, nil
 }
 
-// parseInterceptors finds annotation+method pairs in a module. Between the
-// annotation and the method header there may be blank lines, comments or other
-// directives (e.g. &НаСервере), which are skipped.
-func parseInterceptors(module string) []Interceptor {
+// parseInterceptors finds annotation+method pairs in a module. The parser
+// reads every annotation of a method, wherever it stands: on its own line,
+// after a directive, or on the line of the declaration itself.
+func parseInterceptors(src []byte) []Interceptor {
 	var out []Interceptor
-	lines := strings.Split(module, "\n")
-	for i := 0; i < len(lines); i++ {
-		m := reAnnotation.FindStringSubmatch(lines[i])
-		if m == nil {
-			continue
-		}
-		kind := canonicalKind[strings.ToLower(m[1])]
-		for j := i + 1; j < len(lines); j++ {
-			line := strings.TrimRight(lines[j], "\r")
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" || strings.HasPrefix(trimmed, "&") || strings.HasPrefix(trimmed, "//") {
-				continue // blank line, another directive or a comment
+	for _, m := range parseDeclarations(src).Methods {
+		for _, a := range m.Annotations {
+			kind, ok := canonicalKind[strings.ToLower(strings.TrimPrefix(a.Name, "&"))]
+			if !ok || a.Arg == "" {
+				continue // not an interceptor, or its target is not a name
 			}
-			if h := reMethodHead.FindStringSubmatch(line); h != nil {
-				out = append(out, Interceptor{Kind: kind, Target: m[2], Method: h[2]})
-			}
-			break // first substantive line decides
+			out = append(out, Interceptor{Kind: kind, Target: a.Arg, Method: m.Name})
 		}
 	}
 	return out

@@ -457,12 +457,8 @@ func objectModuleHandlers(path string) map[string]bool {
 	for _, ru := range writeEventRu {
 		wanted[strings.ToLower(ru)] = ru
 	}
-	for _, raw := range strings.Split(string(stripBOM(data)), "\n") {
-		h := reMethodHead.FindStringSubmatch(stripLineComment(raw))
-		if h == nil {
-			continue
-		}
-		if ru, ok := wanted[strings.ToLower(h[2])]; ok {
+	for _, m := range parseDeclarations(stripBOM(data)).Methods {
+		if ru, ok := wanted[strings.ToLower(m.Name)]; ok {
 			out[ru] = true
 		}
 	}
