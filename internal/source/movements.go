@@ -38,10 +38,7 @@ var (
 
 // movCollectionMethods are methods of the record-set collection (НаборыДвижений)
 // that must not be mistaken for register names.
-var movCollectionMethods = map[string]bool{
-	"записать": true, "найти": true, "получить": true, "количество": true, "индекс": true,
-	"write": true, "find": true, "get": true, "count": true, "indexof": true,
-}
+var movCollectionMethods = bilingualSet("Записать", "Найти", "Получить", "Количество", "Индекс")
 
 // regInfo accumulates per-register facts.
 type regInfo struct {

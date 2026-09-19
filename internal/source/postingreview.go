@@ -42,7 +42,8 @@ const (
 )
 
 // Movements (Движения, RegisterRecords) and the handlers themselves come from
-// the BSL parser, see movementUses; the rest of the rules stay line-based.
+// the BSL parser, see movementUses; the rest of the rules stay line-based and
+// take the English spelling of their words from bslEnglish.
 var (
 	// Delegation is recognised by the METHOD name, not the module name. Keying on
 	// the module matched exactly one call in УТ (ПроведениеДокументов....) and left
@@ -50,16 +51,16 @@ var (
 	// document: ИнтеграцияИСПереопределяемый.ОбработкаПроведения,
 	// ИнтеграцияИС.ЗаписатьНаборыЗаписей, ОстаткиАлкогольнойПродукцииЕГАИС.ОтразитьДвижения
 	// live in modules whose names say nothing about posting.
-	reDelegate = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])[\p{L}\d_]+\.[\p{L}\d_]*(?:Проведени|Движени|НаборыЗаписей)[\p{L}\d_]*\s*\(`)
+	reDelegate = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])[\p{L}\d_]+\.[\p{L}\d_]*(?:` + wordAlt("Проведени", "Движени", "НаборыЗаписей") + `)[\p{L}\d_]*\s*\(`)
 	// RE2 \b is an ASCII word boundary and never matches after a Cyrillic letter,
 	// so every boundary here is spelled out as "not a word character".
-	reLock = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:УправлениеБлокировкойДанных|БлокировкаДанных|Заблокировать)(?:[^\p{L}\d_]|$)`)
+	reLock = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:УправлениеБлокировкойДанных|` + wordAlt("БлокировкаДанных", "Заблокировать") + `)(?:[^\p{L}\d_]|$)`)
 	// Only a register table in a query text counts: a plain ".Остатки" is also a
 	// field name, a data-set name and a property (verified in the УТ export).
-	reBalanceRead = regexp.MustCompile(`(?i)(?:РегистрНакопления|AccumulationRegister)\.[\p{L}\d_]+\.Остатки(?:ИОбороты)?(?:[^\p{L}\d_]|$)`)
-	reLoopStart   = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:Для|Пока)[^\p{L}\d_].*[^\p{L}\d_]Цикл(?:[^\p{L}\d_]|$)`)
-	reLoopEnd     = regexp.MustCompile(`(?i)^\s*КонецЦикла`)
-	reQueryRun    = regexp.MustCompile(`(?i)\.(?:Выполнить|ВыполнитьПакет)\s*\(`)
+	reBalanceRead = regexp.MustCompile(`(?i)(?:` + wordAlt("РегистрНакопления") + `)\.[\p{L}\d_]+\.(?:` + wordAlt("ОстаткиИОбороты", "Остатки") + `)(?:[^\p{L}\d_]|$)`)
+	reLoopStart   = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:` + wordAlt("Для", "Пока") + `)[^\p{L}\d_].*[^\p{L}\d_](?:` + wordAlt("Цикл") + `)(?:[^\p{L}\d_]|$)`)
+	reLoopEnd     = regexp.MustCompile(`(?i)^\s*(?:` + wordAlt("КонецЦикла") + `)`)
+	reQueryRun    = regexp.MustCompile(`(?i)\.(?:` + wordAlt("Выполнить", "ВыполнитьПакет") + `)\s*\(`)
 	reStringLit   = regexp.MustCompile(`"[^"]*"`)
 )
 
@@ -155,10 +156,7 @@ type handlerBody struct {
 }
 
 // postingHandlers names the posting handlers in both spellings of the language.
-var postingHandlers = map[string]bool{
-	"обработкапроведения": true, "обработкаудаленияпроведения": true,
-	"posting": true, "undoposting": true,
-}
+var postingHandlers = bilingualSet("ОбработкаПроведения", "ОбработкаУдаленияПроведения")
 
 // postingHandlerBodies extracts ОбработкаПроведения and ОбработкаУдаленияПроведения
 // (Posting and UndoPosting).

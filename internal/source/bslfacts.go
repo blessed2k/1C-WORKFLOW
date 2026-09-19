@@ -68,9 +68,9 @@ func declarationOf(mod *bsl.Module, m bsl.Method) methodDecl {
 	// Before the name: directives, annotations, Асинх and the keyword.
 	for _, word := range strings.Fields(withoutComments(spanText(mod, m.Span.StartByte, m.NameSpan.StartByte))) {
 		switch {
-		case equalsAny(word, "Асинх", "Async"):
+		case equalsAny(word, bilingual("Асинх")...):
 			d.async = word
-		case equalsAny(word, "Процедура", "Функция", "Procedure", "Function"):
+		case equalsAny(word, bilingual("Процедура", "Функция")...):
 			d.keyword = word
 		}
 	}
@@ -213,22 +213,22 @@ func (u movementUse) memberIs(words ...string) bool {
 
 // setsWriteFlag: Движения.X.Записывать = Истина.
 func (u movementUse) setsWriteFlag() bool {
-	return u.assign && u.memberIs("Записывать", "Write") && equalsAny(u.value, "Истина", "True")
+	return u.assign && u.memberIs(bilingual("Записывать")...) && equalsAny(u.value, bilingual("Истина")...)
 }
 
 // writesSet: Движения.X.Записать(), as good as raising the flag.
 func (u movementUse) writesSet() bool {
-	return u.call && u.memberIs("Записать", "Write")
+	return u.call && u.memberIs(bilingual("Записать")...)
 }
 
 // writesAll: Движения.Записать() writes every set of the document at once.
 func (u movementUse) writesAll() bool {
-	return u.call && u.member == "" && equalsAny(u.register, "Записать", "Write")
+	return u.call && u.member == "" && equalsAny(u.register, bilingual("Записать")...)
 }
 
 // fills: the set gets records, Движения.X.Добавить() or Движения.X.Загрузить().
 func (u movementUse) fills() bool {
-	return u.call && u.memberIs("Добавить", "Загрузить", "Add", "Load")
+	return u.call && u.memberIs(bilingual("Добавить", "Загрузить")...)
 }
 
 // forms: the use forms movements. Движения.X.ДополнительныеСвойства.Вставить()
@@ -236,9 +236,8 @@ func (u movementUse) fills() bool {
 // document, and counting it as inline posting turns a delegated document into
 // a false positive.
 func (u movementUse) forms() bool {
-	return (u.call || u.assign) && u.memberIs(
-		"Добавить", "Загрузить", "Очистить", "Записывать", "Записать", "Прочитать",
-		"Add", "Load", "Clear", "Write", "Read")
+	return (u.call || u.assign) && u.memberIs(bilingual(
+		"Добавить", "Загрузить", "Очистить", "Записывать", "Записать", "Прочитать")...)
 }
 
 // isCollectionMethod: the segment after the collection is a method of the

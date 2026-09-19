@@ -213,3 +213,69 @@ func TestPostingFollowsCallsInsideModule(t *testing.T) {
 		t.Errorf("line = %d, want the read inside СформироватьДвижения (line 14 of the module)", balance.Line)
 	}
 }
+
+// TestPostingRulesEnglishSyntax pins every rule of the review on a module in
+// the English spelling of the language: loops, query runs, locks, balance
+// reads and delegation are the same code with other words.
+func TestPostingRulesEnglishSyntax(t *testing.T) {
+	has := func(fs []PostingFinding, code string) bool {
+		for _, f := range fs {
+			if f.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+	handler := func(body ...string) handlerBody {
+		lines := append([]string{"Procedure Posting(Cancel, PostingMode)"}, body...)
+		return parsedHandler(t, append(lines, "EndProcedure")...)
+	}
+	const (
+		fill    = "	Record = RegisterRecords.ИмуществоНаСкладах.Add();"
+		read    = `	|	AccumulationRegister.ИмуществоНаСкладах.Balance AS Balance";`
+		lock    = "	Lock = New DataLock;"
+		lockRun = "	Lock.Lock();"
+	)
+
+	t.Run("query in a For loop", func(t *testing.T) {
+		h := handler("	For Each Row In Товары Do", "		Result = Query.Execute();", "	EndDo;", fill)
+		if !has(reviewHandler(h, postingInline, nil, moduleWrites{}), "QueryInLoop") {
+			t.Error("Execute inside For ... Do must be reported")
+		}
+	})
+	t.Run("batch query in a While loop", func(t *testing.T) {
+		h := handler("	While Selection.Next() Do", "		Results = Query.ExecuteBatch();", "	EndDo;", fill)
+		if !has(reviewHandler(h, postingInline, nil, moduleWrites{}), "QueryInLoop") {
+			t.Error("ExecuteBatch inside While ... Do must be reported")
+		}
+	})
+	t.Run("query after the loop", func(t *testing.T) {
+		h := handler("	For Each Row In Товары Do", "	EndDo;", "	Result = Query.Execute();", fill)
+		if has(reviewHandler(h, postingInline, nil, moduleWrites{}), "QueryInLoop") {
+			t.Error("EndDo closes the loop: a query after it is not in the loop")
+		}
+	})
+	t.Run("balance read without a lock", func(t *testing.T) {
+		if !has(reviewHandler(handler(read, fill), postingInline, nil, moduleWrites{}), "BalanceReadWithoutLock") {
+			t.Error("a Balance read without a lock must be reported")
+		}
+	})
+	t.Run("lock before the balance read", func(t *testing.T) {
+		for _, l := range []string{lock, lockRun} {
+			if has(reviewHandler(handler(l, read, fill), postingInline, nil, moduleWrites{}), "BalanceReadWithoutLock") {
+				t.Errorf("%q before the read must silence the rule", strings.TrimSpace(l))
+			}
+		}
+	})
+	t.Run("delegation", func(t *testing.T) {
+		h := handler("	ProcessingServer.WriteRecordSets(ThisObject, Cancel);")
+		if got := handlerStyle(h); got != postingDelegated {
+			t.Errorf("style = %q, want %q", got, postingDelegated)
+		}
+	})
+	t.Run("forming movements", func(t *testing.T) {
+		if got := handlerStyle(handler(fill)); got != postingInline {
+			t.Errorf("style = %q, want %q", got, postingInline)
+		}
+	})
+}

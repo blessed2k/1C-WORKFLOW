@@ -304,4 +304,4 @@ func hasBody(body string) bool {
 }
 
 // reBareReturn matches a return with no value.
-var reBareReturn = regexp.MustCompile(`(?i)^(?:Возврат|Return)\s*;?$`)
+var reBareReturn = regexp.MustCompile(`(?i)^(?:` + wordAlt("Возврат") + `)\s*;?$`)
