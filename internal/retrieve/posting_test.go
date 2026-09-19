@@ -349,51 +349,33 @@ func TestPostingInterceptorRegisterAccesses(t *testing.T) {
 }
 
 // TestEffectivePartialCoverageWarningScope — критерий приёмки П2.1 (R22,
-// R23): posting входит в effectiveAwareIntent, поэтому предупреждение
-// effective_view_partial_coverage для него больше не выдаётся; для
-// register/query/rights/add-attribute — в этот прогон они не входят — оно
-// обязано остаться, иначе предел покрытия перестанет называться честно.
+// R23) и issue #4 (ADR-035): intent, чей builder консультируется с наложением
+// слоёв, предупреждения effective_view_partial_coverage не несёт; intent, ещё
+// построенный как raw, обязан его нести, иначе предел покрытия перестанет
+// называться честно. Таблица держит обе стороны: сдвиг intent из одной
+// группы в другую виден здесь явно.
 func TestEffectivePartialCoverageWarningScope(t *testing.T) {
-	hasPartialCoverage := func(r Result) bool {
-		for _, w := range r.Warnings {
-			if w.Code == "effective_view_partial_coverage" {
-				return true
-			}
-		}
-		return false
-	}
-
-	t.Run("posting — предупреждения нет", func(t *testing.T) {
-		st := openFixtureStore(t)
-		seedPostingFixture(t, st, postingFixtureOpts{ext: "instead"})
-		eff := buildFor(t, st, Request{Task: postingTask, ProjectID: "p", View: "effective"})
-		if eff.Intent.Primary != IntentPosting {
-			t.Fatalf("Intent.Primary = %q, want %q", eff.Intent.Primary, IntentPosting)
-		}
-		if hasPartialCoverage(eff) {
-			t.Fatalf("posting под effective больше не строится как raw — предупреждения быть не должно: %+v", eff.Warnings)
-		}
-	})
-
-	still := []struct {
-		intent string
-		task   string
+	cases := []struct {
+		intent      string
+		task        string
+		wantWarning bool
 	}{
-		{IntentRegister, "Кто пишет в регистр ТоварыНаСкладах"},
-		{IntentQuery, "Перепиши текст запроса в отчёте по остаткам"},
-		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS"},
-		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента"},
+		{IntentPosting, postingTask, false},
+		{IntentRegister, "Кто пишет в регистр ТоварыНаСкладах", false},
+		{IntentQuery, "Перепиши текст запроса в отчёте по остаткам", true},
+		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS", true},
+		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента", true},
 	}
-	for _, tc := range still {
-		t.Run(tc.intent+" — предупреждение осталось", func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run(tc.intent, func(t *testing.T) {
 			st := openFixtureStore(t)
-			seedPostingFixture(t, st, postingFixtureOpts{})
+			seedPostingFixture(t, st, postingFixtureOpts{ext: "instead"})
 			eff := buildFor(t, st, Request{Task: tc.task, ProjectID: "p", View: "effective"})
 			if eff.Intent.Primary != tc.intent {
 				t.Fatalf("Intent.Primary = %q, want %q (формулировка не классифицируется как ожидалось)", eff.Intent.Primary, tc.intent)
 			}
-			if !hasPartialCoverage(eff) {
-				t.Fatalf("для intent %q предупреждение effective_view_partial_coverage обязано остаться: %+v", tc.intent, eff.Warnings)
+			if got := hasWarning(eff, "effective_view_partial_coverage"); got != tc.wantWarning {
+				t.Fatalf("effective_view_partial_coverage для intent %q = %v, want %v: %+v", tc.intent, got, tc.wantWarning, eff.Warnings)
 			}
 		})
 	}

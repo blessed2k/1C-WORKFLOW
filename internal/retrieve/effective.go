@@ -73,8 +73,13 @@ func makeInterceptCandidate(bctx *buildCtx, sc scoreCtx, ic effective.Intercept,
 	if text == "" {
 		text = fmt.Sprintf("&%s(%q)", ic.Kind, ic.TargetNameNorm)
 	}
+	// Ключ различает модуль и сам перехватчик, а не только слой и имя цели:
+	// у writer_intercepts (register) одно расширение перехватывает одно и то же
+	// имя ОбработкаПроведения в модулях РАЗНЫХ документов, и без модуля в
+	// ключе второй факт молча терялся бы при дедупликации кандидатов.
 	c := &candidate{
-		id:          fmt.Sprintf("intercept-eff:%s:%s:%s:%d", category, ic.Layer.Component, ic.TargetNameNorm, ic.Layer.ApplyOrder),
+		id: fmt.Sprintf("intercept-eff:%s:%s:%d:%s:%s:%s", category, ic.Layer.Component, ic.Layer.ApplyOrder,
+			domain.NormalizeModulePath(ic.ModulePath), ic.TargetNameNorm, ic.InterceptorNameNorm),
 		bucket:      bucketSignature,
 		category:    category,
 		component:   string(ic.Layer.Component),
@@ -329,4 +334,105 @@ func interceptorSymbol(finder symbolFinder, ic effective.Intercept) (store.Symbo
 		}}, true
 	}
 	return matched[0], nil, true
+}
+
+// --- register (ADR-035) --------------------------------------------------
+
+// registerInterceptReadFailed: отказ чтения наложения для писателя регистра.
+// Сбой не имеет права выглядеть как «перехватчиков нет» (ADR-030): факт
+// перехвата писателя меняет ответ на вопрос «кто пишет», и молчание о том, что
+// его не удалось проверить, было бы той же немотой.
+func registerInterceptReadFailed(writer store.SymbolRow, err error) Warning {
+	return Warning{
+		Code: "register_writer_intercepts_read_failed",
+		Message: fmt.Sprintf("не удалось наложить расширения на писателя регистра %s.%s: %v; перехватчики этого писателя в ответ не вошли",
+			writer.ModulePath, writer.NameDisplay, err),
+		Hint: "повторите вызов после reindex",
+	}
+}
+
+// extensionAppliesTo: базовый компонент каждого расширения проекта. Для
+// записи, сделанной символом расширения, наложение считается от той базы, к
+// которой расширение применяется, а не от компонента самого символа.
+func extensionAppliesTo(tx *store.ReadTx) (map[string]string, error) {
+	comps, err := tx.Components()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, e := range effective.ExtensionsFromStore(comps) {
+		out[e.ID] = e.AppliesTo
+	}
+	return out, nil
+}
+
+// extensionInterceptOf отвечает, является ли символ расширения sym
+// перехватчиком метода базового слоя, и каким. Ответ берётся из наложения
+// (internal/effective) на модуль базы по пути модуля символа: факт перехвата
+// строится по аннотации, а не по совпадению имени, поэтому обычная процедура
+// расширения, пишущая в тот же регистр, перехватчиком не становится.
+func extensionInterceptOf(tx *store.ReadTx, appliesTo map[string]string, sym store.SymbolRow) (effective.Intercept, bool, []Warning, error) {
+	base := appliesTo[sym.ComponentID]
+	if base == "" {
+		return effective.Intercept{}, false, nil, nil
+	}
+	ics, _, warnings, err := effectiveIntercepts(tx, base, sym.ModulePath)
+	if err != nil {
+		return effective.Intercept{}, false, nil, err
+	}
+	for _, ic := range ics {
+		if string(ic.Layer.Component) == sym.ComponentID && ic.InterceptorNameNorm == sym.NameNorm {
+			return ic, true, warnings, nil
+		}
+	}
+	return effective.Intercept{}, false, warnings, nil
+}
+
+// interceptWhy: общий текст о факте перехвата для объяснений кандидатов
+// register/query: вид аннотации, слой и цель в базовом модуле.
+func interceptWhy(ic effective.Intercept) string {
+	return fmt.Sprintf("перехватчик расширения %s: &%s(%q) метода базового модуля %s",
+		ic.Layer.Component, ic.Kind, ic.TargetNameNorm, ic.ModulePath)
+}
+
+// registerWriterIntercepts: "writer_intercepts" под view=effective
+// (ADR-035): факты перехвата писателей регистра в обе стороны.
+//
+//   - Писатель базового слоя перехвачен расширением. &Вместо заменяет его, и
+//     запись базового слоя исполняется только через ПродолжитьВызов; без
+//     факта перехвата агент читает её как безусловную.
+//   - Запись сделана самим перехватчиком (register_access со слоем
+//     расширения). raw видит её как запись процедуры расширения, не связанной
+//     ни с каким базовым методом; факт перехвата называет, какое событие
+//     базового объекта её исполняет.
+//
+// Механика перехвата общая с form/posting (effectiveInterceptsForSymbol,
+// makeInterceptCandidate, interceptConflictWarnings): второй реализации нет.
+// Категория необязательная: обязательная объявила бы недостаточным любой
+// ответ по регистру без расширений.
+func registerWriterIntercepts(bctx *buildCtx, obj store.MetadataObjectRow, baseWriters []store.SymbolRow, extIntercepts []effective.Intercept) ([]*candidate, []Warning) {
+	sc := scoreCtx{depth: 1, anchorStrength: 1.0, direction: 1.0, anchorComp: obj.ComponentID}
+	var out []*candidate
+	var warnings []Warning
+	for _, w := range baseWriters {
+		mine, _, ws, err := effectiveInterceptsForSymbol(bctx.tx, w)
+		if err != nil {
+			warnings = append(warnings, registerInterceptReadFailed(w, err))
+			continue
+		}
+		warnings = append(warnings, ws...)
+		for _, ic := range mine {
+			why := fmt.Sprintf("%s: пишет в %s (register_access), в effective-виде перехвачен", w.NameDisplay, obj.NameDisplay)
+			if ic.Kind == resolve.InterceptInstead {
+				why += " и заменён: запись базового слоя исполняется только через ПродолжитьВызов"
+			}
+			out = append(out, makeInterceptCandidate(bctx, sc, ic, "writer_intercepts", why+"; "+interceptWhy(ic)))
+		}
+		warnings = append(warnings, interceptConflictWarnings(mine)...)
+	}
+	for _, ic := range extIntercepts {
+		out = append(out, makeInterceptCandidate(bctx, sc, ic, "writer_intercepts",
+			fmt.Sprintf("запись в %s сделана самим перехватчиком; %s", obj.NameDisplay, interceptWhy(ic))))
+	}
+	return out, warnings
 }

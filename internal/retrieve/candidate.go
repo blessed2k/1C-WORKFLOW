@@ -106,6 +106,12 @@ var categoryWeight = map[string]float64{
 	"forms":                      0.55,
 	"exchanges":                  0.55,
 
+	// writer_intercepts (register) и query_intercepts (query): необязательные
+	// категории effective-вида (ADR-035): вес тот же, что у
+	// posting_handler_intercepts, природа факта одна.
+	"writer_intercepts": 0.55,
+	"query_intercepts":  0.55,
+
 	// Контекстные (не входят ни в одну requiredCategoryMap запись, но
 	// доказали релевантность через anchor+edge — см. §Доказанная релевантность).
 	"query_in_body":  0.55,

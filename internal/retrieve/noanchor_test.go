@@ -55,21 +55,16 @@ func TestViewEffectiveBugfixNoInterceptorNoise(t *testing.T) {
 }
 
 // TestViewEffectivePartialCoverageWarningForRawOnlyIntent — D08: intent, для
-// которого typed expansion пока не консультируется с internal/resolve
-// (register — RAW-only в этой волне), обязан честно нести
-// effective_view_partial_coverage при view=effective, а не молчать.
+// которого typed expansion пока не консультируется с наложением слоёв, обязан
+// честно нести effective_view_partial_coverage при view=effective, а не
+// молчать. Какие intent в этой группе, держит таблица
+// TestEffectivePartialCoverageWarningScope (posting_test.go).
 func TestViewEffectivePartialCoverageWarningForRawOnlyIntent(t *testing.T) {
 	st := openFixtureStore(t)
 	seedScenarioFixture(t, st)
-	res := buildFor(t, st, Request{Task: "Кто пишет в регистр ТоварыНаСкладах", ProjectID: "p", View: "effective"})
-	found := false
-	for _, w := range res.Warnings {
-		if w.Code == "effective_view_partial_coverage" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("нет warning effective_view_partial_coverage для intent=register: %+v", res.Warnings)
+	res := buildFor(t, st, Request{Task: "Добавь реквизит Комментарий в документ ЗаказКлиента", ProjectID: "p", View: "effective"})
+	if !hasWarning(res, "effective_view_partial_coverage") {
+		t.Fatalf("нет warning effective_view_partial_coverage для intent=%s: %+v", res.Intent.Primary, res.Warnings)
 	}
 }
 

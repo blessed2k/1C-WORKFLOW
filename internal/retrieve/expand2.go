@@ -32,6 +32,12 @@ func resolveMetadataAnchor(tx *store.ReadTx, a Anchor) (store.MetadataObjectRow,
 // (register_access mode IN write/movement/clear) + owning_symbols (символы,
 // делающие эти доступы). reads — контекст-счётчик, НЕ обязательная категория
 // (spec: «не попадёт: reads (упомянуты счётчиком)»).
+//
+// view=effective (ADR-035) добавляет необязательную writer_intercepts: факты
+// перехвата писателей (effective.go:registerWriterIntercepts), а запись,
+// сделанная перехватчиком расширения, называет в объяснении, какой метод
+// базового слоя она дополняет. raw не меняется: список записей тот же, фактов
+// перехвата в нём нет.
 func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
 		return nil, nil
@@ -48,9 +54,27 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	writeRows, werr := tx.RegisterAccesses(store.RegisterAccessFilter{
 		RegisterNameNorm: obj.NameNorm, Modes: []string{"write", "movement", "clear"}, Limit: 300,
 	})
+	effectiveView := bctx.view == domain.ViewEffective
+	var appliesTo map[string]string
+	if effectiveView && werr == nil {
+		var aerr error
+		if appliesTo, aerr = extensionAppliesTo(tx); aerr != nil {
+			warnings = append(warnings, Warning{
+				Code:    "register_writer_intercepts_read_failed",
+				Message: fmt.Sprintf("не удалось прочитать состав компонентов для наложения расширений на писателей %s: %v", obj.NameDisplay, aerr),
+				Hint:    "повторите вызов после reindex",
+			})
+			effectiveView = false
+		}
+	}
+	var baseWriters []store.SymbolRow
+	var extIntercepts []effective.Intercept
 	if werr == nil {
 		symbolCache := map[int64]store.SymbolRow{}
 		ownersDone := map[int64]bool{}
+		// extIntercept: факт перехвата у символа расширения, посчитанный
+		// один раз на символ (effective): им подписывается каждая его запись.
+		extIntercept := map[int64]*effective.Intercept{}
 		var sawDynamic bool
 		for i, r := range writeRows {
 			if !r.Static {
@@ -67,14 +91,32 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				}
 				if sym.ID != 0 {
 					ownerDisplay = sym.ModulePath + "." + sym.NameDisplay
+					if effectiveView && !cached {
+						if bctx.extensionComponents[sym.ComponentID] {
+							ic, found, ws, ierr := extensionInterceptOf(tx, appliesTo, sym)
+							warnings = append(warnings, ws...)
+							if ierr != nil {
+								warnings = append(warnings, registerInterceptReadFailed(sym, ierr))
+							} else if found {
+								extIntercept[sym.ID] = &ic
+								extIntercepts = append(extIntercepts, ic)
+							}
+						} else {
+							baseWriters = append(baseWriters, sym)
+						}
+					}
 				}
 			}
 			label := fmt.Sprintf("%s: %s", r.Mode, ownerDisplay)
+			why := fmt.Sprintf("register_access mode=%s на %s из %s", r.Mode, obj.NameDisplay, ownerDisplay)
+			if ic := extIntercept[r.SymbolID]; ic != nil {
+				why += "; " + interceptWhy(*ic)
+			}
 			rc := &candidate{
 				id: fmt.Sprintf("regw:%s:%d", obj.NameNorm, r.ID), bucket: bucketRelation, category: "writes_movements",
 				kindLabel: "register_access", fromDisplay: ownerDisplay, display: obj.NameDisplay, detail: label,
 				component: r.ComponentID, confidence: domain.Confidence(r.Confidence), span: r.Span,
-				whyIncluded: fmt.Sprintf("register_access mode=%s на %s из %s", r.Mode, obj.NameDisplay, ownerDisplay),
+				whyIncluded: why,
 				charCost:    runeLen(label) + runeLen(obj.NameDisplay) + 4,
 			}
 			out = append(out, bctx.apply(sc, rc))
@@ -97,6 +139,12 @@ func expandRegister(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 				Hint:    "проверьте вручную места, где регистр адресуется через переменную/параметр",
 			})
 		}
+	}
+
+	if effectiveView {
+		icCands, icWarnings := registerWriterIntercepts(bctx, obj, baseWriters, extIntercepts)
+		out = append(out, icCands...)
+		warnings = append(warnings, icWarnings...)
 	}
 
 	readRows, rerr := tx.RegisterAccesses(store.RegisterAccessFilter{
