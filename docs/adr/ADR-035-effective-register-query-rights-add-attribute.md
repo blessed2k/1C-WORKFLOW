@@ -28,12 +28,16 @@ intent `bugfix`/`unknown`, `signature-change`, `form` и `posting` (ADR-029).
 ## Решение
 
 **1. Одно наложение, два его лица.** Как и раньше, наложение слоёв живёт в
-`internal/effective`. Для модулей это `Module` (перехватчики, ADR-027/029). Для
+`internal/effective`. Для модулей это `Module` (перехватчики, ADR-027/029) и
+`Overlay` (то же по составу расширений, прочитанному один раз, с кэшем, п.8)
+с обратным запросом `InterceptOf` (символ расширения -> факт перехвата). Для
 объектов добавлен `BorrowedObjects(src, obj)`: строки объекта в расширениях,
-применяющихся к его компоненту, в порядке `ApplyingTo`. Новой выборки в
-`store` нет: `Components` и `MetadataObjectsByName` уже были. Источник
-принимается интерфейсом `ObjectSource` (объявлен потребителем), чтобы отказ
-чтения был достижим тестом.
+применяющихся к его компоненту; отбор расширений тот же
+`ExtensionsApplyingTo`, что у модулей. Новой выборки в `store` нет:
+`Components` и `MetadataObjectsByName` уже были. В `internal/retrieve` чтения
+заимствований и запросов анкера идут через швы, объявленные потребителем
+(`borrowedObjectsFinder`, `queryReader`, рядом с `symbolFinder`; подмена в
+тесте через `readSeams`), поэтому отказ чтения достижим тестом.
 
 **2. `register`: необязательная категория `writer_intercepts`** (вес 0.55, как
 у `posting_handler_intercepts`). Факты перехвата в обе стороны:
@@ -42,8 +46,8 @@ intent `bugfix`/`unknown`, `signature-change`, `form` и `posting` (ADR-029).
   (`effectiveInterceptsForSymbol`); у `&Вместо` объяснение говорит, что запись
   базового слоя исполняется только через `ПродолжитьВызов`;
 - запись сделана самим перехватчиком: у символа расширения факт перехвата
-  ищется наложением на модуль базы (`AppliesTo` расширения, путь модуля
-  символа), совпадение по слою и имени перехватчика. Обычная процедура
+  даёт `Overlay.InterceptOf` (база из `AppliesTo` расширения, путь модуля
+  символа, совпадение по слою и имени перехватчика). Обычная процедура
   расширения перехватчиком не становится: факт строится по аннотации.
 
 Запись перехватчика в `writes_movements` дописывает в `whyIncluded`, какой
@@ -57,7 +61,13 @@ intent `bugfix`/`unknown`, `signature-change`, `form` и `posting` (ADR-029).
 расширения. Сборка кандидатов по текстам вынесена в `queryCandidates` без
 изменения ключей и текстов raw. Если запрос есть только в перехватчике,
 effective-ответ не говорит `no_query_in_symbol` (это было бы ложью). Сбои
-чтения: `query_intercepts_read_failed`.
+чтения: `query_intercepts_read_failed`; сбой чтения запросов самого анкера
+под `effective` называется `query_anchor_read_failed` и не теряется за
+найденными запросами перехватчиков. Базовый текст запроса метода,
+перехваченного `&ИзменениеИКонтроль`, в `effective` помечен в `whyIncluded`
+как изменённый перехватчиком (исполняется текст расширения). Собираются
+только перехватчики самого символа-анкера, а не все запросы модулей
+расширений: это сужение осознанное.
 
 **4. `add-attribute` и `rights`: базовый анкер плюс заимствования.** Для
 анкера базового слоя под `effective` факты собираются по его строке и по
@@ -77,6 +87,14 @@ effective-ответ не говорит `no_query_in_symbol` (это было �
 - `rights`: `rls`. RLS без строки права не бывает; когда права всех слоёв
   прочитаны, отсутствие RLS честное.
 
+Отзыв сильнее заявления (ADR-030) и срабатывает в трёх случаях: сбой
+чтения заимствований или фактов слоя; анкер того же вызова, который builder
+не развернул (не тот вид анкера или он не разрешился, `anchorNotCollected`):
+по нему категорию никто не собирал, и заявление другого анкера не делает её
+честно пустой; анкер из компонента-расширения, у которого не прочитались
+собственные формы. Заявление и отзыв сведены в `declareCollectedIf`, условие
+«этот анкер дополняется заимствованиями» в одной функции `borrowedLayers`.
+
 Не заявляются: `writes_movements`/`owning_symbols` (записи бывают объявлены
 только движениями документа, `register_writes_declared_only`, и адресованы
 динамически), `query_text`/`schema`/`tables_fields` и `usages`
@@ -91,17 +109,37 @@ effective-ответ не говорит `no_query_in_symbol` (это было �
 `ОбработкаПроведения` в модулях разных документов, и второй факт молча
 пропадал при дедупликации. Ключ теперь включает путь модуля и имя
 перехватчика. Ключ внутренний (дедупликация и тай-брейк сортировки), в ответ
-не выходит.
+не выходит, но смена меняет и effective-вывод прежних intent
+(`bugfix`/`signature-change`/`form`/`posting`): `&Перед` и `&После` одного
+расширения на один метод в одном модуле раньше схлопывались в один факт,
+теперь оба в ответе. Это исправление потери, закреплено
+`TestEffectivePostingBeforeAndAfterSameModuleBothKept`.
 
-**7. `effectiveAwareIntent`** включает все intent с собственной картой
-обязательных категорий. `effective_view_partial_coverage` для четырёх intent
-больше не выдаётся, текст предупреждения перечисляет актуальный набор.
+**7. `effectiveAwareIntent`** включает все intent, которые выдаёт
+классификатор, включая `exchange` и `extension`: они делят builder с `bugfix`
+и под `effective` несут настоящие `interceptors` анкера
+(`TestEffectiveExchangeExtensionInterceptors`), так что прежнее предупреждение
+«построен как raw» для них было неточным. Список закрыт перечислением:
+предупреждение `effective_view_partial_coverage` (функция
+`partialCoverageWarning`) остаётся для intent вне списка, то есть для
+будущего builder'а, пока его не внесут осознанно. Эту сторону держит
+`TestPartialCoverageWarningForUnlistedIntent`.
+
+**8. Цена наложения на `register`.** `expandRegister` строит одно `Overlay` на
+вызов: состав компонентов читается один раз, модуль расширения разбирается
+один раз на пару (база, путь модуля), сколько бы писателей и перехватчиков в
+нём ни было; и прямой запрос (перехватчики базового писателя), и обратный
+(`InterceptOf` для записи из расширения) берут результат из того же кэша.
+Стоимость ограничена числом различных модулей писателей (выборка записей
+ограничена 300) и числом применяющихся расширений, а не числом писателей.
+Кэш живёт один вызов: снапшот данных у каждого вызова свой.
 
 ## Последствия
 
 - Новые необязательные категории `writer_intercepts`, `query_intercepts`,
   новые коды предупреждений (`register_writer_intercepts_read_failed`,
-  `query_intercepts_read_failed`, `effective_borrowed_objects_read_failed`,
+  `query_intercepts_read_failed`, `query_anchor_read_failed`,
+  `effective_borrowed_objects_read_failed`,
   `effective_borrowed_rights_read_failed`). Под `effective` категории `forms`
   и `rls` могут получить `complete_empty` там, где раньше был `missing`.
   Состав и типы полей ответа не менялись, контрактные тесты `cmd/mcp1c`
@@ -110,16 +148,21 @@ effective-ответ не говорит `no_query_in_symbol` (это было �
 - `view=raw` не меняется ни у одного из четырёх intent: тексты, ключи и
   порядок кандидатов прежние (кроме внутреннего ключа перехвата, п.6, который
   в raw не строится).
-- Цена: разбор модулей расширений на каждого базового писателя регистра и на
-  символ-анкер запроса, одна выборка строк объекта плюс чтение фактов по
-  каждому заимствованию. Ограничена числом применяющихся расширений и
-  писателей (потолок выборки 300), не размером проекта.
+- Цена: для `register` см. п.8; для `query` разбор модуля анкера в
+  применяющихся расширениях; для `add-attribute`/`rights` одна выборка строк
+  объекта плюс чтение фактов по каждому заимствованию. Ограничена числом
+  применяющихся расширений, не размером проекта.
 - Тесты raw против effective на синтетической фикстуре с расширением:
   `TestEffectiveRegisterWriterIntercepts`, `TestEffectiveQueryInterceptorQueries`,
   `TestEffectiveAddAttributeBorrowedLayers`,
   `TestEffectiveAddAttributeFormsDeclaredCollected`,
   `TestEffectiveRightsExtensionRoles`, `TestEffectiveRightsRLSDeclaredCollected`,
-  область предупреждения держит `TestEffectivePartialCoverageWarningScope`.
+  отзыв заявлений `TestEffectiveDeclarationRevokedOnBorrowedReadFailure` и
+  `TestEffectiveDeclarationRevokedByUncollectedAnchor`, сбой запросов анкера
+  `TestEffectiveQueryAnchorReadFailureNamed`, пометка изменённого текста
+  `TestEffectiveQueryBaseTextMarkedReplaced`, кэш `TestOverlay`; область
+  предупреждения держат `TestEffectivePartialCoverageWarningScope` и
+  `TestPartialCoverageWarningForUnlistedIntent`.
   Проверено мутацией: отключение наложения в точке врезки каждого intent и
   в самом `internal/effective` (`Module` без перехватчиков, `BorrowedObjects`
   без расширений) красит тест своего intent.
@@ -130,9 +173,11 @@ effective-ответ не говорит `no_query_in_symbol` (это было �
   `register_access` идёт по имени регистра без фильтра по слою. Это
   расходится с правилом «raw не несёт фактов расширений» (R25), но меняло бы
   raw, и в этом решении не тронуто.
-- `exchange`/`extension` делят builder с `bugfix` (он effective-aware), но в
-  `effectiveAwareIntent` не внесены и получают `effective_view_partial_coverage`
-  с текстом «построен как raw», что для них неточно. Вне рамок issue #4.
+- `view=raw` для `query` при сбое чтения запросов анкера по-прежнему говорит
+  `no_query_in_symbol` без `*_read_failed`: raw в этом решении не менялся.
+- Пометка «изменён перехватчиком» ставится только для
+  `&ИзменениеИКонтроль`; у `&Вместо` базовый текст исполняется лишь через
+  `ПродолжитьВызов`, это видно из факта перехвата, отдельной пометки нет.
 - Права роли расширения на объект, который расширение не заимствовало, в
   индексе остаются с `object_id = NULL` и в effective-вид не попадают. В 1С
   роль расширения ссылается только на объекты расширения, так что случай
