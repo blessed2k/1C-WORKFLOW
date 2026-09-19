@@ -190,6 +190,9 @@ func (s *XMLSource) WritePath(ctx context.Context, objectType, name string) (*Wr
 		return nil, err
 	}
 	handlers := objectModuleHandlers(filepath.Join(s.root, folderForType(objectType), name, "Ext", moduleFile(objectType)))
+	// Handler modules of the subscriptions, parsed once per call: БСП points
+	// dozens of subscriptions at the same large common modules.
+	mods := moduleCache{}
 
 	order := 0
 	add := func(event, kind, source, detail string) {
@@ -207,7 +210,7 @@ func (s *XMLSource) WritePath(ctx context.Context, objectType, name string) (*Wr
 		mutating := 0
 		for _, sub := range evSubs {
 			detail := ""
-			if mutatesData(cleanBSL(s.handlerBody(sub.handler))) {
+			if mutatesData(cleanBSL(s.handlerBody(mods, sub.handler))) {
 				detail = "меняет данные источника"
 				mutating++
 			}
@@ -261,8 +264,8 @@ func (s *XMLSource) WritePath(ctx context.Context, objectType, name string) (*Wr
 			writeSubs[event] = list
 		}
 	}
-	out.Warnings = append(out.Warnings, s.subscriptionCodeWarnings(writeSubs)...)
-	exchangeSteps, exchangeWarnings := s.exchangeRegistration(objectType, name, s.registersChanges(writeSubs))
+	out.Warnings = append(out.Warnings, s.subscriptionCodeWarnings(mods, writeSubs)...)
+	exchangeSteps, exchangeWarnings := s.exchangeRegistration(objectType, name, s.registersChanges(mods, writeSubs))
 	out.Steps = append(out.Steps, exchangeSteps...)
 	for i := range out.Steps {
 		out.Steps[i].Order = i + 1
@@ -345,7 +348,7 @@ func stripNamespace(raw string) string {
 
 // subscriptionCodeWarnings reads each handler's body and reports the two defects
 // that a handler running on someone else's write is prone to.
-func (s *XMLSource) subscriptionCodeWarnings(subs map[string][]subscription) []WriteWarning {
+func (s *XMLSource) subscriptionCodeWarnings(mods moduleCache, subs map[string][]subscription) []WriteWarning {
 	var out []WriteWarning
 	seen := map[string]bool{}
 	events := make([]string, 0, len(subs))
@@ -359,7 +362,7 @@ func (s *XMLSource) subscriptionCodeWarnings(subs map[string][]subscription) []W
 				continue
 			}
 			seen[sub.handler] = true
-			body := cleanBSL(s.handlerBody(sub.handler))
+			body := cleanBSL(s.handlerBody(mods, sub.handler))
 			if body == "" {
 				continue
 			}
@@ -466,12 +469,13 @@ func objectModuleHandlers(path string) map[string]bool {
 }
 
 // handlerBody returns the text of a "CommonModule.Модуль.Процедура" handler.
-func (s *XMLSource) handlerBody(handler string) string {
+// mods keeps the modules parsed during the call.
+func (s *XMLSource) handlerBody(mods moduleCache, handler string) string {
 	parts := strings.Split(handler, ".")
 	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
 		return ""
 	}
-	return originalMethod(filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl"), parts[2])
+	return originalMethod(mods, filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl"), parts[2])
 }
 
 // exchangeRegistration reports the exchange plans the object belongs to.
@@ -479,10 +483,10 @@ func (s *XMLSource) handlerBody(handler string) string {
 // registers the object for exchange. In a БСП configuration that is the norm:
 // AutoRecord=Deny is set on almost everything (9025 entries against 244 in УТ)
 // precisely because the ОбменДанными* subscriptions do the registration.
-func (s *XMLSource) registersChanges(subs map[string][]subscription) bool {
+func (s *XMLSource) registersChanges(mods moduleCache, subs map[string][]subscription) bool {
 	for _, list := range subs {
 		for _, sub := range list {
-			if strings.Contains(cleanBSL(s.handlerBody(sub.handler)), "ЗарегистрироватьИзменения") {
+			if strings.Contains(cleanBSL(s.handlerBody(mods, sub.handler)), "ЗарегистрироватьИзменения") {
 				return true
 			}
 		}

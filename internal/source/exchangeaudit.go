@@ -242,8 +242,8 @@ func (s *XMLSource) registrarsFor(ctx context.Context, objectType, name string, 
 		events = append(events, e)
 	}
 	sort.Strings(events)
-	cache := map[string]string{} // module path -> text, read once per call
-	seen := map[string]bool{}    // handler -> already judged
+	cache := moduleCache{}    // handler modules, read and parsed once per call
+	seen := map[string]bool{} // handler -> already judged
 	for _, e := range events {
 		for _, sub := range subs[e] {
 			if seen[sub.handler] {
@@ -269,7 +269,7 @@ func (s *XMLSource) registrarsFor(ctx context.Context, objectType, name string, 
 // reachesRegistration reports whether a method registers changes, following the
 // calls it makes up to depth. Returns the collected text so that the plan a
 // handler works for can be recognised in it.
-func (s *XMLSource) reachesRegistration(handler string, depth int, cache map[string]string, visited map[string]bool) (string, bool) {
+func (s *XMLSource) reachesRegistration(handler string, depth int, cache moduleCache, visited map[string]bool) (string, bool) {
 	if depth <= 0 || visited[handler] {
 		return "", false
 	}
@@ -311,50 +311,20 @@ func (s *XMLSource) reachesRegistration(handler string, depth int, cache map[str
 }
 
 // methodBody returns the body of a "CommonModule.Модуль.Метод" reference without
-// its declaration line, so that the method NAME cannot be mistaken for a call.
-func (s *XMLSource) methodBody(handler string, cache map[string]string) string {
+// its declaration, so that the method NAME cannot be mistaken for a call. The
+// declaration may be wrapped over several lines: the parser knows where the
+// body starts.
+func (s *XMLSource) methodBody(handler string, cache moduleCache) string {
 	parts := strings.Split(handler, ".")
 	if len(parts) != 3 || !strings.EqualFold(parts[0], "CommonModule") {
 		return ""
 	}
-	path := filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl")
-	if _, ok := cache[path]; !ok {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			cache[path] = ""
-		} else {
-			cache[path] = string(stripBOM(data))
-		}
-	}
-	if cache[path] == "" {
+	mod := cache.module(filepath.Join(s.root, "CommonModules", parts[1], "Ext", "Module.bsl"))
+	m, ok := methodIn(mod, parts[2])
+	if !ok {
 		return ""
 	}
-	text := methodFromText(cache[path], parts[2])
-	if _, rest, ok := strings.Cut(text, "\n"); ok {
-		text = rest // drop the declaration line
-	}
-	return cleanBSL(text)
-}
-
-// methodFromText extracts the text of a method from an already-read module.
-func methodFromText(module, name string) string {
-	lines := strings.Split(module, "\n")
-	start := -1
-	for i, line := range lines {
-		if h := reMethodHead.FindStringSubmatch(line); h != nil && strings.EqualFold(h[2], name) {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		return ""
-	}
-	for i := start; i < len(lines); i++ {
-		if i > start && isMethodEnd(lines[i]) {
-			return strings.Join(lines[start:i+1], "\n")
-		}
-	}
-	return strings.Join(lines[start:], "\n")
+	return cleanBSL(bodyText(mod, m))
 }
 
 // planMentioned returns the exchange plan named in the text, if exactly one is.
