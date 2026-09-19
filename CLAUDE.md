@@ -101,7 +101,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/publish.go`, `publishderive.go`, `publishmeta2.go`, `publishforms.go` — публикация фактов в store; `publishModuleOwner` дописывает `module.owner_object_id` после прохода 1
 - `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
 - `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
-- `internal/store/inbound.go`: `ReplaceSourceFiles(fileIDs, insert)`, единственный путь переопубликования: снимок указателей нетронутых файлов на узлы переопубликуемых во `temp.inbound_ptr`, `DeleteSourceFiles`, `insert` (проход 1), возврат указателей узлам с прежним id (ADR-037); `staleNodes` общий с шагом (1b); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
+- `internal/store/inbound.go`: `ReplaceSourceFiles(fileIDs, insert)`, единственный путь переопубликования: снимок указателей нетронутых файлов на узлы переопубликуемых во `temp.inbound_ptr`, `DeleteSourceFiles`, `insert` (проход 1), возврат указателей узлам с прежним id (ADR-037); `staleNodes` общий с шагом (1b); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`); мягкий указатель без REFERENCES (`module.owner_object_id`) входит туда с `noFK`, и SET NULL за SQLite делает `DeleteSourceFiles` (issue #14)
 - HTTP-связи между базами (веха В2, ADR-039): факты `parse/bsl/httpcalls.go`
   (`Module.HTTPCalls`) и `parse/meta` (`Facts.HTTPService`), таблицы `http_call`/`http_endpoint`
   (`internal/store/httpfacts.go`, держатся только за свой файл), чистая сшивка и атрибуция
@@ -466,7 +466,9 @@ guard по корпусу, сервер без файла индекса син�
 - `module.owner_object_id` **больше не пуста** — `publishModuleOwner`
   (`internal/index/publish.go`) дописывает её вторым проходом. Прежняя запись «никогда не
   пишется» устарела, но опираться на неё как на полную нельзя: `NULL` штатен у модулей вне
-  коллекции (приложения, сеанса, внешнего соединения) и у объекта, которого нет в выгрузке;
+  коллекции (приложения, сеанса, внешнего соединения) и у объекта, которого нет в выгрузке
+  (владелец ищется по строке `metadata_object`, не по узлу: узел удалённого объекта живёт до
+  reconciliation, issue #14);
   неизвестная коллекция даёт диагностику `index_module_owner_unknown_collection`, а НЕВЕРНАЯ
   строка словаря видов (`domain.MetaKinds`, индекс читает его через `ownerTypeToMType` и
   признак `ModuleOwner`) в рантайме неотличима от «объекта просто нет» и ловится только
@@ -498,7 +500,8 @@ guard по корпусу, сервер без файла индекса син�
 - Шаг миграции без DDL с `needsFullRebuild`: способ объявить СОДЕРЖИМОЕ индексов прежней
   версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
   указатели нетронутых файлов на пересозданные узлы; схема 4, ADR-038: сносил каскадом их права
-  ролей, рёбра и бейджи графа). `ParserVersion` ради этого не поднимать.
+  ролей, рёбра и бейджи графа; схема 6, issue #14: оставлял `module.owner_object_id` на
+  удалённом объекте). `ParserVersion` ради этого не поднимать.
   Переключение бинарника `main` (схема 2) и схемы 3 на одном `--projects-root` каждый раз
   стоит полной пересборки: схема 3 требует её у эпохи версии 2, а `main` на эпохе версии 3
   заводит новую пустую эпоху.

@@ -319,6 +319,16 @@ func (tx *WriteTx) DeleteSourceFiles(ids ...int64) error {
 		   OR target_object_id IN `+staleNodes[nodeObject]+`)`, files); err != nil {
 		return err
 	}
+	// Мягкие указатели без REFERENCES обнуляются явно, как это сделал бы
+	// ON DELETE SET NULL (issue #14).
+	for _, k := range inboundKinds {
+		if !k.noFK {
+			continue
+		}
+		if err := tx.c.exec(tx.ctx, k.softNullSQL(), files); err != nil {
+			return fmt.Errorf("обнуление указателей %s: %w", k.name(), err)
+		}
+	}
 	// FTS5 живёт без FK: строки удаляются явно, по rowid = symbol.id.
 	if err := tx.c.exec(tx.ctx, `DELETE FROM fts_symbols WHERE rowid IN `+staleNodes[nodeSymbol], files); err != nil {
 		return err
@@ -369,6 +379,23 @@ func (tx *WriteTx) ensureNode(kind, componentID, identityKey string) (int64, err
 		return 0, fmt.Errorf("identity %q уже занята узлом вида %q, запрошен %q", identityKey, haveKind, kind)
 	}
 	return id, nil
+}
+
+// MetadataObjectID возвращает id объекта метаданных по identity_key, только
+// если строка metadata_object существует. Узел удалённого объекта живёт до
+// reconciliation (шаг 5), и NodeID нашёл бы его: указатель на такой узел висит,
+// а ребро графа от него валит транзакцию на FK (issue #14). metadata_object в
+// буфер пакетной вставки не попадает, сброс не нужен.
+func (tx *ReadTx) MetadataObjectID(identityKey string) (int64, bool, error) {
+	if err := tx.checkNoFlush(); err != nil {
+		return 0, false, err
+	}
+	id, err := tx.c.queryInt(tx.ctx, `SELECT mo.id FROM node n JOIN metadata_object mo ON mo.id = n.id
+		WHERE n.identity_key=?`, identityKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	return id, err == nil, err
 }
 
 // NodeID возвращает id узла по его identity_key.

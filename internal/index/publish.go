@@ -351,7 +351,7 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 		}
 		rel := lp.rel
 		if st, ok := modState[rel]; ok {
-			ownerDiags, err := publishModuleOwner(tx, in, ts, rel, lp, st)
+			ownerDiags, err := publishModuleOwner(tx, in, rel, lp, st)
 			if err != nil {
 				return err
 			}
@@ -469,7 +469,9 @@ func moduleRecord(component domain.ComponentID, rel string, info bsl.ModuleInfo,
 //     соединения: он лежит вне коллекции выгрузки (bsl.ClassifyModule),
 //     объекта-владельца у него нет, NULL это правильный ответ;
 //   - коллекция известна, а объекта в индексе нет — NULL молча: висячий id
-//     хуже пустого, и это неполнота выгрузки, а не наша;
+//     хуже пустого, и это неполнота выгрузки, а не наша. «Нет» значит нет
+//     строки metadata_object, а не узла: узел удалённого объекта доживает до
+//     reconciliation (issue #14);
 //   - коллекция НЕ известна словарю ownerTypeToMType — диагностика:
 //     словарь ведётся руками, и его пробел обязан быть виден в обычном
 //     прогоне, а не только на реальной выгрузке.
@@ -484,7 +486,7 @@ func moduleRecord(component domain.ComponentID, rel string, info bsl.ModuleInfo,
 // Диагностика возвращается вызывающему тем же путём, что и у
 // publishModuleSymbols: вставляется здесь, а в ComponentResult.Diagnostics
 // её добавляет publishFiles.
-func publishModuleOwner(tx *store.WriteTx, in publishInput, ts *txState, rel string, lp *linkPlan, st modulePublishState) ([]domain.Diagnostic, error) {
+func publishModuleOwner(tx *store.WriteTx, in publishInput, rel string, lp *linkPlan, st modulePublishState) ([]domain.Diagnostic, error) {
 	if lp.ownerDiagnostic != nil {
 		diag := *lp.ownerDiagnostic
 		if err := tx.InsertDiagnostic(toStoreDiagnostic(diag, st.fileID, string(in.component))); err != nil {
@@ -495,7 +497,9 @@ func publishModuleOwner(tx *store.WriteTx, in publishInput, ts *txState, rel str
 	if lp.ownerKey == "" {
 		return nil, nil
 	}
-	ownerID, found, err := ts.nodes.lookup(tx, lp.ownerKey)
+	// Не ts.nodes.lookup: узел объекта, чей XML удалён в этом же инкременте,
+	// живёт до reconciliation, а строки metadata_object у него уже нет.
+	ownerID, found, err := tx.MetadataObjectID(lp.ownerKey)
 	if err != nil {
 		return nil, fmt.Errorf("владелец модуля %s: %w", rel, err)
 	}

@@ -57,6 +57,11 @@ type migration struct {
 // нетронутого Rights.xml, рёбра объектного графа и бейджи, а чистая
 // пересборка оставляла пустым role.object_id. Потерю строки по базе не
 // увидеть.
+//
+// Шаг до 6 без DDL (issue #14): до него инкремент после удаления XML объекта
+// при живом модуле оставлял module.owner_object_id на удалённом узле. По базе
+// такой указатель не отличить: id узла без AUTOINCREMENT мог достаться новому
+// объекту, и указатель стал бы не висячим, а чужим.
 var migrations = []migration{{
 	to:               2,
 	needsFullRebuild: true,
@@ -75,6 +80,9 @@ var migrations = []migration{{
 	to:               5,
 	needsFullRebuild: true,
 	statements:       append(splitStatements(httpTables), splitStatements(httpIndexes)...),
+}, {
+	to:               6,
+	needsFullRebuild: true,
 }}
 
 // errSchemaFromFuture — БД собрана более новой версией пакета. По разделу 15

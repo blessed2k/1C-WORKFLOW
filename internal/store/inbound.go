@@ -54,14 +54,18 @@ type inboundKind struct {
 	// targetClass: только у reference. Указатель там входит в XOR-автомат, и
 	// вместе с целью возвращаются resolution и target_class.
 	targetClass string
+	// noFK: столбец без REFERENCES. SET NULL за SQLite делает DeleteSourceFiles
+	// (softNullSQL), иначе после удаления файла-цели указатель висит на узле,
+	// которого нет (issue #14).
+	noFK bool
 }
 
 func (k inboundKind) name() string { return k.table + "." + k.column }
 
 // inboundKinds: ВСЕ столбцы схемы с ON DELETE SET NULL на symbol,
-// metadata_object и metadata_member. Новый такой столбец обязан попасть сюда,
-// иначе правка файла-цели снова молча оборвёт его (закреплено
-// TestInboundKindsCoverSetNullColumns).
+// metadata_object и metadata_member и мягкие указатели на них без REFERENCES
+// (noFK). Новый такой столбец обязан попасть сюда, иначе правка файла-цели
+// снова молча оборвёт его (закреплено TestInboundKindsCoverSetNullColumns).
 var inboundKinds = []inboundKind{
 	{table: "reference", column: "target_symbol_id", target: nodeSymbol, owner: "t.file_id", targetClass: "symbol"},
 	{table: "reference", column: "target_object_id", target: nodeObject, owner: "t.file_id", targetClass: "metadata"},
@@ -77,6 +81,21 @@ var inboundKinds = []inboundKind{
 		owner: "(SELECT q.file_id FROM query q WHERE q.id = t.query_id)"},
 	{table: "role", column: "object_id", target: nodeObject, owner: "t.file_id"},
 	{table: "role_right", column: "object_id", target: nodeObject, owner: "t.origin_file_id"},
+	// Владельца модуля пишет проход 2 его Module.bsl (publishModuleOwner), у
+	// общего модуля публикация его XML. Строка модуля файлу не принадлежит
+	// (§15), файл-владелец указателя здесь файл кода; модуль без кода (общий
+	// модуль из одного XML) снимается всегда: его указатель вернёт или
+	// перепишет сама публикация XML.
+	{table: "module", column: "owner_object_id", target: nodeObject, noFK: true,
+		owner: "COALESCE((SELECT mc.file_id FROM module_code mc WHERE mc.module_id = t.id), 0)"},
+}
+
+// softNullSQL обнуляет указатели вида k на узлы, которые удаление файлов
+// staleFiles снесёт: то же, что ON DELETE SET NULL, для столбца без REFERENCES.
+// Обнуляются и строки удаляемых файлов: их указатель перепишет публикация.
+func (k inboundKind) softNullSQL() string {
+	return fmt.Sprintf(`UPDATE %s SET %s = NULL WHERE %s IN %s`,
+		k.table, k.column, k.column, staleNodes[k.target])
 }
 
 // snapshotSQL снимает указатели вида k во временную таблицу: строки, которые

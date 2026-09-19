@@ -41,6 +41,13 @@ func TestInboundKindsCoverSetNullColumns(t *testing.T) {
 	}
 	have := map[string]bool{}
 	for _, k := range inboundKinds {
+		if k.noFK {
+			// Мягкий указатель без REFERENCES: столбец обязан существовать и
+			// не иметь FK, иначе SET NULL сделал бы SQLite, а явное
+			// обнуление в DeleteSourceFiles было бы лишним (issue #14).
+			checkNoFKColumn(t, s, k)
+			continue
+		}
 		have[k.name()] = true
 	}
 	sort.Strings(want)
@@ -52,6 +59,27 @@ func TestInboundKindsCoverSetNullColumns(t *testing.T) {
 	}
 	for extra := range have {
 		t.Errorf("inboundKinds содержит %s, которого нет среди SET NULL-столбцов схемы", extra)
+	}
+}
+
+func checkNoFKColumn(t *testing.T, s *Store, k inboundKind) {
+	t.Helper()
+	var cols, fks int
+	if err := s.Read(context.Background(), func(tx *ReadTx) error {
+		if err := tx.c.sc.QueryRowContext(tx.ctx, `SELECT count(*) FROM pragma_table_info(?) WHERE name=?`,
+			k.table, k.column).Scan(&cols); err != nil {
+			return err
+		}
+		return tx.c.sc.QueryRowContext(tx.ctx, `SELECT count(*) FROM pragma_foreign_key_list(?) WHERE "from"=?`,
+			k.table, k.column).Scan(&fks)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if cols != 1 {
+		t.Errorf("столбца %s (noFK) нет в схеме", k.name())
+	}
+	if fks != 0 {
+		t.Errorf("у столбца %s есть REFERENCES, а вид помечен noFK", k.name())
 	}
 }
 

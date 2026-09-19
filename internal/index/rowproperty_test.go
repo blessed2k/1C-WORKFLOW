@@ -101,6 +101,26 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// у них больше нет. Итог тот же, что у чистой пересборки.
 		checkIncrementRows(t, 30, registerRemoveEdits)
 	})
+	t.Run("удаление XML объекта при живом модуле", func(t *testing.T) {
+		// XML документа удалён, модули объекта и менеджера остались.
+		// module.owner_object_id пишет проход 2 файла модуля, а модуль не
+		// переопубликуется: без SET NULL на удалённый объект указатель
+		// оставался висячим до полной пересборки, где он пуст (issue #14).
+		checkIncrementRows(t, 30, objectXMLRemoveEdits)
+	})
+	t.Run("удаление XML объекта при живом модуле, fallback", func(t *testing.T) {
+		// Модуль переопубликуется в той же транзакции: владелец ищется по
+		// узлу объекта, а узел живёт до reconciliation, хотя строки
+		// metadata_object уже нет (issue #14).
+		checkIncrementRows(t, 0, objectXMLRemoveEdits)
+	})
+	t.Run("удаление XML объекта и правка его модуля", func(t *testing.T) {
+		// Модуль переопубликуется в том же инкременте, где удалён XML: узел
+		// объекта живёт до reconciliation, а строки metadata_object уже нет.
+		// Владелец по узлу давал висячий id, а кодовое ребро графа от него
+		// валило инкремент на FOREIGN KEY (issue #14).
+		checkIncrementRows(t, 30, objectXMLRemoveModuleEdits)
+	})
 	t.Run("удаление XML роли при живом Rights.xml", func(t *testing.T) {
 		// Граница ADR-038: чистая пересборка создаёт роль из одного
 		// Rights.xml (file_id на нём, без объекта роли), а инкремент роль не
@@ -134,6 +154,29 @@ var registerRemoveEdits = incrementScenario{
 	// Декларированное ребро пропадает честно, а бейдж has-dynamic документа
 	// остаётся: сценарий создал граф, рёбра которого исчезают.
 	mustHave: []string{"badge=has-dynamic"},
+}
+
+var objectXMLRemoveEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Document", "Отгрузка"))
+	},
+	// Модуль объекта жив, а владельца у него в чистой пересборке нет.
+	mustHave: []string{"rel_path=" + workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleObject)},
+}
+
+var objectXMLRemoveModuleEdits = incrementScenario{
+	seed: edgeSeed,
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		remove(workspace.DumpDeclarationPath("Document", "Отгрузка"))
+		write(workspace.DumpModulePath("Document", "Отгрузка", workspace.ModuleObject), `
+Процедура ОбработкаПроведения(Отказ, Режим)
+	// правка тела
+	Движения.ТоварыНаСкладах.Записать();
+КонецПроцедуры
+`)
+	},
+	mustHave: objectXMLRemoveEdits.mustHave,
 }
 
 var roleXMLRemoveEdits = incrementScenario{
