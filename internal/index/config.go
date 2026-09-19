@@ -44,6 +44,11 @@ type Config struct {
 
 	// Now подменяет часы в тестах (debounce, freshness age); nil -> time.Now.
 	Now func() time.Time
+
+	// OnDiskCheck, если задан, зовётся после каждого обхода диска для
+	// признака stale (ADR-036) с моментом, на который снят исход. Только для
+	// тестов: сигнал вместо опроса через time.Sleep; nil в production.
+	OnDiskCheck func(at time.Time)
 }
 
 // DefaultConfig — значения по умолчанию раздела 18.5.

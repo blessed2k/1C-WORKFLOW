@@ -42,6 +42,12 @@ type Projects struct {
 
 	mu     sync.Mutex
 	opened map[domain.ProjectID]*openProject
+	// closed: Close уже прошёл, новых проектов не открываем (иначе фоновый
+	// прогрев после Close открыл бы store, который никто не закроет).
+	closed bool
+	// warmWG: фоновые открытия проекта из SetDump (прогрев, ADR-036); Close
+	// их дожидается.
+	warmWG sync.WaitGroup
 
 	// activeMu охраняет active: одно состояние процесса «активный проект»
 	// (активная выгрузка + индексный проект), см. activeproject.go.
@@ -316,6 +322,9 @@ func (p *Projects) open(_ context.Context, entry workspace.ProjectEntry) (*openP
 	if op, ok := p.opened[entry.ID]; ok {
 		return op, nil
 	}
+	if p.closed {
+		return nil, fmt.Errorf("проект %s: реестр проектов уже закрыт", entry.ID)
+	}
 	manifest, err := workspace.LoadManifest(entry.Root)
 	if err != nil {
 		return nil, fmt.Errorf("проект %s: манифест %s: %w", entry.ID, entry.Root, err)
@@ -330,6 +339,9 @@ func (p *Projects) open(_ context.Context, entry workspace.ProjectEntry) (*openP
 	svc := index.NewService(st, entry.ID, manifest, p.builtins, p.idxCfg)
 	op := &openProject{Entry: entry, Manifest: manifest, Store: st, Service: svc}
 	p.opened[entry.ID] = op
+	// Прогрев свежести (ADR-036): обход диска стартует в фоне при открытии,
+	// и первый вызов инструмента ждёт уже идущий обход, а не начинает свой.
+	svc.WarmFreshness()
 	return op, nil
 }
 
@@ -340,6 +352,11 @@ func (p *Projects) open(_ context.Context, entry workspace.ProjectEntry) (*openP
 // for a future graceful-shutdown hook in cmd/mcp1c/main.go (out of this
 // ticket's zone: main.go is untouched here).
 func (p *Projects) Close() error {
+	p.mu.Lock()
+	p.closed = true
+	p.mu.Unlock()
+	p.warmWG.Wait()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var firstErr error

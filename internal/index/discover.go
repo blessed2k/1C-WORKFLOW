@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -143,9 +144,15 @@ func discoverComponent(absRoot string, include, exclude []string) ([]discoveredF
 // не из резолвленного safe-пути. Порядок выдачи не гарантирован (вызывающий
 // сравнивает по map, не итерирует по порядку) — сортировка тут была бы
 // тратой без потребителя.
-func discoverComponentMeta(absRoot string, include, exclude []string) ([]discoveredMeta, error) {
+//
+// ctx проверяется на каждом файле: обход ut_demo идёт секунды, и Close
+// сервиса не должен их ждать (ADR-036).
+func discoverComponentMeta(ctx context.Context, absRoot string, include, exclude []string) ([]discoveredMeta, error) {
 	var out []discoveredMeta
 	err := walkComponent(absRoot, include, exclude, func(relSlash, _ string, d fs.DirEntry) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		info, statErr := d.Info()
 		if statErr != nil {
 			return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/blessed2k/1C-WORKFLOW/internal/index"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
@@ -49,17 +50,17 @@ func snapshotFreshness(ctx context.Context, op *openProject) Snapshot {
 
 // staleIndexWarning: тот же код stale_index, что у get_context_for_task,
 // текст называет причину и возраст проверки.
-func staleIndexWarning(reason string, changed int, checkAge float64) Warning {
+func staleIndexWarning(reason index.StaleReason, changed int, checkAge float64) Warning {
 	var msg string
 	switch reason {
-	case "files-changed-on-disk":
+	case index.ReasonFilesChanged:
 		msg = fmt.Sprintf("индекс отстаёт от выгрузки: изменённых на диске файлов %d (проверка %.0f с назад)", changed, checkAge)
-	case "full-rebuild-in-progress":
+	case index.ReasonRebuildInProgress:
 		msg = "идёт полная пересборка индекса, ответ построен по прошлому поколению"
-	case "full-rebuild-required":
+	case index.ReasonRebuildRequired:
 		msg = "индекс требует полной пересборки, ответ построен по прошлому поколению"
 	default:
-		msg = "индекс устарел, причина: " + reason
+		msg = "индекс устарел, причина: " + string(reason)
 	}
 	return Warning{
 		Code:    "stale_index",

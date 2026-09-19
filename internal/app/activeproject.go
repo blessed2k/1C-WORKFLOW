@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -62,14 +63,32 @@ type activeState struct {
 func (p *Projects) SetDump(dir string) ActiveProjectState {
 	id, root, note, ok := p.bindDump(dir)
 	p.activeMu.Lock()
-	defer p.activeMu.Unlock()
 	p.active = activeState{decided: true, dumpDir: dir}
 	if ok {
 		p.active.project, p.active.projectRoot = id, root
 	} else {
 		p.active.note = note
 	}
-	return p.snapshotLocked()
+	state := p.snapshotLocked()
+	p.activeMu.Unlock()
+	if ok && p.registry != nil {
+		if entry, found := p.registry.Project(id); found {
+			p.warmWG.Add(1)
+			go p.warmProject(entry)
+		}
+	}
+	return state
+}
+
+// warmProject открывает привязанный проект заранее, при set_dump и старте с
+// --dump: открытие запускает фоновый обход диска (ADR-036), и первый вызов
+// индексного инструмента не платит его целиком. В фоне, потому что open
+// держит mu на всё время store.Open, а SetDump его ждать не должен. Отказ
+// открытия здесь не сообщается: тот же отказ честно вернёт первый вызов
+// инструмента.
+func (p *Projects) warmProject(entry workspace.ProjectEntry) {
+	defer p.warmWG.Done()
+	_, _ = p.open(context.Background(), entry)
 }
 
 // DumpDir: каталог выгрузки для raw-инструментов; пусто, если его нет.

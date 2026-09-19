@@ -37,16 +37,57 @@ const (
 )
 
 // snapshotFixture: проект bslFixtureFiles с подменёнными часами и явными
-// TTL/MaxAge свежести, полный reindex уже сделан.
+// TTL/MaxAge свежести, полный reindex уже сделан. checks получает момент
+// каждого завершённого обхода диска (index.Config.OnDiskCheck): сигнал
+// вместо опроса через time.Sleep.
 func snapshotFixture(t *testing.T, id string) (*Projects, *openProject, *snapshotClock) {
 	t.Helper()
+	p, op, clock, _ := snapshotFixtureChecks(t, id)
+	return p, op, clock
+}
+
+func snapshotFixtureChecks(t *testing.T, id string) (*Projects, *openProject, *snapshotClock, <-chan time.Time) {
+	t.Helper()
 	clock := &snapshotClock{now: time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)}
-	p, op := newBSLFixtureProjectCfg(t, domain.ProjectID(id), index.Config{
+	checks := make(chan time.Time, 64)
+	p, op := newBSLFixtureProjectCfg(t, domain.ProjectID(id), snapshotConfig(clock, checks))
+	return p, op, clock, checks
+}
+
+// snapshotConfig: tunables index.Service тестов снимка; checks, если не nil,
+// получает момент каждого завершённого обхода (неблокирующая отправка).
+func snapshotConfig(clock *snapshotClock, checks chan time.Time) index.Config {
+	cfg := index.Config{
 		Now:             clock.Now,
 		FreshnessTTL:    snapshotTestTTL,
 		FreshnessMaxAge: snapshotTestMaxAge,
-	})
-	return p, op, clock
+	}
+	if checks != nil {
+		cfg.OnDiskCheck = func(at time.Time) {
+			select {
+			case checks <- at:
+			default:
+			}
+		}
+	}
+	return cfg
+}
+
+// waitDiskCheckSince ждёт обход, снятый не раньше since (прогрев при
+// открытии проекта шлёт свои, более ранние, сигналы).
+func waitDiskCheckSince(t *testing.T, checks <-chan time.Time, since time.Time) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case at := <-checks:
+			if !at.Before(since) {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("за 5 с не пришёл обход диска, снятый не раньше %s", since)
+		}
+	}
 }
 
 // editFixtureModule правит модуль фикстуры на диске мимо reindex: размер
@@ -144,15 +185,16 @@ func TestSnapshotCachedWithinTTL(t *testing.T) {
 }
 
 // TestSnapshotRefreshesInBackgroundAfterTTL: между TTL и MaxAge ответ идёт
-// из прошлой проверки без ожидания, а обход диска уходит в фон; следующий
-// вызов после его завершения видит правку.
+// из прошлой проверки без ожидания, а обход диска уходит в фон; вызов после
+// его завершения (сигнал OnDiskCheck) видит правку.
 func TestSnapshotRefreshesInBackgroundAfterTTL(t *testing.T) {
-	p, op, clock := snapshotFixture(t, "snap-bg")
+	p, op, clock, checks := snapshotFixtureChecks(t, "snap-bg")
 	probes := snapshotProbes(t, p)
 	findSymbol := probes[0]
 
 	editFixtureModule(t, op)
 	clock.advance(snapshotTestTTL + time.Second)
+	triggered := clock.Now()
 
 	ctx := context.Background()
 	stale, _, err := findSymbol.call(ctx)
@@ -160,23 +202,11 @@ func TestSnapshotRefreshesInBackgroundAfterTTL(t *testing.T) {
 		t.Fatalf("find_symbol: %v", err)
 	}
 	if stale {
-		t.Fatalf("первый вызов после TTL обязан ответить из прошлой проверки (stale=false), фоновая ещё не могла закончиться до ответа")
+		t.Fatalf("первый вызов после TTL обязан ответить из прошлой проверки (stale=false)")
 	}
 
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		stale, warned, err := findSymbol.call(ctx)
-		if err != nil {
-			t.Fatalf("find_symbol: %v", err)
-		}
-		if stale && warned {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("фоновая проверка за 5 с так и не отметила правку: stale=%v warned=%v", stale, warned)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitDiskCheckSince(t, checks, triggered)
+	expectStale(t, probes, true, "после фонового обхода")
 }
 
 // TestSnapshotFreshAfterReindex: reindex сам сверяет корпус с диском, после
@@ -194,4 +224,94 @@ func TestSnapshotFreshAfterReindex(t *testing.T) {
 		t.Fatalf("Reindex(incremental): %v", err)
 	}
 	expectStale(t, probes, false, "после инкремента")
+}
+
+// TestIndexStatusStaleLikeFindSymbol: index_status видит правку на диске так
+// же, как find_symbol: тот же признак stale и тот же код stale_index.
+func TestIndexStatusStaleLikeFindSymbol(t *testing.T) {
+	p, op, clock := snapshotFixture(t, "snap-status")
+	probes := snapshotProbes(t, p)
+	statusSvc := NewIndexStatusService(p)
+	indexStatus := staleProbe{"index_status", func(ctx context.Context) (bool, bool, error) {
+		r, err := statusSvc.Status(ctx, StatusInput{})
+		return r.Stale, hasWarning(r.Warnings, "stale_index"), err
+	}}
+	both := []staleProbe{probes[0], indexStatus}
+
+	expectStale(t, both, false, "сразу после reindex")
+	editFixtureModule(t, op)
+	clock.advance(snapshotTestMaxAge + time.Second)
+	expectStale(t, both, true, "после правки файла на диске")
+}
+
+// TestSnapshotInvalidatedByComponentReindex: reindex одного компонента
+// ничего не знает об остальных и прошлый исход обесценивает. Правка в cfg,
+// reindex только ext: без сброса исход внутри TTL сказал бы «свежо».
+func TestSnapshotInvalidatedByComponentReindex(t *testing.T) {
+	clock := &snapshotClock{now: time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)}
+	p, op := newExtensionFixtureProjectCfg(t, "snap-comp", oneExtension(), snapshotConfig(clock, nil))
+	symSvc := NewSymbolService(p)
+	ctx := context.Background()
+	findSymbol := staleProbe{"find_symbol", func(ctx context.Context) (bool, bool, error) {
+		r, err := symSvc.FindSymbol(ctx, FindSymbolInput{Name: "Рассчитать"})
+		return r.Stale, hasWarning(r.Warnings, "stale_index"), err
+	}}
+	expectStale(t, []staleProbe{findSymbol}, false, "сразу после reindex")
+
+	comp, _ := op.Manifest.Component("cfg")
+	writeFile(t, filepath.Join(comp.AbsRoot, filepath.FromSlash(catalogManagerModulePath)),
+		"\nФункция Рассчитать() Экспорт\n\tВозврат 100500;\nКонецФункции\n")
+	clock.advance(snapshotTestTTL / 2)
+	expectStale(t, []staleProbe{findSymbol}, false, "внутри TTL, до reindex")
+
+	if _, err := op.Service.Reindex(ctx, index.ModeIncremental, "ext"); err != nil {
+		t.Fatalf("Reindex(ext): %v", err)
+	}
+	expectStale(t, []staleProbe{findSymbol}, true, "после reindex только ext")
+}
+
+// TestSnapshotInvalidatedByFailedReindex: упавший reindex обесценивает
+// прошлый исход, следующий вызов ждёт новый обход и видит правку.
+func TestSnapshotInvalidatedByFailedReindex(t *testing.T) {
+	p, op, clock := snapshotFixture(t, "snap-failed")
+	probes := snapshotProbes(t, p)
+
+	editFixtureModule(t, op)
+	clock.advance(snapshotTestTTL / 2)
+	expectStale(t, probes, false, "внутри TTL, до упавшего reindex")
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := op.Service.Reindex(canceled, index.ModeIncremental, ""); err == nil {
+		t.Fatalf("Reindex с отменённым контекстом прошёл, а должен упасть")
+	}
+	expectStale(t, probes, true, "после упавшего reindex")
+}
+
+// TestSnapshotFreshnessCheckFailed: проверить свежесть не удалось (сервис
+// индекса закрыт, store ещё читается): ответ есть, но stale:true и
+// freshness_check_failed, а не «свежо».
+func TestSnapshotFreshnessCheckFailed(t *testing.T) {
+	p, op, _ := snapshotFixture(t, "snap-failcheck")
+	symSvc := NewSymbolService(p)
+	if err := op.Service.Close(); err != nil {
+		t.Fatalf("Service.Close: %v", err)
+	}
+	r, err := symSvc.FindSymbol(context.Background(), FindSymbolInput{Name: "Помощь"})
+	if err != nil {
+		t.Fatalf("FindSymbol: %v", err)
+	}
+	if len(r.Items) != 1 {
+		t.Fatalf("Items = %+v, want ответ из индекса несмотря на отказ проверки", r.Items)
+	}
+	if !r.Stale || !hasWarning(r.Warnings, "freshness_check_failed") {
+		t.Fatalf("stale=%v warnings=%+v, want stale:true и freshness_check_failed", r.Stale, r.Warnings)
+	}
+}
+
+// TestProjectOpenWarmsFreshness: открытие проекта само запускает обход
+// диска, до первого вызова инструмента.
+func TestProjectOpenWarmsFreshness(t *testing.T) {
+	_, _, _, checks := snapshotFixtureChecks(t, "snap-warm")
+	waitDiskCheckSince(t, checks, time.Time{})
 }

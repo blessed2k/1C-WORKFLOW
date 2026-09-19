@@ -68,14 +68,41 @@ read-транзакцию. Сервис переносит `Snapshot` в отв�
 предупреждение `freshness_check_failed`; вызов не падает, ответ из индекса
 остаётся.
 
+**6. Один обход на сервис (singleflight).** Синхронный путь, фоновое
+обновление и прогрев не обходят диск каждый сам: они ждут общий обход
+(`diskFlight`). Обход идёт в горутине сервиса со своим контекстом, берёт
+`opMu` прерываемо и после захвата перепроверяет исход: пока он ждал, исход
+мог записать прогон или `EnsureFresh`. N одновременных вызовов при холодном
+кэше дают один обход.
+
+**7. Прогрев при открытии проекта.** `Projects.open` зовёт
+`index.Service.WarmFreshness`, а `SetDump` (`set_dump` и старт с `--dump`)
+открывает привязанный проект сразу. Первый вызов инструмента ждёт уже
+идущий обход, а не начинает свой.
+
+**8. `Close`.** Запрещает новые обходы, отменяет идущий (контекст обхода
+проверяется на каждом файле, ожидание `opMu` прерывается) и ждёт его
+горутину. Синхронный путь после `Close` отвечает `index.ErrServiceClosed`,
+инструмент показывает его как `freshness_check_failed`.
+
+**9. Кто вне обёртки.** `index_status` транзакции не открывает, но берёт
+свежесть из того же `CachedFreshness` и отдаёт тот же `stale_index`;
+прежний `needs_full_rebuild` остался вторым предупреждением. `reindex` вне
+обёртки: он сам сверяет индекс с диском. `get_context_for_task` проверяет
+«сейчас» через `EnsureFresh` и догоняет индекс, остальные видят исход не
+старше TTL.
+
 ## Цена
 
 - `stale:false` значит «на момент проверки не старше TTL (в худшем случае
   MaxAge) расхождений не было». Правка, сделанная внутри окна, видна со
   следующего обхода. Тест `TestSnapshotCachedWithinTTL` закрепляет именно
   это, а не делает вид, что свежесть мгновенная.
-- Первый вызов процесса на проекте платит полный обход (на `ut_demo` вместе
-  с гидратацией корпуса несколько секунд). Так же, как `get_context_for_task`.
+- Первый вызов процесса на проекте ждёт полный обход (на `ut_demo` вместе с
+  гидратацией корпуса около 1.8 с); прогрев при открытии проекта снимает с
+  него то, что успело пройти до вызова.
+- После простоя дольше `FreshnessMaxAge` (5 мин) синхронный обход снова
+  платит первый вызов: исход часовой давности не выдаётся за свежий.
 - Синхронный обход берёт `opMu`: если в этот момент идёт ручной `reindex`,
   вызов ждёт его конца. Фоновая пересборка сюда не доходит, её ловит шаг 1.
 
@@ -97,7 +124,14 @@ read-транзакцию. Сервис переносит `Snapshot` в отв�
 `TestSnapshotStaleAfterDiskEdit` (правка модуля после индексации даёт
 `stale:true` и `stale_index` у `find_symbol`, `get_object`,
 `find_references`), `TestSnapshotCachedWithinTTL`,
-`TestSnapshotRefreshesInBackgroundAfterTTL`, `TestSnapshotFreshAfterReindex`.
+`TestSnapshotRefreshesInBackgroundAfterTTL` (сигнал `Config.OnDiskCheck`
+вместо опроса), `TestSnapshotFreshAfterReindex`,
+`TestSnapshotInvalidatedByComponentReindex`,
+`TestSnapshotInvalidatedByFailedReindex`, `TestSnapshotFreshnessCheckFailed`,
+`TestIndexStatusStaleLikeFindSymbol`, `TestProjectOpenWarmsFreshness`.
+Число обходов и `Close` посреди обхода снаружи не наблюдаемы, их держат
+тесты пакета `index` с подменой обхода: `TestCachedFreshnessSingleflight`,
+`TestCloseInterruptsBackgroundWalk`, `TestCloseInterruptsWaitForOpMu`.
 Время подменяется через `index.Config.Now`. Проверено мутацией:
 `CachedFreshness`, всегда отвечающий «свежо», красит
 `TestSnapshotStaleAfterDiskEdit` по всем трём инструментам; `FindSymbol` без

@@ -79,7 +79,7 @@ func TestRestartSeesNoChanges(t *testing.T) {
 // получает предыдущую версию парсера, остальные — текущую.
 func seedSourceFiles(t *testing.T, st *store.Store, root, staleRel string) {
 	t.Helper()
-	metas, err := discoverComponentMeta(root, nil, nil)
+	metas, err := discoverComponentMeta(context.Background(), root, nil, nil)
 	if err != nil {
 		t.Fatalf("discoverComponentMeta: %v", err)
 	}
