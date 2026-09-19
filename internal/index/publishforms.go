@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
-	"github.com/blessed2k/1C-WORKFLOW/internal/parse/meta"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
 )
 
@@ -14,19 +13,16 @@ import (
 // в чьём файле встретились эти FormDeclFact (у CommonForm это её же id —
 // «форма, которой является сам объект», meta/facts.go). Вызывается из
 // publishMetadataObject: FormDecls всегда идут вместе с Object в одном файле.
-func publishFormDecls(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID, ownerObjectID int64, decls []meta.FormDeclFact) error {
-	for _, fd := range decls {
-		formKey := formIdentityKey(in.component, fd.Key)
-		formID, err := tx.EnsureForm(store.Form{
-			IdentityKey: formKey, ComponentID: string(in.component),
-			OwnerObjectID: ownerObjectID, NameNorm: fd.NameNorm, NameDisplay: fd.NameDisplay,
-		})
+func publishFormDecls(tx *store.WriteTx, ts *txState, rel string, fileID, ownerObjectID int64, decls []store.Form) error {
+	for _, f := range decls {
+		f.OwnerObjectID = ownerObjectID
+		formID, err := tx.EnsureForm(f)
 		if err != nil {
-			return fmt.Errorf("form (decl) %s/%s: %w", rel, fd.NameNorm, err)
+			return fmt.Errorf("form (decl) %s/%s: %w", rel, f.NameNorm, err)
 		}
-		ts.nodes.remember(formKey, formID)
+		ts.nodes.remember(f.IdentityKey, formID)
 		if err := tx.PutFormDeclaration(formID, fileID); err != nil {
-			return fmt.Errorf("form_declaration %s/%s: %w", rel, fd.NameNorm, err)
+			return fmt.Errorf("form_declaration %s/%s: %w", rel, f.NameNorm, err)
 		}
 	}
 	return nil
@@ -39,59 +35,41 @@ func publishFormDecls(tx *store.WriteTx, in publishInput, ts *txState, rel strin
 // FormStructureFact.Key, meta/facts.go), а EnsureForm — безусловный upsert,
 // поэтому owner_object_id обязан совпадать с обеих сторон, иначе один аспект
 // затирал бы owner другого нулём.
-func publishFormStructure(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) error {
-	fs := rec.metaFacts.FormStructure
-	formKey := formIdentityKey(in.component, fs.Key)
-
+func publishFormStructure(tx *store.WriteTx, ts *txState, rel string, fileID int64, fp *formStructurePlan) error {
 	var ownerID int64
-	if mtype, nameNorm, ok := formOwnerFromPath(rel); ok {
-		objKey := metadataObjectIdentityKey(in.component, mtype, nameNorm)
-		if id, found, err := ts.nodes.lookup(tx, objKey); err != nil {
+	if fp.ownerKey != "" {
+		if id, found, err := ts.nodes.lookup(tx, fp.ownerKey); err != nil {
 			return fmt.Errorf("владелец формы %s: %w", rel, err)
 		} else if found {
 			ownerID = id
 		}
 	}
-
-	// Имя формы для form.name_norm/name_display: FormStructureFact их не
-	// несёт (meta/facts.go — только Elements/Commands/Handlers), берём
-	// последний сегмент имени формы из пути (тот же, что видит FormDeclFact
-	// со стороны владельца).
-	nameDisplay := formNameFromPath(rel)
-	formID, err := tx.EnsureForm(store.Form{
-		IdentityKey: formKey, ComponentID: string(in.component),
-		OwnerObjectID: ownerID, NameNorm: domain.NormalizeName(nameDisplay), NameDisplay: nameDisplay,
-	})
+	row := fp.row
+	row.OwnerObjectID = ownerID
+	formID, err := tx.EnsureForm(row)
 	if err != nil {
 		return fmt.Errorf("form (structure) %s: %w", rel, err)
 	}
-	ts.nodes.remember(formKey, formID)
+	ts.nodes.remember(fp.key, formID)
 	if err := tx.PutFormStructure(formID, fileID); err != nil {
 		return fmt.Errorf("form_structure %s: %w", rel, err)
 	}
-
-	for i, e := range fs.Elements {
-		elKey := formKey + "\x00element\x00" + itoaIndex(i) + "\x00" + e.NameNorm
-		id, err := tx.InsertFormElement(store.FormElement{
-			IdentityKey: elKey, ComponentID: string(in.component), FormID: formID, OriginFileID: fileID,
-			NameNorm: e.NameNorm, NameDisplay: e.NameDisplay, EType: e.EType, DataPath: e.DataPath,
-		})
+	for _, e := range fp.elements {
+		e.FormID, e.OriginFileID = formID, fileID
+		id, err := tx.InsertFormElement(e)
 		if err != nil {
 			return fmt.Errorf("form_element %s/%s: %w", rel, e.NameNorm, err)
 		}
-		ts.nodes.remember(elKey, id)
+		ts.nodes.remember(e.IdentityKey, id)
 		ts.counts.formElement++
 	}
-	for i, c := range fs.Commands {
-		cmdKey := formKey + "\x00command\x00" + itoaIndex(i) + "\x00" + c.NameNorm
-		id, err := tx.InsertFormCommand(store.FormCommand{
-			IdentityKey: cmdKey, ComponentID: string(in.component), FormID: formID, OriginFileID: fileID,
-			NameNorm: c.NameNorm, NameDisplay: c.NameDisplay, ActionNorm: c.ActionNorm,
-		})
+	for _, c := range fp.commands {
+		c.FormID, c.OriginFileID = formID, fileID
+		id, err := tx.InsertFormCommand(c)
 		if err != nil {
 			return fmt.Errorf("form_command %s/%s: %w", rel, c.NameNorm, err)
 		}
-		ts.nodes.remember(cmdKey, id)
+		ts.nodes.remember(c.IdentityKey, id)
 		ts.counts.formCommand++
 	}
 	return nil

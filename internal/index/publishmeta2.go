@@ -15,24 +15,15 @@ import (
 // internal/resolve не даёт готовой Derive-функции для этой формы (только для
 // обработчиков формы, DeriveHandlerBinding), а сама резолюция — join уже
 // разобранных фактов по env (resolveModuleHandler), не второй резолвер.
-func publishEventSubscription(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) error {
-	s := rec.metaFacts.Subscription
-	uid, res := resolveModuleHandler(in.env, s.HandlerRaw)
-	handlerSymbolID, err := symbolNodeIDIfResolved(tx, ts, uid, res)
+func publishEventSubscription(tx *store.WriteTx, ts *txState, rel string, fileID int64, hp *handlerPlan[store.EventSubscription]) error {
+	row := hp.row
+	row.OriginFileID = fileID
+	id, err := handlerSymbolID(tx, ts, hp.handlerKey)
 	if err != nil {
 		return fmt.Errorf("обработчик подписки %s: %w", rel, err)
 	}
-	sourceKind, sourceNameNorm := "", ""
-	if len(s.Sources) > 0 {
-		sourceKind = string(s.Sources[0].Kind)
-		sourceNameNorm = domain.NormalizeName(s.Sources[0].Name)
-	}
-	if err := tx.InsertEventSubscription(store.EventSubscription{
-		ComponentID: string(in.component), NameNorm: s.NameNorm, NameDisplay: s.NameDisplay,
-		SourceKind: sourceKind, SourceNameNorm: sourceNameNorm, Event: s.Event,
-		HandlerNameNorm: domain.NormalizeName(s.HandlerRaw), HandlerSymbolID: handlerSymbolID,
-		OriginFileID: fileID, Resolution: string(res), Layer: layerName(in.layer),
-	}); err != nil {
+	row.HandlerSymbolID = id
+	if err := tx.InsertEventSubscription(row); err != nil {
 		return err
 	}
 	ts.counts.eventSub++
@@ -41,19 +32,15 @@ func publishEventSubscription(tx *store.WriteTx, in publishInput, ts *txState, r
 
 // publishScheduledJob вставляет регламентное задание. Метод
 // ("CommonModule.Имя.Процедура") резолвится так же, как обработчик подписки.
-func publishScheduledJob(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) error {
-	j := rec.metaFacts.ScheduledJob
-	uid, res := resolveModuleHandler(in.env, j.MethodRaw)
-	handlerSymbolID, err := symbolNodeIDIfResolved(tx, ts, uid, res)
+func publishScheduledJob(tx *store.WriteTx, ts *txState, rel string, fileID int64, hp *handlerPlan[store.ScheduledJob]) error {
+	row := hp.row
+	row.OriginFileID = fileID
+	id, err := handlerSymbolID(tx, ts, hp.handlerKey)
 	if err != nil {
 		return fmt.Errorf("обработчик задания %s: %w", rel, err)
 	}
-	if err := tx.InsertScheduledJob(store.ScheduledJob{
-		ComponentID: string(in.component), NameNorm: j.NameNorm, NameDisplay: j.NameDisplay,
-		MethodNameNorm: domain.NormalizeName(j.MethodRaw), HandlerSymbolID: handlerSymbolID,
-		OriginFileID: fileID, Use: j.Use, Predefined: j.Predefined,
-		Resolution: string(res), Layer: layerName(in.layer),
-	}); err != nil {
+	row.HandlerSymbolID = id
+	if err := tx.InsertScheduledJob(row); err != nil {
 		return err
 	}
 	ts.counts.scheduledJob++
@@ -65,15 +52,13 @@ func publishScheduledJob(tx *store.WriteTx, in publishInput, ts *txState, rel st
 // ts.roleFile запоминает file_id ИМЕННО этого файла, чтобы publishRoleRights
 // (другой файл, Rights.xml) не перезаписал его чужим id — EnsureRole
 // безусловно перезаписывает file_id тем, что ему передали.
-func publishRole(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID, objID int64, rec *fileRecord) error {
-	_, err := tx.EnsureRole(store.Role{
-		ComponentID: string(in.component), NameNorm: rec.metaFacts.Role.NameNorm,
-		NameDisplay: rec.metaFacts.Role.NameDisplay, ObjectID: objID, FileID: fileID, Layer: layerName(in.layer),
-	})
-	if err != nil {
+func publishRole(tx *store.WriteTx, ts *txState, rel string, fileID, objID int64, role *store.Role) error {
+	row := *role
+	row.ObjectID, row.FileID = objID, fileID
+	if _, err := tx.EnsureRole(row); err != nil {
 		return fmt.Errorf("role %s: %w", rel, err)
 	}
-	ts.roleFile[roleCacheKey(in.component, rec.metaFacts.Role.NameNorm)] = fileID
+	ts.roleFile[roleCacheKey(domain.ComponentID(row.ComponentID), row.NameNorm)] = fileID
 	return nil
 }
 
@@ -88,31 +73,25 @@ func publishRole(tx *store.WriteTx, in publishInput, ts *txState, rel string, fi
 // узкий случай, file_id остаётся на Rights.xml вместо собственного XML роли
 // (упрощение: store не даёт прочитать существующий file_id роли без второго
 // SQL-слоя вне себя).
-func publishRoleRights(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) error {
-	rr := rec.metaFacts.RoleRights
-	key := roleCacheKey(in.component, rr.RoleNameNorm)
-	roleFileID, ok := ts.roleFile[key]
+func publishRoleRights(tx *store.WriteTx, ts *txState, rel string, fileID int64, rp *roleRightsPlan) error {
+	roleFileID, ok := ts.roleFile[rp.roleKey]
 	if !ok {
 		roleFileID = fileID
 	}
-	roleID, err := tx.EnsureRole(store.Role{
-		ComponentID: string(in.component), NameNorm: rr.RoleNameNorm,
-		NameDisplay: rr.RoleNameDisplay, FileID: roleFileID, Layer: layerName(in.layer),
-	})
+	role := rp.role
+	role.FileID = roleFileID
+	roleID, err := tx.EnsureRole(role)
 	if err != nil {
 		return fmt.Errorf("role (rights) %s: %w", rel, err)
 	}
-	ts.roleFile[key] = roleFileID
+	ts.roleFile[rp.roleKey] = roleFileID
 
-	for _, obj := range rr.Objects {
-		objID := resolveRoleObjectNode(tx, in, ts, obj.ObjectNameRaw)
-		for _, right := range obj.Rights {
-			if err := tx.InsertRoleRight(store.RoleRight{
-				RoleID: roleID, ObjectID: objID, ObjectNameNorm: domain.NormalizeName(obj.ObjectNameRaw),
-				RightName: right.Name, Value: right.Value, RLS: rlsToText(right.RLS),
-				SetForNewObject: rr.SetForNewObjects, OriginFileID: fileID,
-			}); err != nil {
-				return fmt.Errorf("role_right %s/%s/%s: %w", rel, obj.ObjectNameRaw, right.Name, err)
+	for _, obj := range rp.objects {
+		objID := resolveRoleObjectNode(tx, ts, obj.objectKey)
+		for _, right := range obj.rights {
+			right.RoleID, right.ObjectID, right.OriginFileID = roleID, objID, fileID
+			if err := tx.InsertRoleRight(right); err != nil {
+				return fmt.Errorf("role_right %s/%s/%s: %w", rel, right.ObjectNameNorm, right.RightName, err)
 			}
 			ts.counts.roleRight++
 		}
@@ -120,24 +99,41 @@ func publishRoleRights(tx *store.WriteTx, in publishInput, ts *txState, rel stri
 	return nil
 }
 
-func roleCacheKey(component domain.ComponentID, nameNorm string) string {
-	return string(component) + "\x00" + nameNorm
-}
-
-// resolveRoleObjectNode переводит "Catalog.Товары" (Rights.xml,
-// ObjectNameRaw) в node_id объекта метаданных, если он проиндексирован —
-// join уже разобранных фактов по identity, не второй парсер. 0, если объект
-// не нашёлся (soft target, §15: право без объекта не теряется).
-func resolveRoleObjectNode(tx *store.WriteTx, in publishInput, ts *txState, objectFullName string) int64 {
-	parts := strings.SplitN(objectFullName, ".", 2)
-	if len(parts) < 2 {
+// resolveRoleObjectNode переводит ключ объекта права (план строит его из
+// "Catalog.Товары" в Rights.xml, см. roleObjectKey) в node_id объекта
+// метаданных, если он проиндексирован: join уже разобранных фактов по
+// identity, не второй парсер. 0, если объект не нашёлся (soft target, §15:
+// право без объекта не теряется).
+func resolveRoleObjectNode(tx *store.WriteTx, ts *txState, objKey string) int64 {
+	if objKey == "" {
 		return 0
 	}
-	objKey := metadataObjectIdentityKey(in.component, parts[0], domain.NormalizeName(parts[1]))
 	if id, ok, err := ts.nodes.lookup(tx, objKey); err == nil && ok {
 		return id
 	}
 	return 0
+}
+
+// handlerSymbolID отдаёт id узла символа-обработчика по ключу из плана
+// (пустой ключ: resolveModuleHandler обработчик не разрешил, 0 это NULL) тем
+// же путём, что и обычные ссылки: ts.nodes для своих файлов транзакции без
+// лишнего SELECT, tx.NodeID для чужих.
+func handlerSymbolID(tx *store.WriteTx, ts *txState, key string) (int64, error) {
+	if key == "" {
+		return 0, nil
+	}
+	id, ok, err := ts.nodes.lookup(tx, key)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+	return id, nil
+}
+
+func roleCacheKey(component domain.ComponentID, nameNorm string) string {
+	return string(component) + "\x00" + nameNorm
 }
 
 // rlsToText сериализует RLS-ограничения права в компактный текст —
@@ -188,21 +184,4 @@ func resolveModuleHandler(env resolve.Env, raw string) (domain.SymbolUID, domain
 	default:
 		return "", domain.ResolutionAmbiguous
 	}
-}
-
-// symbolNodeIDIfResolved отдаёт id узла символа, если resolveModuleHandler
-// разрешил обработчик; 0 (NULL) иначе — тем же путём, что и обычные ссылки
-// (ts.nodes: свои файлы транзакции без лишнего SELECT, чужие — через tx.NodeID).
-func symbolNodeIDIfResolved(tx *store.WriteTx, ts *txState, uid domain.SymbolUID, res domain.Resolution) (int64, error) {
-	if res != domain.ResolutionResolved {
-		return 0, nil
-	}
-	id, ok, err := ts.nodes.lookupSymbol(tx, uid)
-	if err != nil {
-		return 0, err
-	}
-	if !ok {
-		return 0, nil
-	}
-	return id, nil
 }

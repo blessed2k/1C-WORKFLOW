@@ -1,7 +1,6 @@
 package index
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
@@ -33,6 +32,9 @@ type publishInput struct {
 	// флагов -graph-* через index.Config. Нулевая структура нормализуется
 	// самим дериватором.
 	tunables resolve.ObjectEdgeTunables
+
+	// workers: размер пула, строящего планы публикации (Config.Workers).
+	workers int
 
 	republish []string // отсортированные relPath, для которых нужен свежий INSERT
 	removed   []string // отсортированные relPath, чьи факты нужно только удалить
@@ -225,65 +227,83 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	// Проход 1: файлы, объекты метаданных, identity модулей, символы, формы,
 	// подписки, задания, роли — все identity-факты, что не ссылаются на
 	// символы/объекты ДРУГИХ файлов той же транзакции.
+	//
+	// План файла (planFile) строится в пуле параллельно, писатель применяет
+	// планы строго в порядке in.republish (issue #3, шаг 3).
+	pc := planContextOf(in)
 	modState := make(map[string]modulePublishState, len(in.republish))
-	for _, rel := range in.republish {
+	methodKeys := make(map[string][]string, len(in.republish))
+	err = runOrdered(in.workers, len(in.republish), func(i int) (*filePlan, error) {
+		rel := in.republish[i]
 		rec := in.corpus.files[rel]
 		if rec == nil {
-			continue
+			return nil, nil
 		}
+		return planFile(pc, rel, rec)
+	}, func(i int, p *filePlan) error {
+		if p == nil {
+			return nil
+		}
+		rel := p.rel
 		// Образ разобранного файла уже записан пулом разбора, его хэш и есть
 		// contentHash записи. В карте лежат только перечитанные файлы.
-		hash := rec.contentHash
+		hash := p.contentHash
 		if b, ok := in.blobs[rel]; ok {
+			var err error
 			if hash, err = tx.PutPreparedBlob(b); err != nil {
-				return out, fmt.Errorf("blob %s: %w", rel, err)
+				return fmt.Errorf("blob %s: %w", rel, err)
 			}
 			delete(in.blobs, rel)
 		}
 		fileID, err := tx.InsertSourceFile(store.SourceFile{
 			ComponentID: string(in.component), RelPath: rel,
-			Size: rec.size, MtimeNS: rec.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,
+			Size: p.size, MtimeNS: p.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,
 		})
 		if err != nil {
-			return out, fmt.Errorf("source_file %s: %w", rel, err)
+			return fmt.Errorf("source_file %s: %w", rel, err)
 		}
 		out.fileCount++
 		ts.fileID[rel] = fileID
 
-		for _, d := range rec.diagnostics {
+		for _, d := range p.diagnostics {
 			if err := tx.InsertDiagnostic(toStoreDiagnostic(d, fileID, string(in.component))); err != nil {
-				return out, fmt.Errorf("diagnostic %s: %w", rel, err)
+				return fmt.Errorf("diagnostic %s: %w", rel, err)
 			}
 			out.diagnostics = append(out.diagnostics, d)
 		}
 
-		if rec.metaFacts.Object != nil {
-			if err := publishMetadataObject(tx, in, ts, rel, fileID, rec); err != nil {
-				return out, err
+		if p.object != nil {
+			if err := publishMetadataObject(tx, ts, rel, fileID, p.object); err != nil {
+				return err
 			}
 		}
-		if rec.bslModule != nil {
-			st, n, diags, err := publishModuleSymbols(tx, in, ts, rel, fileID, rec)
+		if p.module != nil {
+			st, n, err := publishModuleSymbols(tx, in, ts, rel, fileID, p.module)
 			if err != nil {
-				return out, fmt.Errorf("symbols %s: %w", rel, err)
+				return fmt.Errorf("symbols %s: %w", rel, err)
 			}
 			modState[rel] = st
+			methodKeys[rel] = p.module.methodKeys
 			out.symbolCount += n
-			out.diagnostics = append(out.diagnostics, diags...)
+			out.diagnostics = append(out.diagnostics, p.module.dupDiagnostics...)
 		}
-		if rec.metaFacts.FormStructure != nil {
-			if err := publishFormStructure(tx, in, ts, rel, fileID, rec); err != nil {
-				return out, fmt.Errorf("form_structure %s: %w", rel, err)
+		if p.form != nil {
+			if err := publishFormStructure(tx, ts, rel, fileID, p.form); err != nil {
+				return fmt.Errorf("form_structure %s: %w", rel, err)
 			}
 		}
-		if rec.metaFacts.Subscription != nil {
-			if err := publishEventSubscription(tx, in, ts, rel, fileID, rec); err != nil {
-				return out, fmt.Errorf("event_subscription %s: %w", rel, err)
+		if p.subscription != nil {
+			if err := publishEventSubscription(tx, ts, rel, fileID, p.subscription); err != nil {
+				return fmt.Errorf("event_subscription %s: %w", rel, err)
 			}
 		}
-		if rec.metaFacts.RoleRights != nil {
+		if p.roleRights {
 			roleRightFileID[rel] = fileID
 		}
+		return nil
+	})
+	if err != nil {
+		return out, err
 	}
 
 	// Проход 2: ссылки и derive-факты — цели уже существуют (свои и чужие
@@ -306,35 +326,48 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 	// KEY (role_right.object_id REFERENCES metadata_object(id), не node).
 	// Публикация в проходе 2 даёт то же гарантированное «все цели этой
 	// транзакции уже вставлены», что и обычным ссылкам.
-	for _, rel := range in.republish {
+	//
+	// План прохода 2 (planLinks) тоже строится в пуле: окно runOrdered держит
+	// в памяти только планы, опередившие писателя, а не планы всего корпуса.
+	err = runOrdered(in.workers, len(in.republish), func(i int) (*linkPlan, error) {
+		rel := in.republish[i]
 		rec := in.corpus.files[rel]
 		if rec == nil {
-			continue
+			return nil, nil
 		}
-		if rec.bslModule != nil {
-			st := modState[rel]
-			ownerDiags, err := publishModuleOwner(tx, in, ts, rel, rec, st)
+		return planLinks(pc, rel, rec, methodKeys[rel]), nil
+	}, func(i int, lp *linkPlan) error {
+		if lp == nil {
+			return nil
+		}
+		rel := lp.rel
+		if st, ok := modState[rel]; ok {
+			ownerDiags, err := publishModuleOwner(tx, in, ts, rel, lp, st)
 			if err != nil {
-				return out, err
+				return err
 			}
 			out.diagnostics = append(out.diagnostics, ownerDiags...)
-			if err := publishModuleReferences(tx, in, ts, rel, st); err != nil {
-				return out, fmt.Errorf("references %s: %w", rel, err)
+			if err := publishModuleReferences(tx, ts, st, lp.refs); err != nil {
+				return fmt.Errorf("references %s: %w", rel, err)
 			}
-			if err := publishDerivedModuleFacts(tx, in, ts, rel, st); err != nil {
-				return out, fmt.Errorf("derived %s: %w", rel, err)
-			}
-		}
-		if rec.metaFacts.FormStructure != nil {
-			if err := publishHandlerBindingsForForm(tx, in, ts, rel, rec); err != nil {
-				return out, fmt.Errorf("handler_binding %s: %w", rel, err)
+			if err := publishDerivedModuleFacts(tx, in, ts, rel, st, lp); err != nil {
+				return fmt.Errorf("derived %s: %w", rel, err)
 			}
 		}
-		if rec.metaFacts.RoleRights != nil {
-			if err := publishRoleRights(tx, in, ts, rel, roleRightFileID[rel], rec); err != nil {
-				return out, fmt.Errorf("role_rights %s: %w", rel, err)
+		if lp.handlers != nil {
+			if err := publishHandlerBindingsForForm(tx, ts, rel, lp.handlers); err != nil {
+				return fmt.Errorf("handler_binding %s: %w", rel, err)
 			}
 		}
+		if lp.roleRights != nil {
+			if err := publishRoleRights(tx, ts, rel, roleRightFileID[rel], lp.roleRights); err != nil {
+				return fmt.Errorf("role_rights %s: %w", rel, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return out, err
 	}
 	if err := publishDependencyEdges(tx, in, ts); err != nil {
 		return out, fmt.Errorf("dependency_edge: %w", err)
@@ -358,74 +391,45 @@ func toStoreDiagnostic(d domain.Diagnostic, fileID int64, componentID string) st
 // построенную по платформенной конвенции пути (см. commonModuleBSLPath):
 // правка ТОЛЬКО XML общего модуля не трогает source_file его Module.bsl,
 // поэтому identity модуля и symbol_uid не меняются (R32.3).
-func publishMetadataObject(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) error {
-	obj := rec.metaFacts.Object
-	objKey := metadataObjectIdentityKey(in.component, obj.MType, obj.NameNorm)
-	propsJSON, err := json.Marshal(obj.Props)
-	if err != nil {
-		return fmt.Errorf("props %s: %w", rel, err)
-	}
-	objID, err := tx.EnsureMetadataObject(store.MetadataObject{
-		IdentityKey: objKey, ComponentID: string(in.component), UUID: obj.UUID, MType: obj.MType,
-		NameNorm: obj.NameNorm, NameDisplay: obj.NameDisplay, Synonym: obj.Synonym,
-		FileID: fileID, PropsJSON: string(propsJSON), Layer: layerName(in.layer),
-	})
+func publishMetadataObject(tx *store.WriteTx, ts *txState, rel string, fileID int64, op *objectPlan) error {
+	row := op.row
+	row.FileID = fileID
+	objID, err := tx.EnsureMetadataObject(row)
 	if err != nil {
 		return fmt.Errorf("metadata_object %s: %w", rel, err)
 	}
-	ts.nodes.remember(objKey, objID)
-	for _, m := range rec.metaFacts.Members {
-		typesJSON, err := json.Marshal(m.Types)
-		if err != nil {
-			return fmt.Errorf("member types %s: %w", rel, err)
-		}
-		memberKey := metadataMemberIdentityKey(objKey, m)
-		memberID, err := tx.InsertMetadataMember(store.MetadataMember{
-			IdentityKey: memberKey, ComponentID: string(in.component),
-			ObjectID: objID, OriginFileID: fileID, Kind: m.Kind, NameNorm: m.NameNorm,
-			NameDisplay: m.NameDisplay, TypesJSON: string(typesJSON),
-		})
+	ts.nodes.remember(op.key, objID)
+	for _, m := range op.members {
+		m.ObjectID, m.OriginFileID = objID, fileID
+		memberID, err := tx.InsertMetadataMember(m)
 		if err != nil {
 			return fmt.Errorf("metadata_member %s/%s: %w", rel, m.NameNorm, err)
 		}
-		ts.nodes.remember(memberKey, memberID)
+		ts.nodes.remember(m.IdentityKey, memberID)
 	}
-	if len(rec.metaFacts.FormDecls) > 0 {
-		if err := publishFormDecls(tx, in, ts, rel, fileID, objID, rec.metaFacts.FormDecls); err != nil {
+	if len(op.formDecls) > 0 {
+		if err := publishFormDecls(tx, ts, rel, fileID, objID, op.formDecls); err != nil {
 			return err
 		}
 	}
-	if obj.MType == "ScheduledJob" && rec.metaFacts.ScheduledJob != nil {
-		if err := publishScheduledJob(tx, in, ts, rel, fileID, rec); err != nil {
+	if op.scheduledJob != nil {
+		if err := publishScheduledJob(tx, ts, rel, fileID, op.scheduledJob); err != nil {
 			return fmt.Errorf("scheduled_job %s: %w", rel, err)
 		}
 	}
-	if obj.MType == "Role" && rec.metaFacts.Role != nil {
-		if err := publishRole(tx, in, ts, rel, fileID, objID, rec); err != nil {
+	if op.role != nil {
+		if err := publishRole(tx, ts, rel, fileID, objID, op.role); err != nil {
 			return fmt.Errorf("role %s: %w", rel, err)
 		}
 	}
-
-	if obj.MType == "CommonModule" && rec.metaFacts.ModuleRegistry != nil {
-		bslPath := commonModuleBSLPath(obj.NameDisplay)
-		// Та же строка module, что напишет publishModuleSymbols, когда до
-		// Module.bsl этого общего модуля дойдёт очередь: EnsureModule —
-		// безусловный upsert по всем колонкам, поэтому обе точки идут
-		// через moduleRecord. ModuleInfo здесь собирается из объекта, а не
-		// из пути: XML владельца — единственный источник NameDisplay, и
-		// владелец у общего модуля это он сам.
-		moduleID, err := tx.EnsureModule(moduleRecord(in, bslPath, bsl.ModuleInfo{
-			Kind: bsl.ModuleCommon, OwnerType: "CommonModules",
-			OwnerName: obj.NameDisplay, OwnerNameNorm: obj.NameNorm,
-		}, objID))
+	if op.commonModule != nil {
+		m := *op.commonModule
+		m.OwnerObjectID = objID
+		moduleID, err := tx.EnsureModule(m)
 		if err != nil {
 			return fmt.Errorf("module (common, XML) %s: %w", rel, err)
 		}
-		propsJSON, err := json.Marshal(rec.metaFacts.ModuleRegistry)
-		if err != nil {
-			return fmt.Errorf("module_context props %s: %w", rel, err)
-		}
-		if err := tx.PutModuleContext(moduleID, fileID, string(propsJSON)); err != nil {
+		if err := tx.PutModuleContext(moduleID, fileID, op.commonModuleProps); err != nil {
 			return fmt.Errorf("module_context %s: %w", rel, err)
 		}
 	}
@@ -437,9 +441,9 @@ func publishMetadataObject(tx *store.WriteTx, in publishInput, ts *txState, rel 
 // проход 2 с владельцем): EnsureModule — безусловный upsert по всем
 // колонкам, поэтому разошедшиеся литералы затирали бы поля друг друга
 // (тот же довод, что у формы в publishforms.go).
-func moduleRecord(in publishInput, rel string, info bsl.ModuleInfo, ownerObjectID int64) store.Module {
+func moduleRecord(component domain.ComponentID, rel string, info bsl.ModuleInfo, ownerObjectID int64) store.Module {
 	return store.Module{
-		IdentityKey: moduleIdentityKey(in.component, rel), ComponentID: string(in.component),
+		IdentityKey: moduleIdentityKey(component, rel), ComponentID: string(component),
 		Kind: string(info.Kind), OwnerObjectID: ownerObjectID,
 		NameNorm: info.OwnerNameNorm, NameDisplay: info.OwnerName,
 	}
@@ -451,7 +455,7 @@ func moduleRecord(in publishInput, rel string, info bsl.ModuleInfo, ownerObjectI
 // владельца ждёт того же «после прохода 1», по которому уже живут
 // register_access, handler_binding, query_reference и dependency_edge.
 //
-// Три исхода, и они разные:
+// Три исхода, и они разные (план строит planModuleOwner):
 //   - OwnerNameNorm пуст — модуль приложения, сеанса или внешнего
 //     соединения: он лежит вне коллекции выгрузки (bsl.ClassifyModule),
 //     объекта-владельца у него нет, NULL это правильный ответ;
@@ -471,31 +475,27 @@ func moduleRecord(in publishInput, rel string, info bsl.ModuleInfo, ownerObjectI
 // Диагностика возвращается вызывающему тем же путём, что и у
 // publishModuleSymbols: вставляется здесь, а в ComponentResult.Diagnostics
 // её добавляет publishFiles.
-func publishModuleOwner(tx *store.WriteTx, in publishInput, ts *txState, rel string, rec *fileRecord, st modulePublishState) ([]domain.Diagnostic, error) {
-	info := rec.moduleInfo
-	if info.OwnerNameNorm == "" {
-		return nil, nil
-	}
-	mtype, known := ownerTypeToMType(info.OwnerType)
-	if !known {
-		diag := domain.Diagnostic{
-			Code: "index_module_owner_unknown_collection", Severity: domain.SeverityWarning,
-			Message: fmt.Sprintf("коллекция выгрузки %q не переводится в вид объекта метаданных — владелец модуля не определён", info.OwnerType),
-			File:    rel,
-		}
+func publishModuleOwner(tx *store.WriteTx, in publishInput, ts *txState, rel string, lp *linkPlan, st modulePublishState) ([]domain.Diagnostic, error) {
+	if lp.ownerDiagnostic != nil {
+		diag := *lp.ownerDiagnostic
 		if err := tx.InsertDiagnostic(toStoreDiagnostic(diag, st.fileID, string(in.component))); err != nil {
 			return nil, fmt.Errorf("diagnostic (владелец модуля) %s: %w", rel, err)
 		}
 		return []domain.Diagnostic{diag}, nil
 	}
-	ownerID, found, err := ts.nodes.lookup(tx, metadataObjectIdentityKey(in.component, mtype, info.OwnerNameNorm))
+	if lp.ownerKey == "" {
+		return nil, nil
+	}
+	ownerID, found, err := ts.nodes.lookup(tx, lp.ownerKey)
 	if err != nil {
 		return nil, fmt.Errorf("владелец модуля %s: %w", rel, err)
 	}
 	if !found {
 		return nil, nil
 	}
-	if _, err := tx.EnsureModule(moduleRecord(in, rel, info, ownerID)); err != nil {
+	m := lp.ownerModule
+	m.OwnerObjectID = ownerID
+	if _, err := tx.EnsureModule(m); err != nil {
 		return nil, fmt.Errorf("module (владелец) %s: %w", rel, err)
 	}
 	return nil, nil
@@ -524,76 +524,46 @@ func layerName(l domain.Layer) string {
 // путём, каким уже идёт rec.diagnostics (publishFiles, до вызова этой
 // функции), чтобы ComponentResult.Diagnostics не занижал то, что реально
 // осело в store (см. reactivation_test.go, doc-комментарий находки).
-func publishModuleSymbols(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, rec *fileRecord) (modulePublishState, int, []domain.Diagnostic, error) {
+func publishModuleSymbols(tx *store.WriteTx, in publishInput, ts *txState, rel string, fileID int64, mp *modulePlan) (modulePublishState, int, error) {
 	// Владелец здесь ещё не известен: его объект метаданных может
 	// публиковаться позже своего Module.bsl в том же проходе 1. Колонку
 	// дописывает publishModuleOwner после прохода 1.
-	moduleID, err := tx.EnsureModule(moduleRecord(in, rel, rec.moduleInfo, 0))
+	moduleID, err := tx.EnsureModule(mp.module)
 	if err != nil {
-		return modulePublishState{}, 0, nil, fmt.Errorf("module: %w", err)
+		return modulePublishState{}, 0, fmt.Errorf("module: %w", err)
 	}
 	if err := tx.PutModuleCode(moduleID, fileID); err != nil {
-		return modulePublishState{}, 0, nil, fmt.Errorf("module_code: %w", err)
+		return modulePublishState{}, 0, fmt.Errorf("module_code: %w", err)
 	}
-
-	symbols := buildSymbols(in.project, in.component, in.layer, rel, rec.bslModule)
-	st := modulePublishState{fileID: fileID, moduleID: moduleID, methodSymbolID: make(map[int]int64, len(rec.bslModule.Methods))}
-	// insertedByUID — дедупликация по symbol_uid внутри файла: реальная
-	// выгрузка содержит методы/переменные, объявленные дважды под взаимно
-	// исключающими ветками #Если/#Иначе (например, обычное и управляемое
-	// приложение) — компилируется ровно одна ветка, но парсер (таск 05)
-	// видит обе текстово, и domain.NewSymbolUID сознательно не включает
-	// span (§14: uid = hash(project,component,module_path,name_norm)).
-	// Без дедупликации node.identity_key/symbol.id ловят UNIQUE constraint
-	// (найдено на реальной выгрузке ut_demo). Упрощение: побеждает первое
-	// по тексту файла объявление, остальные помечаются diagnostic и не
-	// получают своей строки symbol — их вызовы резолвятся на ту же id.
-	insertedByUID := make(map[domain.SymbolUID]int64, len(symbols))
-	var diags []domain.Diagnostic
-	for i, sym := range symbols {
-		if dupID, dup := insertedByUID[sym.UID]; dup {
-			diag := domain.Diagnostic{
-				Code: "index_duplicate_symbol_uid", Severity: domain.SeverityWarning,
-				Message: fmt.Sprintf("имя %q объявлено в файле повторно (вероятно, взаимоисключающие ветки #Если) — учтено первое объявление", sym.NameDisplay),
-				File:    rel, Span: sym.Span,
-			}
-			// Диагностики файла уже вставлены раньше (publishFiles, проход
-			// 1, до вызова этой функции) — эта обнаруживается только здесь,
-			// поэтому вставляется отдельно, а не через rec.diagnostics. В
-			// возвращаемый diags кладём наравне с rec.diagnostics — вызывающий
-			// (publishFiles) добавит их в out.diagnostics тем же путём.
-			if err := tx.InsertDiagnostic(toStoreDiagnostic(diag, fileID, string(in.component))); err != nil {
-				return modulePublishState{}, 0, nil, fmt.Errorf("diagnostic (duplicate symbol) %s: %w", rel, err)
-			}
-			diags = append(diags, diag)
-			if i < len(rec.bslModule.Methods) {
-				st.methodSymbolID[i] = dupID
-			}
-			continue
-		}
-		id, err := tx.InsertSymbol(store.Symbol{
-			IdentityKey: symbolIdentityKey(sym.UID), ComponentID: string(in.component), UID: string(sym.UID),
-			ModuleID: moduleID, OriginFileID: fileID, Kind: string(sym.Kind), NameNorm: sym.NameNorm,
-			NameDisplay: sym.NameDisplay, IsExport: sym.Export, Directive: sym.Directive, IsAsync: sym.Async,
-			Span: sym.Span, Signature: signatureOf(sym),
-		})
+	st := modulePublishState{fileID: fileID, moduleID: moduleID, methodSymbolID: make(map[int]int64, len(mp.methodKeys))}
+	for _, sp := range mp.symbols {
+		row := sp.row
+		row.ModuleID, row.OriginFileID = moduleID, fileID
+		id, err := tx.InsertSymbol(row)
 		if err != nil {
-			return modulePublishState{}, 0, nil, fmt.Errorf("symbol %s: %w", sym.NameDisplay, err)
+			return modulePublishState{}, 0, fmt.Errorf("symbol %s: %w", row.NameDisplay, err)
 		}
-		insertedByUID[sym.UID] = id
-		ts.nodes.remember(symbolIdentityKey(sym.UID), id)
-		for _, p := range sym.Params {
-			if err := tx.InsertParameter(id, store.Parameter{
-				Ord: p.Index, Name: p.NameDisplay, ByVal: p.ByValue, DefaultExpr: p.Default,
-			}); err != nil {
-				return modulePublishState{}, 0, nil, fmt.Errorf("parameter %s: %w", p.NameDisplay, err)
+		ts.nodes.remember(row.IdentityKey, id)
+		for _, p := range sp.params {
+			if err := tx.InsertParameter(id, p); err != nil {
+				return modulePublishState{}, 0, fmt.Errorf("parameter %s: %w", p.Name, err)
 			}
 		}
-		if i < len(rec.bslModule.Methods) {
+	}
+	// Диагностики файла уже вставлены раньше (publishFiles, проход 1, до
+	// вызова этой функции): повторы symbol_uid обнаруживает только план
+	// модуля, поэтому они вставляются отдельно, а не через rec.diagnostics.
+	for _, d := range mp.dupDiagnostics {
+		if err := tx.InsertDiagnostic(toStoreDiagnostic(d, fileID, string(in.component))); err != nil {
+			return modulePublishState{}, 0, fmt.Errorf("diagnostic (duplicate symbol) %s: %w", rel, err)
+		}
+	}
+	for i, key := range mp.methodKeys {
+		if id, ok := ts.nodes.byKey[key]; ok {
 			st.methodSymbolID[i] = id
 		}
 	}
-	return st, len(insertedByUID), diags, nil
+	return st, len(mp.symbols), nil
 }
 
 // signatureOf собирает короткую сигнатуру символа для FTS/выдачи —
@@ -628,39 +598,26 @@ func refCallMethodIndexes(mod *bsl.Module) []int {
 }
 
 // publishModuleReferences вставляет reference/call_edge/reference_candidate/
-// resolution_dep файла rel. Требует, чтобы символы ВСЕХ файлов транзакции
-// (не только rel) были уже вставлены — иначе ссылка на символ соседнего
+// resolution_dep файла. Требует, чтобы символы ВСЕХ файлов транзакции
+// (не только этого) были уже вставлены, иначе ссылка на символ соседнего
 // файла той же транзакции не найдёт свою цель.
-func publishModuleReferences(tx *store.WriteTx, in publishInput, ts *txState, rel string, st modulePublishState) error {
-	rec := in.corpus.files[rel]
-	refs := in.resolve[rel]
-	methodOf := refCallMethodIndexes(rec.bslModule)
-	for i, rr := range refs {
+func publishModuleReferences(tx *store.WriteTx, ts *txState, st modulePublishState, refs []refPlan) error {
+	for i := range refs {
+		rp := &refs[i]
 		var callerSymbolID int64
-		if i < len(methodOf) {
-			if id, ok := st.methodSymbolID[methodOf[i]]; ok {
-				callerSymbolID = id
-			}
+		if rp.callerKey != "" {
+			callerSymbolID = ts.nodes.byKey[rp.callerKey]
 		}
-		refID, targetSymbolID, err := publishReference(tx, in, ts, st.fileID, callerSymbolID, rr)
+		refID, targetSymbolID, err := publishReference(tx, ts, st.fileID, callerSymbolID, rp)
 		if err != nil {
 			return fmt.Errorf("reference: %w", err)
 		}
 		if callerSymbolID != 0 {
-			kind := rr.result.CallKind
-			if kind == "" {
-				// FormQualifiedModule на неопознанном квалификаторе
-				// (resolve.resolveModuleCall, ветка dynamic) не
-				// проставляет CallKind — резолвер посчитал это вне
-				// рамок §15 call_edge.kind, здесь ближайший подходящий
-				// смысл готового словаря resolve.CallEdgeKind.
-				kind = resolve.CallDynamic
-			}
 			if err := tx.InsertCallEdge(store.CallEdge{
 				CallerID: callerSymbolID, CalleeID: targetSymbolID,
-				CalleeNameNorm: rr.raw.NameNorm, QualifierNorm: rr.raw.QualifierNorm,
-				Kind: string(kind), Resolution: string(rr.result.Resolution),
-				Confidence: float64(rr.result.Confidence), RefID: refID,
+				CalleeNameNorm: rp.row.NameNorm, QualifierNorm: rp.row.QualifierNorm,
+				Kind: rp.callKind, Resolution: rp.row.Resolution,
+				Confidence: rp.row.Confidence, RefID: refID,
 			}); err != nil {
 				return fmt.Errorf("call_edge: %w", err)
 			}
@@ -675,52 +632,39 @@ func publishModuleReferences(tx *store.WriteTx, in publishInput, ts *txState, re
 // ищется по identity — кандидат без узла (символ ещё не проиндексирован в
 // этой транзакции — не должно случаться после двухпроходной публикации, но
 // защита дешева) пропускается: сам факт ambiguous от этого не рушится.
-func publishReference(tx *store.WriteTx, in publishInput, ts *txState, fileID, callerSymbolID int64, rr resolvedRef) (refID int64, targetSymbolID int64, err error) {
-	r := store.Reference{
-		FileID: fileID, FromSymbolID: callerSymbolID, Kind: "call",
-		QualifierNorm: rr.raw.QualifierNorm, NameNorm: rr.raw.NameNorm,
-		Resolution: string(rr.result.Resolution), Confidence: float64(rr.result.Confidence),
-		Layer: layerName(in.layer), Span: rr.raw.Span,
-	}
-	if rr.result.Resolution == domain.ResolutionResolved {
-		switch rr.result.TargetClass {
-		case domain.TargetSymbol:
-			id, ok, lookupErr := ts.nodes.lookupSymbol(tx, rr.result.TargetUID)
-			if lookupErr != nil {
-				return 0, 0, lookupErr
-			}
-			if ok {
-				r.TargetClass = "symbol"
-				r.TargetSymbolID = id
-				targetSymbolID = id
-			} else {
-				r.Resolution = string(domain.ResolutionUnresolved)
-			}
-		case domain.TargetPlatform:
-			r.TargetClass = "platform"
-			r.PlatformKey = rr.result.TargetKey
+func publishReference(tx *store.WriteTx, ts *txState, fileID, callerSymbolID int64, rp *refPlan) (refID int64, targetSymbolID int64, err error) {
+	r := rp.row
+	r.FileID, r.FromSymbolID = fileID, callerSymbolID
+	if rp.targetKey != "" {
+		id, ok, lookupErr := ts.nodes.lookup(tx, rp.targetKey)
+		if lookupErr != nil {
+			return 0, 0, lookupErr
+		}
+		if ok {
+			r.TargetClass = "symbol"
+			r.TargetSymbolID = id
+			targetSymbolID = id
+		} else {
+			r.Resolution = string(domain.ResolutionUnresolved)
 		}
 	}
 	refID, err = tx.InsertReference(r)
 	if err != nil {
 		return 0, 0, err
 	}
-	for i, c := range rr.result.Candidates {
-		if c.TargetClass != domain.TargetSymbol {
-			continue
-		}
-		nodeID, ok, lookupErr := ts.nodes.lookupSymbol(tx, c.TargetUID)
+	for _, c := range rp.candidates {
+		nodeID, ok, lookupErr := ts.nodes.lookup(tx, c.key)
 		if lookupErr != nil {
 			return 0, 0, lookupErr
 		}
 		if !ok {
 			continue
 		}
-		if err := tx.InsertReferenceCandidate(refID, nodeID, i+1, c.Reason); err != nil {
+		if err := tx.InsertReferenceCandidate(refID, nodeID, c.rank, c.reason); err != nil {
 			return 0, 0, err
 		}
 	}
-	for _, k := range rr.result.ConsultedKeys {
+	for _, k := range rp.consulted {
 		if err := tx.InsertResolutionDep(string(k), refID); err != nil {
 			return 0, 0, err
 		}

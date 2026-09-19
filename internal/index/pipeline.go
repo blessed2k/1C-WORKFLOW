@@ -276,6 +276,7 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 		project: project, component: comp.ID, layer: layer,
 		corpus: corpus, blobs: blobs, resolve: corpus.resolved, env: env,
 		tunables:  cfg.GraphTunables,
+		workers:   workers,
 		republish: republish, removed: removed,
 	})
 	if err != nil {
