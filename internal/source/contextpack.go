@@ -4,16 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"regexp"
 )
-
-// reExport captures the header of an exported procedure/function, including an
-// optional Асинх (async, 8.3.18+) modifier. This is a heuristic, not a parser:
-// [^)]* stops at the first ")", so a ")" inside a comment or string literal
-// within a multi-line parameter list would truncate the captured header early.
-// Such cases are rare in real exported signatures; extractExports surfaces the
-// public interface for context, exactness is not required.
-var reExport = regexp.MustCompile(`(?im)^\s*(?:Асинх\s+)?(Процедура|Функция)\s+([\p{L}\d_]+\s*\([^)]*\))\s+Экспорт`)
 
 // ContextPack aggregates everything needed to work on one object in a single
 // call: its structure, the exported interface of its object/manager modules, and
@@ -138,20 +129,16 @@ func (s *XMLSource) formBrief(ctx context.Context, objectType, name, form string
 }
 
 // extractExports returns the headers of exported procedures/functions of a BSL
-// module, e.g. "Процедура НайтиКонтрагента(ИНН)".
+// module, e.g. "Процедура НайтиКонтрагента(ИНН)". The declarations come from the
+// parser, so a header wrapped over several lines, a comment inside it and the
+// English spelling (Procedure ... Export) read the same as a Russian one-liner.
 func extractExports(module string) []string {
+	mod := parseModule(module)
 	var out []string
-	for _, m := range reExport.FindAllStringSubmatch(module, -1) {
-		out = append(out, m[1]+" "+normalizeSpaces(m[2]))
+	for _, m := range mod.Methods {
+		if m.Export {
+			out = append(out, declarationOf(mod, m).header())
+		}
 	}
 	return out
-}
-
-// reSpaces matches internal whitespace runs.
-var reSpaces = regexp.MustCompile(`\s+`)
-
-// normalizeSpaces collapses internal whitespace runs to single spaces, so a
-// multi-line parameter list becomes one line.
-func normalizeSpaces(s string) string {
-	return reSpaces.ReplaceAllString(s, " ")
 }

@@ -195,53 +195,27 @@ func scorePoint(p ExtensionPoint, terms []string) int {
 //
 // A declaration may span several lines: when the parameters are wrapped, the
 // Экспорт keyword ends up on a later line. Looking for it on the header line
-// alone lost 197 of the 3320 points in УТ, silently — including the whole
-// "интеграция с сайтом" group.
+// alone lost 197 of the 3320 points in УТ, silently, including the whole
+// "интеграция с сайтом" group. The parser reads the declaration whole, with
+// comments and string literals already cut, in both spellings of the language.
 func parseExportedProcedures(module string) []ExtensionPoint {
 	lines := strings.Split(module, "\n")
+	mod := parseModule(module)
 	var out []ExtensionPoint
-	for i := 0; i < len(lines); i++ {
-		line := strings.TrimRight(lines[i], "\r")
-		h := reMethodHead.FindStringSubmatch(line)
-		if h == nil {
+	for _, m := range mod.Methods {
+		if !m.Export {
 			continue
 		}
-		decl, end := declaration(lines, i)
-		if !reExportKeyword.MatchString(decl) {
-			continue
-		}
+		line := m.NameSpan.StartLine
 		out = append(out, ExtensionPoint{
-			Procedure:   h[2],
-			Line:        i + 1,
-			Signature:   strings.Join(strings.Fields(decl), " "),
-			Summary:     docSummary(lines, i),
-			Implemented: hasBody(lines, end),
+			Procedure:   m.Name,
+			Line:        line,
+			Signature:   declarationOf(mod, m).signature(),
+			Summary:     docSummary(lines, line-1),
+			Implemented: hasBody(spanText(mod, m.BodySpan.StartByte, m.BodySpan.EndByte)),
 		})
 	}
 	return out
-}
-
-// reExportKeyword matches the Экспорт keyword as a word, outside a comment. The
-// declaration text passed to it is already comment-free.
-var reExportKeyword = regexp.MustCompile(`(?i)(?:^|[^\p{L}\d_])(?:Экспорт|Export)(?:[^\p{L}\d_]|$)`)
-
-// declaration collects the whole declaration starting at line i: the header plus
-// any wrapped parameter lines, up to and including the line that closes the
-// parameter list. Comments are stripped, so a trailing "// не экспорт" cannot be
-// mistaken for the keyword. Returns the text and the index of its last line.
-func declaration(lines []string, i int) (string, int) {
-	var b strings.Builder
-	depth := 0
-	for j := i; j < len(lines) && j < i+20; j++ {
-		line := stripLineComment(strings.TrimRight(lines[j], "\r"))
-		b.WriteString(line)
-		b.WriteByte(' ')
-		depth += strings.Count(line, "(") - strings.Count(line, ")")
-		if depth <= 0 && strings.Contains(line, ")") {
-			return b.String(), j
-		}
-	}
-	return b.String(), i
 }
 
 // docSummary returns the first meaningful line of the comment block directly
@@ -272,20 +246,16 @@ func docSummary(lines []string, i int) string {
 	return ""
 }
 
-// hasBody reports whether the method whose declaration ends at index i has any
-// logic in it, as opposed to being an empty БСП stub.
+// hasBody reports whether a method body has any logic in it, as opposed to
+// being an empty БСП stub.
 //
 // A bare "Возврат;" is a stub too: it is how БСП writes an empty procedure that
 // must not fall through. Counting it as implemented mislabelled 195 points in
 // УТ, each of them telling the caller to go and read code that is not there.
 // A function returning a value ("Возврат Ложь;") is logic and stays implemented.
-func hasBody(lines []string, i int) bool {
-	for j := i + 1; j < len(lines); j++ {
-		raw := strings.TrimRight(lines[j], "\r")
-		if isMethodEnd(raw) || reMethodHead.MatchString(raw) {
-			return false
-		}
-		text := strings.TrimSpace(stripLineComment(raw))
+func hasBody(body string) bool {
+	for _, raw := range strings.Split(body, "\n") {
+		text := strings.TrimSpace(stripLineComment(strings.TrimRight(raw, "\r")))
 		if text == "" || reBareReturn.MatchString(text) {
 			continue
 		}
