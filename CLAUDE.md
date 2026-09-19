@@ -101,7 +101,7 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/index/publish.go`, `publishderive.go`, `publishmeta2.go`, `publishforms.go` — публикация фактов в store; `publishModuleOwner` дописывает `module.owner_object_id` после прохода 1
 - `internal/index/plan.go`: чистые `planFile` (проход 1) и `planLinks` (проход 2) строят строки файла на identity_key без id и без SQLite, `publishXxx` только применяют план; `ordered.go`: `runOrdered` строит планы в пуле и отдаёт их единственному писателю строго по порядку файлов, окно `orderedWindow` ограничивает память (issue #3)
 - `internal/store/batch.go`: многострочные INSERT листовых таблиц (`txBatches`), `conn.go`: кэш `Prepare` на write-транзакцию (`stmtCache`)
-- `internal/store/inbound.go`: `InboundPointers`/`RestoreInboundPointers`, указатели нетронутых файлов на узлы переопубликуемых файлов снимаются до удаления и возвращаются после прохода 1 (ADR-037); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
+- `internal/store/inbound.go`: `ReplaceSourceFiles(fileIDs, insert)`, единственный путь переопубликования: снимок указателей нетронутых файлов на узлы переопубликуемых во `temp.inbound_ptr`, `DeleteSourceFiles`, `insert` (проход 1), возврат указателей узлам с прежним id (ADR-037); `staleNodes` общий с шагом (1b); `inboundKinds` обязан покрывать все `ON DELETE SET NULL` на symbol/metadata_object/metadata_member (`TestInboundKindsCoverSetNullColumns`)
 - `internal/store/store.go`, `tx.go`, `schema.go` — `Open/Read/Write/Rebuild/Status`, контракт `ReadTx`/`WriteTx`
 - `internal/store/retrieve_read.go`, `read_symbol.go`, `readdiagnostic.go` — выборки для `retrieve`/`app`, в т.ч. `SourceFilesByComponent`
 - `internal/resolve/*.go` — `NewEnv`, `Resolve`, `Derive*`; `layer.go` — `ParseInterceptAnnotation`, `DeriveIntercepts` (второе значение — диагностики), `DetectInsteadConflicts`, `DiagInterceptTargetUnknown`
@@ -485,9 +485,12 @@ guard по корпусу, сервер без файла индекса син�
   `Documents/X/X.xml` не бывает. Фикстура с выдуманной раскладкой маскирует дефекты
   `objectModuleDir`: тест зелёный, а на реальной выгрузке находится обработчик проведения
   ЧУЖОГО документа. Пути брать из `workspace.Dump*` (ADR-033).
-- Шаг миграции без DDL с `needsFullRebuild` — способ объявить СОДЕРЖИМОЕ индексов прежней
+- Шаг миграции без DDL с `needsFullRebuild`: способ объявить СОДЕРЖИМОЕ индексов прежней
   версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
   указатели нетронутых файлов на пересозданные узлы). `ParserVersion` ради этого не поднимать.
+  Переключение бинарника `main` (схема 2) и схемы 3 на одном `--projects-root` каждый раз
+  стоит полной пересборки: схема 3 требует её у эпохи версии 2, а `main` на эпохе версии 3
+  заводит новую пустую эпоху.
 - **Подъём `ParserVersion` — это полная пересборка индекса каждого проекта.** Файл со старым
   `parser_version` считается изменённым; пока проект не пересобран, он честно считает себя
   устаревшим, пока его не переиндексируют. Не поднять версию хуже: индекс молча отдаёт факты
