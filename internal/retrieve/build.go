@@ -79,17 +79,15 @@ func buildWithSymbols(ctx context.Context, tx *store.ReadTx, symbols symbolFinde
 
 	var warnings []Warning
 	if view == domain.ViewEffective && !effectiveAwareIntent(intent.Primary) {
-		// Честная граница покрытия (D08 п.4): effective сегодня учитывает
-		// перехватчики расширений только там, где typed expansion строит
-		// definition-подобный факт по конкретному символу/обработчику
-		// (bugfix/unknown, signature-change, form, posting) — register/query/
-		// rights/add-attribute остаются построены как raw, это НЕ забытый
-		// случай, а честно названный предел этой волны (см. handoff/CLAUDE
-		// правку JSON-схемы cmd/mcp1c/idx_context.go).
+		// Честная граница покрытия (D08 п.4): предупреждение получает intent,
+		// чей builder наложение слоёв не консультирует. После ADR-035 все
+		// intent с собственной картой категорий effective-aware; сюда попадают
+		// только intent вне effectiveAwareIntent (exchange/extension делят
+		// builder с bugfix, но в список не внесены, см. ADR-035 «Остаток»).
 		warnings = append(warnings, Warning{
 			Code: "effective_view_partial_coverage",
 			Message: fmt.Sprintf(
-				"view=effective учитывает перехватчики расширений для intent bugfix/unknown/signature-change/form/posting — для классифицированного intent %q этот вызов по-прежнему построен как raw",
+				"view=effective учитывает расширения для intent bugfix/unknown/signature-change/form/posting/register/query/rights/add-attribute; для классифицированного intent %q этот вызов по-прежнему построен как raw",
 				intent.Primary),
 			Hint: "перехватчики конкретного модуля/объекта смотрите отдельно: get_symbol/get_object/get_module_structure с view=effective",
 		})
@@ -247,18 +245,19 @@ func expandForAnchor(bctx *buildCtx, intent string, a Anchor) ([]*candidate, []W
 }
 
 // effectiveAwareIntent — интенты, у которых typed expansion (expand.go/
-// expand2.go) реально консультируется с internal/resolve при view=effective
+// expand2.go) реально консультируется с наложением слоёв при view=effective
 // (D08 п.4а/4б): bugfix/unknown и signature-change — "interceptors" на
 // definition-анкере (effective.go:effectiveSignatureInterceptors), form —
 // "handler_intercepts" на обработчике формы, posting —
 // "posting_handler_intercepts" плюс движения самих перехватчиков на
 // обработчике проведения (effective.go:effectivePostingIntercepts, П2.1/R22).
-// register/query/rights/add-attribute намеренно не входят — честно объявлено
-// эффективным пределом этой волны, не забытым случаем (см. Warning
-// effective_view_partial_coverage в Build).
+// ADR-035 добавил register ("writer_intercepts"), query ("query_intercepts" и
+// запросы перехватчиков), add-attribute и rights (заимствования объекта в
+// применяющихся расширениях, effective.BorrowedObjects). Остальные получают
+// предупреждение effective_view_partial_coverage в Build.
 func effectiveAwareIntent(intent string) bool {
 	switch intent {
-	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting, IntentRegister, IntentQuery, IntentAddAttribute:
+	case IntentBugfix, IntentUnknown, IntentSignatureChange, IntentForm, IntentPosting, IntentRegister, IntentQuery, IntentAddAttribute, IntentRights:
 		return true
 	default:
 		return false

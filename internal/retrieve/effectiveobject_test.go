@@ -165,3 +165,78 @@ func TestEffectiveAddAttributeFormsDeclaredCollected(t *testing.T) {
 	eff := buildFor(t, st, Request{Task: task, ProjectID: "p", View: "effective"})
 	requireCoverageStatus(t, eff, "forms", CompleteEmpty)
 }
+
+// TestEffectiveRightsExtensionRoles: rights под view=effective несёт роли
+// расширения с их правами и RLS на заимствованный объект, со слоем
+// расширения. raw по базовому анкеру (componentHints=cfg) их не несёт.
+func TestEffectiveRightsExtensionRoles(t *testing.T) {
+	st := openFixtureStore(t)
+	seedEffObjectFixture(t, st)
+	base := []string{"cfg"}
+
+	raw := buildFor(t, st, Request{Task: effRightsTask, ProjectID: "p", ComponentHints: base})
+	if raw.Intent.Primary != IntentRights {
+		t.Fatalf("Intent.Primary = %q, want %q", raw.Intent.Primary, IntentRights)
+	}
+	if factByDisplay(factsOf(raw, "roles"), "Менеджер") == nil {
+		t.Fatalf("raw: базовая роль обязана быть в ответе: %+v", raw.Facts)
+	}
+	if factByDisplay(factsOf(raw, "roles"), "Расш_Оператор") != nil || len(factsOf(raw, "rls")) != 0 {
+		t.Fatalf("view=raw по базовому анкеру не несёт ролей и RLS расширения: %+v", raw.Facts)
+	}
+
+	for _, hints := range [][]string{base, nil} {
+		eff := buildFor(t, st, Request{Task: effRightsTask, ProjectID: "p", View: "effective", ComponentHints: hints})
+		if hasWarning(eff, "effective_view_partial_coverage") {
+			t.Fatalf("rights под effective не строится как raw, предупреждения быть не должно: %+v", eff.Warnings)
+		}
+		role := factByDisplay(factsOf(eff, "roles"), "Расш_Оператор")
+		if role == nil || role.Component != effExt || !strings.Contains(role.WhyIncluded, "заимствован") {
+			t.Fatalf("hints=%v: effective обязан нести роль расширения со слоем %s: %+v", hints, effExt, eff.Facts)
+		}
+		if r := factByDisplay(factsOf(eff, "rights"), "Расш_Оператор.Изменение=true"); r == nil || r.Component != effExt {
+			t.Fatalf("hints=%v: effective обязан нести право роли расширения: %+v", hints, eff.Facts)
+		}
+		rls := factsOf(eff, "rls")
+		if len(rls) != 1 || rls[0].Component != effExt || !strings.Contains(rls[0].Detail, "ТекущаяОрганизация") {
+			t.Fatalf("hints=%v: effective обязан нести RLS роли расширения: %+v", hints, rls)
+		}
+		if factByDisplay(factsOf(eff, "roles"), "Менеджер") == nil {
+			t.Fatalf("hints=%v: базовая роль обязана остаться: %+v", hints, eff.Facts)
+		}
+	}
+}
+
+// TestEffectiveRightsRLSDeclaredCollected: RLS без строки права не бывает, и
+// под effective права всех слоёв прочитаны, поэтому отсутствие RLS честно
+// называется complete_empty (declareCollected, ADR-030). raw заявления не
+// делает: RLS роли расширения на заимствование он не видит, и его пустота
+// ничего не доказывает.
+func TestEffectiveRightsRLSDeclaredCollected(t *testing.T) {
+	st := openFixtureStore(t)
+	err := st.Write(context.Background(), func(tx *store.WriteTx) error {
+		seedEffComponents(t, tx)
+		oid := seedEffObject(t, tx, "cfg", "Document", "Заметка")
+		seedEffObject(t, tx, effExt, "Document", "Заметка")
+		decl, _, err := tx.SourceFileID("cfg", declPath("Document", "Заметка"))
+		if err != nil {
+			return err
+		}
+		rid, err := tx.EnsureRole(store.Role{ComponentID: "cfg", NameNorm: "читатель", NameDisplay: "Читатель", FileID: decl, Layer: "base"})
+		if err != nil {
+			return err
+		}
+		return tx.InsertRoleRight(store.RoleRight{
+			RoleID: rid, ObjectID: oid, ObjectNameNorm: "document.заметка", RightName: "Чтение", Value: true, OriginFileID: decl,
+		})
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	task := "Пользователь не видит документ Заметка, нужен разбор прав и RLS"
+	raw := buildFor(t, st, Request{Task: task, ProjectID: "p"})
+	requireCoverageStatus(t, raw, "rls", Missing)
+	eff := buildFor(t, st, Request{Task: task, ProjectID: "p", View: "effective"})
+	requireCoverageStatus(t, eff, "rls", CompleteEmpty)
+	requireCoverageStatus(t, eff, "profiles", Missing)
+}

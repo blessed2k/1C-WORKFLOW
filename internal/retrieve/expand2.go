@@ -581,6 +581,16 @@ func queryCandidates(bctx *buildCtx, owner store.SymbolRow, queries []store.Quer
 // expandRights — intent "rights": roles + rights + rls + profiles.
 // Профили групп доступа (AccessGroupProfile XML) не разбираются НИ ОДНИМ
 // пакетом parse/* в этой волне — profiles всегда missing, честно.
+//
+// view=effective (ADR-035): права ролей расширения индекс связывает со
+// строкой объекта в компоненте роли, то есть с заимствованием, а не с
+// базовой строкой (resolveRoleObjectNode). Поэтому базовый анкер
+// дополняется правами на заимствования в применяющихся расширениях
+// (effective.BorrowedObjects), каждая роль со своим слоем. RLS без строки
+// права не бывает, и когда права всех слоёв прочитаны, категория rls
+// заявляется собранной (declareCollected, ADR-030). roles/rights не
+// заявляются: отсутствие строки role_right не означает отсутствия доступа
+// (дефолты и setForNewObjects). raw не меняется.
 func expandRights(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if a.Kind != "metadata_object" {
 		return nil, nil
@@ -590,47 +600,89 @@ func expandRights(bctx *buildCtx, a Anchor) ([]*candidate, []Warning) {
 	if err != nil || !ok {
 		return nil, nil
 	}
+	type layerRights struct {
+		obj        store.MetadataObjectRow
+		rows       []store.RoleRightRow
+		borrowedBy string
+	}
 	rows, rerr := tx.RoleRightsByObjectID(obj.ID)
-	if rerr != nil || len(rows) == 0 {
-		return nil, []Warning{{Code: "no_role_rights", Message: fmt.Sprintf("для %s нет строк role_right в индексе", obj.NameDisplay)}}
+	layers := []layerRights{{obj: obj, rows: rows}}
+	total := len(rows)
+	var warnings []Warning
+	if bctx.view == domain.ViewEffective && !bctx.extensionComponents[obj.ComponentID] {
+		readOK := rerr == nil
+		borrowed, berr := effective.BorrowedObjects(tx, obj)
+		if berr != nil {
+			readOK = false
+			warnings = append(warnings, borrowedObjectsReadFailed(obj, berr))
+		}
+		for _, b := range borrowed {
+			bRows, bErr := tx.RoleRightsByObjectID(b.ID)
+			if bErr != nil {
+				readOK = false
+				warnings = append(warnings, Warning{
+					Code: "effective_borrowed_rights_read_failed",
+					Message: fmt.Sprintf("не удалось прочитать права ролей расширения %s на %s: %v; права этого слоя в ответ не вошли",
+						b.ComponentID, obj.NameDisplay, bErr),
+					Hint: "повторите вызов после reindex",
+				})
+				continue
+			}
+			layers = append(layers, layerRights{obj: b, rows: bRows, borrowedBy: b.ComponentID})
+			total += len(bRows)
+		}
+		if readOK {
+			bctx.declareCollected("rls")
+		} else {
+			bctx.declareCollectionFailed("rls")
+		}
+	}
+	if total == 0 {
+		return nil, append(warnings, Warning{Code: "no_role_rights", Message: fmt.Sprintf("для %s нет строк role_right в индексе", obj.NameDisplay)})
 	}
 	sc := scoreCtx{depth: 1, anchorStrength: a.Strength, direction: 1.0, anchorComp: obj.ComponentID}
 	var out []*candidate
 	seenRole := map[int64]bool{}
-	for _, rr := range rows {
-		if !seenRole[rr.RoleID] {
-			seenRole[rr.RoleID] = true
+	for _, l := range layers {
+		whyTail := ""
+		if l.borrowedBy != "" {
+			whyTail = fmt.Sprintf(" (на заимствование объекта расширением %s, effective)", l.borrowedBy)
+		}
+		for _, rr := range l.rows {
+			if !seenRole[rr.RoleID] {
+				seenRole[rr.RoleID] = true
+				rc := &candidate{
+					id: fmt.Sprintf("role:%d", rr.RoleID), bucket: bucketFact, category: "roles",
+					display: rr.RoleNameDisplay, component: rr.RoleComponentID, confidence: 1,
+					whyIncluded: fmt.Sprintf("роль %s имеет право на %s", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
+					charCost:    runeLen(rr.RoleNameDisplay) + 8,
+				}
+				out = append(out, bctx.apply(sc, rc))
+			}
+			rightLabel := fmt.Sprintf("%s.%s=%v", rr.RoleNameDisplay, rr.RightName, rr.Value)
 			rc := &candidate{
-				id: fmt.Sprintf("role:%d", rr.RoleID), bucket: bucketFact, category: "roles",
-				display: rr.RoleNameDisplay, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("роль %s имеет право на %s", rr.RoleNameDisplay, obj.NameDisplay),
-				charCost:    runeLen(rr.RoleNameDisplay) + 8,
+				id: fmt.Sprintf("right:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rights",
+				display: rightLabel, component: rr.RoleComponentID, confidence: 1,
+				whyIncluded: fmt.Sprintf("право %s роли %s на %s (value=%v, setForNewObjects=%v)", rr.RightName, rr.RoleNameDisplay, obj.NameDisplay, rr.Value, rr.SetForNewObjects) + whyTail,
+				charCost:    runeLen(rightLabel) + 8,
 			}
 			out = append(out, bctx.apply(sc, rc))
-		}
-		rightLabel := fmt.Sprintf("%s.%s=%v", rr.RoleNameDisplay, rr.RightName, rr.Value)
-		rc := &candidate{
-			id: fmt.Sprintf("right:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rights",
-			display: rightLabel, component: rr.RoleComponentID, confidence: 1,
-			whyIncluded: fmt.Sprintf("право %s роли %s на %s (value=%v, setForNewObjects=%v)", rr.RightName, rr.RoleNameDisplay, obj.NameDisplay, rr.Value, rr.SetForNewObjects),
-			charCost:    runeLen(rightLabel) + 8,
-		}
-		out = append(out, bctx.apply(sc, rc))
-		if rr.RLS != "" {
-			rlsC := &candidate{
-				id: fmt.Sprintf("rls:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rls",
-				display: rr.RoleNameDisplay + "." + rr.RightName, detail: rr.RLS, component: rr.RoleComponentID, confidence: 1,
-				whyIncluded: fmt.Sprintf("RLS роли %s на %s", rr.RoleNameDisplay, obj.NameDisplay),
-				charCost:    runeLen(rr.RLS) + 12,
+			if rr.RLS != "" {
+				rlsC := &candidate{
+					id: fmt.Sprintf("rls:%d:%s", rr.RoleID, rr.RightName), bucket: bucketFact, category: "rls",
+					display: rr.RoleNameDisplay + "." + rr.RightName, detail: rr.RLS, component: rr.RoleComponentID, confidence: 1,
+					whyIncluded: fmt.Sprintf("RLS роли %s на %s", rr.RoleNameDisplay, obj.NameDisplay) + whyTail,
+					charCost:    runeLen(rr.RLS) + 12,
+				}
+				out = append(out, bctx.apply(sc, rlsC))
 			}
-			out = append(out, bctx.apply(sc, rlsC))
 		}
 	}
-	warnings := []Warning{{
+	warnings = append(warnings, Warning{
 		Code:    "profiles_not_indexed",
 		Message: "профили групп доступа (AccessGroupProfile) не разбираются индексом — категория profiles всегда missing",
 		Hint:    "проверьте профили вручную через rights_audit",
-	}}
+	})
 	return out, warnings
 }
 

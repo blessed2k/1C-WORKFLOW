@@ -363,7 +363,7 @@ func TestEffectivePartialCoverageWarningScope(t *testing.T) {
 		{IntentPosting, postingTask, false},
 		{IntentRegister, "Кто пишет в регистр ТоварыНаСкладах", false},
 		{IntentQuery, "Перепиши текст запроса в отчёте по остаткам", false},
-		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS", true},
+		{IntentRights, "Пользователь не видит документ, нужен разбор прав и RLS", false},
 		{IntentAddAttribute, "Добавь реквизит Комментарий в документ ЗаказКлиента", false},
 	}
 	for _, tc := range cases {
