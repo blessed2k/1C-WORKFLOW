@@ -16,6 +16,7 @@ import (
 	"github.com/blessed2k/1C-WORKFLOW/internal/app"
 	"github.com/blessed2k/1C-WORKFLOW/internal/graphweb"
 	"github.com/blessed2k/1C-WORKFLOW/internal/syntax"
+	"github.com/blessed2k/1C-WORKFLOW/internal/workspace"
 )
 
 // graphShutdownTimeout — сколько graceful shutdown ждёт завершения уже
@@ -199,6 +200,11 @@ func openGraphProjects(ctx context.Context, roots []string, newProjects func(str
 			return nil, 1
 		}
 
+		if msg := dumpInsteadOfWorkspace(root); msg != "" {
+			fmt.Fprintln(os.Stderr, msg)
+			return nil, 1
+		}
+
 		root := root
 		open := func(ctx context.Context) (*app.Projects, error) { return newProjects(root) }
 
@@ -223,4 +229,32 @@ func openGraphProjects(ctx context.Context, roots []string, newProjects func(str
 		})
 	}
 	return handles, 0
+}
+
+// dumpInsteadOfWorkspace распознаёт частую ошибку запуска: в --project
+// передали каталог выгрузки или проекта (там лежит 1c-project.json или
+// Configuration.xml), а флаг ждёт корень workspace, где сервер держит
+// .mcp1c/registry.json. Без этой проверки человек получал no_active_project
+// с советом вызвать reindex, хотя индекс уже собран, просто в другом месте.
+// Пустая строка значит «похоже на корень workspace, продолжаем как обычно».
+// Проверка стоит до открытия проекта, чтобы не завести .mcp1c в выгрузке.
+func dumpInsteadOfWorkspace(root string) string {
+	if _, err := os.Stat(filepath.Join(root, workspace.RegistryDirName, workspace.RegistryFileName)); err == nil {
+		return ""
+	}
+	var found string
+	for _, name := range []string{workspace.ManifestFileName, "Configuration.xml"} {
+		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+			found = name
+			break
+		}
+	}
+	if found == "" {
+		return ""
+	}
+	return fmt.Sprintf("mcp1c graph: в %s лежит %s, но нет %s: похоже, это каталог выгрузки или проекта, а не корень workspace.\n"+
+		"Флаг -project ждёт корень workspace, где лежит каталог %s (тот же, что --projects-root у MCP-сервера), а не саму выгрузку.\n"+
+		"Пример: mcp1c graph -project ~/Dev, если индекс лежит в ~/Dev/%s.",
+		root, found, filepath.Join(workspace.RegistryDirName, workspace.RegistryFileName),
+		workspace.RegistryDirName, workspace.RegistryDirName)
 }

@@ -120,6 +120,38 @@ func TestRunGraphMissingIndexNamesReindex(t *testing.T) {
 	}
 }
 
+// TestRunGraphDumpDirInsteadOfWorkspace: каталог выгрузки или проекта в
+// -project (там Configuration.xml или 1c-project.json, но нет
+// .mcp1c/registry.json) даёт сообщение про корень workspace с примером, а не
+// no_active_project с советом reindex. И ничего не создаёт в выгрузке.
+func TestRunGraphDumpDirInsteadOfWorkspace(t *testing.T) {
+	for _, marker := range []string{"Configuration.xml", "1c-project.json"} {
+		t.Run(marker, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, marker), []byte("{}"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			code, stderr := captureStderr(t, func() int {
+				return runGraph([]string{"-project", root, "-no-open"})
+			})
+			if code == 0 {
+				t.Fatalf("код возврата = 0, ожидался ненулевой")
+			}
+			for _, want := range []string{marker, "корень workspace", ".mcp1c", "--projects-root", "Пример: mcp1c graph -project"} {
+				if !strings.Contains(stderr, want) {
+					t.Errorf("stderr не содержит %q: %q", want, stderr)
+				}
+			}
+			if strings.Contains(stderr, "no_active_project") || strings.Contains(stderr, "reindex") {
+				t.Errorf("для каталога выгрузки выдан совет про reindex: %q", stderr)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".mcp1c")); err == nil {
+				t.Errorf("в каталоге выгрузки создан .mcp1c")
+			}
+		})
+	}
+}
+
 // TestDedupeRoots: два одинаковых --project (в том числе через разные
 // представления одного и того же пути) не должны дать /api/projects
 // задвоенную запись под одним и тем же ID.
