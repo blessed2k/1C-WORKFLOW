@@ -80,3 +80,49 @@ func TestSymbolCountDropAbortsIncrement(t *testing.T) {
 		t.Fatalf("Read: %v", readErr)
 	}
 }
+
+// TestAbortedIncrementRollsBackPoolBlobs: образы blob пул разбора пишет прямо
+// в транзакцию, ещё до резолва и публикации (issue #3, шаг 1). Если прогон
+// потом отменяется (здесь предохранитель §17 п.7), образ нового содержимого
+// уходит вместе с транзакцией: его нет в blob, а образ прежнего содержимого
+// на месте и читается.
+func TestAbortedIncrementRollsBackPoolBlobs(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	bslPath := filepath.Join(root, "CommonModules/Большой/Ext/Module.bsl")
+	if err := os.MkdirAll(filepath.Dir(bslPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldText := bigModuleBSL(25)
+	mustWrite(t, bslPath, oldText)
+
+	st := openTestStore(t)
+	svc := NewService(st, "proj", testManifest(t, root), nil, Config{})
+	t.Cleanup(func() { svc.Close() })
+	if _, err := svc.Reindex(ctx, ModeFull, ""); err != nil {
+		t.Fatalf("Reindex(full): %v", err)
+	}
+
+	newText := bigModuleBSL(1)
+	mustWrite(t, bslPath, newText)
+	touchFuture(t, bslPath)
+	if _, err := svc.Reindex(ctx, ModeIncremental, ""); err == nil {
+		t.Fatal("инкремент с падением символов на порядок прошёл")
+	}
+
+	if err := st.Read(ctx, func(tx *store.ReadTx) error {
+		if _, err := tx.Blob(store.HashContent([]byte(newText))); err == nil {
+			t.Error("образ из пула разбора пережил откат транзакции")
+		}
+		got, err := tx.Blob(store.HashContent([]byte(oldText)))
+		if err != nil {
+			return fmt.Errorf("образ прежнего содержимого: %w", err)
+		}
+		if string(got) != oldText {
+			t.Error("образ прежнего содержимого испорчен")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
