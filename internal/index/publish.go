@@ -19,9 +19,8 @@ type publishInput struct {
 	layer     domain.Layer
 
 	corpus *componentCorpus
-	// blobs: relPath -> образ файла для blob, подготовленный пулом разбора,
-	// только для republish. publishFiles удаляет запись сразу после записи
-	// blob: сжатые байты не доживают до конца публикации.
+	// blobs: relPath -> образ файла, перечитанного с диска для republish из-за
+	// смены резолюции. Образы разобранных файлов записаны раньше, пулом.
 	blobs   map[string]store.PreparedBlob
 	resolve map[string][]resolvedRef
 	// env — тот же Env, что построил resolve-шаг: derive-функции таска 08
@@ -232,11 +231,15 @@ func publishFiles(tx *store.WriteTx, in publishInput) (publishOutcome, error) {
 		if rec == nil {
 			continue
 		}
-		hash, err := tx.PutPreparedBlob(in.blobs[rel])
-		if err != nil {
-			return out, fmt.Errorf("blob %s: %w", rel, err)
+		// Образ разобранного файла уже записан пулом разбора, его хэш и есть
+		// contentHash записи. В карте лежат только перечитанные файлы.
+		hash := rec.contentHash
+		if b, ok := in.blobs[rel]; ok {
+			if hash, err = tx.PutPreparedBlob(b); err != nil {
+				return out, fmt.Errorf("blob %s: %w", rel, err)
+			}
+			delete(in.blobs, rel)
 		}
-		delete(in.blobs, rel)
 		fileID, err := tx.InsertSourceFile(store.SourceFile{
 			ComponentID: string(in.component), RelPath: rel,
 			Size: rec.size, MtimeNS: rec.mtimeNS, ContentHash: hash, ParserVersion: ParserVersion,

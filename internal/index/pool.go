@@ -32,7 +32,13 @@ type parseResult struct {
 // уже стартовавшие дочитываются, но новых не открывается. Возвращает то, что
 // успело разобраться, и саму ошибку отмены (вызывающий решает, что делать:
 // частичный результат отменённого прохода в публикацию не идёт).
-func runParsePool(ctx context.Context, workers int, tasks []parseTask) ([]parseResult, error) {
+//
+// blobSink, если задан, получает образ каждого разобранного файла прямо по
+// мере готовности, в горутине вызывающего (писатель в это время свободен), и
+// в результат образ уже не попадает: сжатые байты не копятся до конца
+// разбора всего корпуса (issue #3, шаг 1). Ошибка приёмника становится
+// ошибкой прохода, следующие образы ему уже не отдаются.
+func runParsePool(ctx context.Context, workers int, tasks []parseTask, blobSink func(store.PreparedBlob) error) ([]parseResult, error) {
 	if workers <= 0 {
 		workers = 1
 	}
@@ -92,6 +98,14 @@ func runParsePool(ctx context.Context, workers int, tasks []parseTask) ([]parseR
 				firstErr = r.err
 			}
 			continue
+		}
+		if blobSink != nil {
+			if firstErr == nil {
+				if err := blobSink(r.blob); err != nil {
+					firstErr = fmt.Errorf("образ %s: %w", r.rec.relPath, err)
+				}
+			}
+			r.blob = store.PreparedBlob{}
 		}
 		results = append(results, r)
 	}

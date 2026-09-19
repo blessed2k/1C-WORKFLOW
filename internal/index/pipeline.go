@@ -151,16 +151,23 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	stages.mark(now, "fingerprint", fingerprintStart)
 
 	parseStart := now()
-	// blobs: образы для blob, подготовленные пулом (хэш и deflate уже
-	// посчитаны). Писатель удаляет запись сразу после PutPreparedBlob, так
-	// что сжатые байты отпускаются по мере публикации, а не в её конце.
-	blobs := make(map[string]store.PreparedBlob, len(toRead))
+	// blobs: образы файлов, republish-нутых только из-за смены резолюции
+	// (см. ниже). Образы разобранных файлов в карту не попадают: пул отдаёт
+	// их писателю сразу, и blob уже лежит в транзакции.
+	blobs := make(map[string]store.PreparedBlob)
 	changedSet := make(map[string]bool, len(toRead))
 	if len(toRead) > 0 {
 		// parse (§17 п.3): bounded worker pool — чтение и разбор тысяч
 		// файлов последовательно доминирует время cold-индексации (замерено
 		// на ut_demo), параллелизм по числу ядер держит это в бюджете §28.
-		results, poolErr := runParsePool(ctx, workers, toRead)
+		// Образы уходят в blob прямо из пула, пока воркеры разбирают
+		// остальное: blob адресуется хэшем и от source_file не зависит, а
+		// образ неизменившегося файла дедуплицируется (ON CONFLICT DO
+		// NOTHING). Откат транзакции уносит их вместе со всем прочим.
+		results, poolErr := runParsePool(ctx, workers, toRead, func(b store.PreparedBlob) error {
+			_, err := tx.PutPreparedBlob(b)
+			return err
+		})
 		if poolErr != nil {
 			return stats, fmt.Errorf("parse %s: %w", comp.ID, poolErr)
 		}
@@ -182,7 +189,6 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 				oldSnapshots[rec.relPath] = old
 			}
 			corpus.files[rec.relPath] = rec
-			blobs[rec.relPath] = r.blob
 			changedSet[rec.relPath] = true
 		}
 	}
@@ -248,8 +254,8 @@ func runComponent(ctx context.Context, tx *store.WriteTx, project domain.Project
 	// publishFiles обязан положить blob, а blob дедуплицируется по хэшу,
 	// то есть повторное чтение не тратит место в БД, только время на диске.
 	for _, rel := range republish {
-		if _, ok := blobs[rel]; ok {
-			continue
+		if changedSet[rel] {
+			continue // образ записан пулом разбора
 		}
 		abs, err := workspace.SafeJoin(comp.AbsRoot, rel)
 		if err != nil {

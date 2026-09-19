@@ -11,7 +11,7 @@ import (
 )
 
 // TestParsePoolPacksBlob: пул разбора отдаёт образ файла уже захэшированным
-// и сжатым (шаг 1 issue #3), и хэш записи корпуса совпадает с хэшем образа:
+// и сжатым (шаг 1 issue #3), прямо писателю, и хэш записи корпуса совпадает с хэшем образа:
 // fingerprint и адресация blob обязаны ссылаться на одно число. Писатель
 // кладёт такой образ без повторного SHA и deflate, а читатель получает
 // байт-в-байт исходный файл.
@@ -33,30 +33,32 @@ func TestParsePoolPacksBlob(t *testing.T) {
 		tasks = append(tasks, parseTask{relPath: rel, absPath: abs})
 	}
 
-	results, err := runParsePool(context.Background(), 2, tasks)
-	if err != nil {
-		t.Fatalf("runParsePool: %v", err)
-	}
-	if len(results) != len(files) {
-		t.Fatalf("результатов %d, ожидалось %d", len(results), len(files))
-	}
-
+	// Образы уходят писателю прямо из пула: store принимает их в той же
+	// транзакции, куда потом лягут записи файлов.
 	st := openTestStore(t)
 	if err := st.Write(context.Background(), func(tx *store.WriteTx) error {
+		var hashes []string
+		results, err := runParsePool(context.Background(), 2, tasks, func(b store.PreparedBlob) error {
+			h, err := tx.PutPreparedBlob(b)
+			hashes = append(hashes, h)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if len(results) != len(files) || len(hashes) != len(files) {
+			t.Fatalf("результатов %d, образов %d, ожидалось %d", len(results), len(hashes), len(files))
+		}
 		for _, r := range results {
+			if r.blob.Hash() != "" {
+				t.Errorf("%s: образ остался в результате после приёмника", r.rec.relPath)
+			}
 			data := files[r.rec.relPath]
 			want := store.HashContent(data)
 			if r.rec.contentHash != want {
 				t.Errorf("%s: contentHash записи %q, ожидался %q", r.rec.relPath, r.rec.contentHash, want)
 			}
-			if r.blob.Hash() != want {
-				t.Errorf("%s: хэш образа %q, ожидался %q", r.rec.relPath, r.blob.Hash(), want)
-			}
-			h, err := tx.PutPreparedBlob(r.blob)
-			if err != nil {
-				return err
-			}
-			got, err := tx.Blob(h)
+			got, err := tx.Blob(want)
 			if err != nil {
 				return err
 			}
@@ -67,5 +69,16 @@ func TestParsePoolPacksBlob(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatalf("запись образов: %v", err)
+	}
+
+	// Без приёмника образ приезжает в результате, с тем же хэшем.
+	results, err := runParsePool(context.Background(), 2, tasks, nil)
+	if err != nil {
+		t.Fatalf("runParsePool без приёмника: %v", err)
+	}
+	for _, r := range results {
+		if r.blob.Hash() != r.rec.contentHash {
+			t.Errorf("%s: хэш образа %q, записи %q", r.rec.relPath, r.blob.Hash(), r.rec.contentHash)
+		}
 	}
 }
