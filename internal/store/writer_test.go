@@ -58,22 +58,51 @@ func TestWritesAreSerialized(t *testing.T) {
 
 // Ожидание очереди писателя прерывается контекстом: отменённый вызов не должен
 // стоять в очереди за чужой длинной записью.
+//
+// Фоновая запись обязана завершиться до выхода из теста: t.Cleanup закрывает
+// хранилище, а Close под идущей транзакцией писателя рвёт соединение, и её
+// хвост (закрытие выражений, COMMIT) падает в sqlite на уже закрытом хэндле
+// (issue #12).
 func TestWriteWaitIsContextAware(t *testing.T) {
 	s := openTestStore(t, Options{})
 	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
 	started := make(chan struct{})
+	holderDone := make(chan error, 1)
 	go func() {
-		s.Write(context.Background(), func(tx *WriteTx) error {
+		holderDone <- s.Write(context.Background(), func(tx *WriteTx) error {
 			close(started)
 			<-release
 			return nil
 		})
 	}()
 	<-started
+	// Страховка от зависания: если ожидание очереди контекст не слушает, вызов
+	// ниже встал бы навсегда за удерживающей записью. Через заведомо больший
+	// срок, чем дедлайн, очередь отпускается, и тест краснеет на проверке
+	// ошибки, а не на таймауте всего пакета.
+	safety := time.AfterFunc(5*time.Second, releaseOnce)
+	defer safety.Stop()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	err := s.Write(ctx, func(tx *WriteTx) error { return nil })
-	close(release)
+	// Вернуться обязано само ожидание, пока очередь ещё занята. Иначе
+	// DeadlineExceeded пришёл бы уже от BEGIN на истёкшем контексте после
+	// освобождения очереди, и проверка ошибки ниже этого не отличила бы.
+	var waitedForRelease bool
+	select {
+	case <-release:
+		waitedForRelease = true
+	default:
+	}
+	releaseOnce()
+	if hErr := <-holderDone; hErr != nil {
+		t.Fatalf("удерживающая запись: %v", hErr)
+	}
+	if waitedForRelease {
+		t.Fatalf("ожидание очереди писателя не прервалось контекстом: вызов дождался освобождения очереди (%v)", err)
+	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("ожидание очереди писателя вернуло %v, ожидалось истечение контекста", err)
 	}
