@@ -336,6 +336,7 @@ Every live tool is part of `core`.
 | `get_context_for_task` | minimal sufficient context for a task described in words, within a character budget |
 | `index_status`, `reindex` | index state; project registration and rebuild |
 | `find_symbol`, `get_symbol`, `get_module_structure` | find procedures and functions, exact signature and body, module outline |
+| `find_api` | a ready-made public API method by what it must do: the БСП library of this export and the configuration itself, in two sections |
 | `find_references`, `trace_call_graph`, `find_impact` | references to a symbol, call graph, what depends on a symbol or object |
 | `get_object`, `get_form_handlers` | an object from the index with subscriptions, jobs and rights; form handler bindings |
 | `find_queries_using`, `find_register_writes` | queries that read an object or field; register access |

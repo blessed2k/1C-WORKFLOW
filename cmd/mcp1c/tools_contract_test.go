@@ -146,6 +146,14 @@ var контрактыИнструментов = []контрактИнстру�
 		выходПоля:         []string{"adopted", "extension", "interceptors", "own", "prefix", "purpose"},
 	},
 	{
+		имя:               "find_api",
+		режимы:            режимОффлайн | режимLive,
+		входОбязательные:  []string{"query"},
+		входПоля:          map[string]string{"query": "string", "limit": "integer"},
+		выходОбязательные: []string{"generation", "stale", "items"},
+		выходПоля:         []string{"generation", "stale", "warnings", "items", "totalCount", "nextCursor"},
+	},
+	{
 		имя:               "find_dependency_paths",
 		режимы:            режимОффлайн,
 		входОбязательные:  []string{"fromType", "fromName", "toType", "toName"},

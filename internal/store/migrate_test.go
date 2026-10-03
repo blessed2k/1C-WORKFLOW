@@ -281,10 +281,10 @@ func TestMigrationToSchema2(t *testing.T) {
 // Открытие новой версией обязано затребовать полную пересборку, не трогая
 // данные и эпоху.
 func TestMigrationFromUnreliableContentRequiresFullRebuild(t *testing.T) {
-	if SchemaVersion != 6 {
+	if SchemaVersion != 7 {
 		t.Fatalf("SchemaVersion=%d: новая версия добавляет сюда свою строку и меняет ожидание", SchemaVersion)
 	}
-	for _, from := range []string{"2", "3", "4", "5"} {
+	for _, from := range []string{"2", "3", "4", "5", "6"} {
 		t.Run("из "+from, func(t *testing.T) { checkMigrationRequiresFullRebuild(t, from) })
 	}
 }

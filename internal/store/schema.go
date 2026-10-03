@@ -23,7 +23,10 @@ package store
 // ADR-039; таблицы пустые до полной пересборки.
 // 6: DDL прежний; инкремент перестал оставлять module.owner_object_id висячим
 // после удаления XML объекта при живом модуле (issue #14), тот же шаг без DDL.
-const SchemaVersion = 6
+// 7: DDL прежний; индексация начала заполнять symbol.region (путь областей) и
+// symbol.doc_first_line (issue #15). У индексов версии 6 обе колонки пусты, и
+// find_api на них честно не нашёл бы ничего, тот же шаг без DDL.
+const SchemaVersion = 7
 
 // createScript — схема раздела 15 архитектуры целиком: единое пространство id в
 // node, aspect-модель (module_context/module_code, form_declaration/form_structure),
