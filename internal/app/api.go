@@ -68,6 +68,12 @@ type FindAPIInput struct {
 	Query  string
 	Module string
 	Limit  int
+	// Returns, Accepts: отбор по типу возвращаемого значения и по типу
+	// параметра, как они записаны в комментарии метода (ТаблицаЗначений,
+	// ДокументСсылка). Уточняют поиск и список модуля; сами по себе, без
+	// Query и Module, не ищут.
+	Returns string
+	Accepts string
 }
 
 // APIMapSubsystem: подсистема библиотеки на карте: какие её модули несут
@@ -97,8 +103,20 @@ type APIMethodItem struct {
 	Kind      string `json:"kind"`
 	Signature string `json:"signature"`
 	Summary   string `json:"summary,omitempty"`
+	// Returns: тип возвращаемого значения из комментария метода («Массив из
+	// Строка», «Структура, Неопределено»): в сигнатуре 1С типов нет. Пусто:
+	// в комментарии тип не записан (или это процедура).
+	Returns string `json:"returns,omitempty"`
 	// Context: где метод доступен: сервер, клиент, клиент-сервер, вызов сервера.
 	Context string `json:"context,omitempty"`
+	// Calls: сколько раз метод зовут из других модулей выгрузки (у метода
+	// библиотеки в счёт идут и вызовы из самой библиотеки). Поля нет: таких
+	// вызовов индекс не знает; это не значит «не используется», метод могут
+	// звать из расширений вне выгрузки или по имени в строке.
+	Calls int `json:"calls,omitempty"`
+	// Example: как метод зовут на деле: оператор одного вызова из другого
+	// модуля (до четырёх строк). Показывает порядок и вид аргументов.
+	Example string `json:"example,omitempty"`
 	// Deprecated: метод лежит в области устаревших; замену называет Summary.
 	Deprecated bool               `json:"deprecated,omitempty"`
 	Module     string             `json:"module"`
@@ -117,7 +135,11 @@ type APIBriefItem struct {
 	Call       string `json:"call"`
 	Summary    string `json:"summary,omitempty"`
 	Deprecated bool   `json:"deprecated,omitempty"`
-	UID        string `json:"uid"`
+	// Returns, Calls: тип результата из комментария и число вызовов из
+	// других модулей (см. APIMethodItem).
+	Returns string `json:"returns,omitempty"`
+	Calls   int    `json:"calls,omitempty"`
+	UID     string `json:"uid"`
 }
 
 // APISearchItem: items[0] ответа find_api: две независимо ранжированные
@@ -206,6 +228,16 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 			"опишите задачу словами, например: разбить строку по разделителю").WithProject(op.Entry.ID)
 	}
 	limit := clampLimit(in.Limit, defaultAPILimit, maxAPILimit)
+	returns, accepts := strings.TrimSpace(in.Returns), strings.TrimSpace(in.Accepts)
+	if (returns != "" || accepts != "") && query == "" && module == "" {
+		return Response[APISearchItem]{}, NewError(CodeInvalidArgument,
+			"returns и accepts уточняют поиск find_api, сами по себе они не ищут",
+			"добавьте query (что должен делать метод) или module (в каком модуле искать)").WithProject(op.Entry.ID)
+	}
+	// typed: подходит ли метод под отбор по типам.
+	typed := func(m apiIndexMethod) bool {
+		return apiTypesMatch(m.returns, returns) && apiTypesMatch(m.accepts, accepts)
+	}
 
 	type txResult struct {
 		item APISearchItem
@@ -249,16 +281,31 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 			out.item.Module = ix.methods[methods[0]].owner
 			// Без запроса: весь интерфейс модуля списком.
 			if query == "" {
+				all := len(methods)
+				if returns != "" || accepts != "" {
+					var fit []int32
+					for _, m := range methods {
+						if typed(ix.methods[m]) {
+							fit = append(fit, m)
+						}
+					}
+					methods = fit
+				}
 				out.item.Note, out.item.MethodsTotal = apiModuleNote, len(methods)
 				if len(methods) > apiModuleListLimit {
 					out.item.Note = "Показаны первые " + strconv.Itoa(apiModuleListLimit) + " методов из " + strconv.Itoa(len(methods)) +
 						": остальные ищите тем же вызовом с query. " + apiModuleNote
 				}
+				if dropped := all - len(methods); dropped > 0 {
+					out.item.Note = apiTypeFilterNote(dropped) + " " + out.item.Note
+				}
+				out.item.Methods = []APIBriefItem{}
 				for _, m := range methods[:min(len(methods), apiModuleListLimit)] {
-					im := ix.methods[m]
-					out.item.Methods = append(out.item.Methods, APIBriefItem{
-						Call: im.call, Summary: im.row.DocFirstLine, Deprecated: im.deprecated, UID: im.row.UID,
-					})
+					brief, berr := apiBriefItem(tx, ix.methods[m])
+					if berr != nil {
+						return out, berr
+					}
+					out.item.Methods = append(out.item.Methods, brief)
 				}
 				return out, nil
 			}
@@ -269,8 +316,13 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		}
 
 		var bsp, other []apiRanked
+		dropped := 0
 		for _, r := range ix.search(terms) {
 			if inModule != nil && !inModule[r.method] {
+				continue
+			}
+			if !typed(ix.methods[r.method]) {
+				dropped++
 				continue
 			}
 			if ix.methods[r.method].library {
@@ -280,12 +332,23 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 			}
 		}
 		out.item.BSPMatched, out.item.OtherMatched = len(bsp), len(other)
+		if dropped > 0 {
+			out.item.Note = apiTypeFilterNote(dropped) + " " + out.item.Note
+		}
 		var serr error
-		if out.item.BSP, out.item.BSPMore, serr = apiSection(tx, ix, bsp, limit); serr != nil {
+		examples := &apiExamples{}
+		if out.item.BSP, out.item.BSPMore, serr = apiSection(tx, ix, bsp, limit, examples); serr != nil {
 			return out, serr
 		}
-		if out.item.Other, out.item.OtherMore, serr = apiSection(tx, ix, other, limit); serr != nil {
+		if out.item.Other, out.item.OtherMore, serr = apiSection(tx, ix, other, limit, examples); serr != nil {
 			return out, serr
+		}
+		if examples.failed != nil {
+			out.warn = append(out.warn, Warning{
+				Code:    "api_example_unavailable",
+				Message: "пример вызова показан не у всех методов: текст модуля не прочитан (" + examples.failed.Error() + ")",
+				Hint:    "на поиск это не влияет; места вызова метода отдаёт find_references",
+			})
 		}
 		return out, nil
 	})
@@ -306,7 +369,7 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 //
 // Параметры читаются только у отобранных: сигнатура со значениями по
 // умолчанию нужна в ответе, а не в ранжировании.
-func apiSection(tx *store.ReadTx, ix *apiIndex, ranked []apiRanked, limit int) ([]APIMethodItem, []APIBriefItem, error) {
+func apiSection(tx *store.ReadTx, ix *apiIndex, ranked []apiRanked, limit int, examples *apiExamples) ([]APIMethodItem, []APIBriefItem, error) {
 	full := ranked[:min(limit, len(ranked))]
 	rest := ranked[len(full):min(len(full)+apiMoreCount, len(ranked))]
 	full = append([]apiRanked(nil), full...)
@@ -321,12 +384,24 @@ func apiSection(tx *store.ReadTx, ix *apiIndex, ranked []apiRanked, limit int) (
 		if err != nil {
 			return nil, nil, err
 		}
+		item.Returns = strings.Join(m.returns, ", ")
+		if item.Calls, err = tx.ExternalCallCount(m.row.SymbolID); err != nil {
+			return nil, nil, err
+		}
+		if item.Calls > 0 {
+			if item.Example, err = examples.of(tx, m.row.SymbolID); err != nil {
+				return nil, nil, err
+			}
+		}
 		items = append(items, item)
 	}
 	var more []APIBriefItem
 	for _, r := range rest {
-		m := ix.methods[r.method]
-		more = append(more, APIBriefItem{Call: m.call, Summary: m.row.DocFirstLine, Deprecated: m.deprecated, UID: m.row.UID})
+		brief, err := apiBriefItem(tx, ix.methods[r.method])
+		if err != nil {
+			return nil, nil, err
+		}
+		more = append(more, brief)
 	}
 	return items, more, nil
 }
@@ -344,6 +419,111 @@ func apiMethodItem(tx *store.ReadTx, c apiCandidate) (APIMethodItem, error) {
 		Module: c.row.ModulePath, Component: domain.ComponentID(c.row.ComponentID),
 		Line: c.row.StartLine, UID: c.row.UID,
 	}, nil
+}
+
+// apiBriefItem: метод одной строкой: вызов, назначение, тип результата и
+// число вызовов из других модулей.
+func apiBriefItem(tx *store.ReadTx, m apiIndexMethod) (APIBriefItem, error) {
+	calls, err := tx.ExternalCallCount(m.row.SymbolID)
+	if err != nil {
+		return APIBriefItem{}, err
+	}
+	return APIBriefItem{
+		Call: m.call, Summary: m.row.DocFirstLine, Deprecated: m.deprecated,
+		Returns: strings.Join(m.returns, ", "), Calls: calls, UID: m.row.UID,
+	}, nil
+}
+
+// apiTypeFilterNote: что сказать, когда отбор по типу отсеял методы,
+// подошедшие по словам. Без этого пустая выдача читалась бы как «такого
+// метода нет», хотя метод мог быть отсеян потому, что тип в его комментарии
+// не записан или записан словами.
+func apiTypeFilterNote(dropped int) string {
+	return "Отбор по типу (returns, accepts) отсеял " + strconv.Itoa(dropped) +
+		" методов, подошедших по остальным условиям: метод, у которого тип в комментарии не записан или записан словами, отбор не пропускает. Нужного нет: повторите без returns и accepts."
+}
+
+const (
+	// apiExampleMaxRunes, apiExampleMaxLines: потолок примера вызова.
+	apiExampleMaxRunes = 200
+	apiExampleMaxLines = 4
+)
+
+// apiExamples достаёт примеры вызова методов из текстов модулей. Текст модуля
+// читается из blob индекса один раз на ответ: несколько методов выдачи часто
+// зовут из одного и того же модуля. Пример необязателен: сбой чтения текста
+// поиск не роняет, а запоминается в failed (ответ скажет о нём
+// предупреждением).
+type apiExamples struct {
+	blobs  map[int64][]byte
+	failed error
+}
+
+// of возвращает оператор одного вызова метода из другого модуля; пусто, когда
+// такого вызова нет или его текст не достать.
+func (e *apiExamples) of(tx *store.ReadTx, symbolID int64) (string, error) {
+	fileID, at, ok, err := tx.ExternalCallSite(symbolID)
+	if err != nil || !ok {
+		return "", err
+	}
+	blob, cached := e.blobs[fileID]
+	if !cached {
+		sf, found, err := tx.SourceFileByID(fileID)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			if blob, err = tx.Blob(sf.ContentHash); err != nil {
+				e.failed, blob = err, nil
+			}
+		}
+		if e.blobs == nil {
+			e.blobs = map[int64][]byte{}
+		}
+		e.blobs[fileID] = blob
+	}
+	return apiCallStatement(blob, at), nil
+}
+
+// apiCallStatement вырезает из текста модуля оператор с вызовом: от начала
+// строки, где стоит ссылка на метод, до точки с запятой на нулевой глубине
+// скобок, но не дальше apiExampleMaxLines строк и apiExampleMaxRunes знаков.
+// Перенесённый на несколько строк вызов склеивается в одну строку.
+//
+// упрощение: скобки и точка с запятой считаются по тексту как есть, без
+// разбора строковых литералов: скобка внутри литерала сдвинет счёт, и пример
+// оборвётся раньше или позже. Это пример для чтения, а не код для вставки.
+func apiCallStatement(text []byte, at int) string {
+	if at < 0 || at >= len(text) {
+		return ""
+	}
+	start := at
+	for start > 0 && text[start-1] != '\n' {
+		start--
+	}
+	end, depth, lines := start, 0, 1
+scan:
+	for ; end < len(text); end++ {
+		switch text[end] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ';':
+			if end >= at && depth <= 0 {
+				end++
+				break scan
+			}
+		case '\n':
+			// Строка с вызовом закончилась, а скобки закрыты: это вызов
+			// внутри условия или выражения без своей точки с запятой.
+			if (end >= at && depth <= 0) || lines == apiExampleMaxLines {
+				break scan
+			}
+			lines++
+		}
+	}
+	return apiCutRunes(strings.Join(strings.Fields(string(text[start:end])), " "), apiExampleMaxRunes)
 }
 
 // readAPIMethods читает методы программного интерфейса и состав библиотеки:

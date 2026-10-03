@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/domain"
 	"github.com/blessed2k/1C-WORKFLOW/internal/store"
@@ -56,6 +57,12 @@ func (s *APIService) Catalog(ctx context.Context) (Response[APICatalogItem], err
 				return out, ierr
 			}
 			item.Doc = r.Doc
+			// Тип результата разобран тем же правилом, что в поиске: по нему
+			// оценка считает, у какой доли методов тип достаётся из комментария.
+			if r.Kind == string(domain.SymbolFunction) {
+				returns, _ := apiDocTypes(r.Doc)
+				item.Returns = strings.Join(returns, ", ")
+			}
 			if lib.contains(r) {
 				out.item.BSP = append(out.item.BSP, item)
 			} else {

@@ -151,7 +151,7 @@ var контрактыИнструментов = []контрактИнстру�
 		// query необязателен: без него инструмент отдаёт карту библиотеки или
 		// весь интерфейс модуля.
 		входОбязательные:  []string{},
-		входПоля:          map[string]string{"query": "string", "module": "string", "limit": "integer"},
+		входПоля:          map[string]string{"query": "string", "module": "string", "limit": "integer", "returns": "string", "accepts": "string"},
 		выходОбязательные: []string{"generation", "stale", "items"},
 		выходПоля:         []string{"generation", "stale", "warnings", "items", "totalCount", "nextCursor"},
 	},

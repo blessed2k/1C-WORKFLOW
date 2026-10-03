@@ -74,6 +74,10 @@ type apiIndexMethod struct {
 	// owner: модуль метода, как его называют в коде: имя общего модуля или
 	// менеджер объекта (Справочники.Товары).
 	owner string
+	// returns, accepts: типы возвращаемого значения и параметров из
+	// комментария метода (apiDocTypes); пусто, когда в комментарии их нет.
+	returns []string
+	accepts []string
 }
 
 // apiIndex: методы программного интерфейса одного поколения индекса и
@@ -209,8 +213,12 @@ func buildAPIIndex(tx *store.ReadTx, gen domain.Generation) (*apiIndex, error) {
 				}
 			}
 		}
-		// Полный комментарий нужен только словами, свойства модуля и путь
-		// областей уже разобраны в выражение вызова, контекст и пометку
+		returns, accepts := apiDocTypes(r.Doc)
+		if r.Kind != string(domain.SymbolFunction) {
+			returns = nil // процедура ничего не возвращает, что бы ни стояло в комментарии
+		}
+		// Полный комментарий нужен только словами и типами, свойства модуля и
+		// путь областей уже разобраны в выражение вызова, контекст и пометку
 		// устаревшего: в памяти эти строки не держатся.
 		r.Doc, r.ModuleProps, r.Region = "", "", ""
 		owner := apiOwnerOf(r, c.call)
@@ -225,6 +233,7 @@ func buildAPIIndex(tx *store.ReadTx, gen domain.Generation) (*apiIndex, error) {
 		ix.methods = append(ix.methods, apiIndexMethod{
 			row: r, call: c.call, execContext: c.execContext, deprecated: c.deprecated,
 			library: lib.contains(r), nameWords: nameWords, owner: owner,
+			returns: returns, accepts: accepts,
 		})
 	}
 	for _, part := range lib.subsystems {

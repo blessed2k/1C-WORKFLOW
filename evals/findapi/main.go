@@ -20,6 +20,7 @@
 //	go run ./evals/findapi score    -project <выгрузка> -data ... [-baseline ... | -write-baseline ...]
 //	go run ./evals/findapi query    -project <выгрузка> разбить строку по разделителю   # выдача на один запрос
 //	go run ./evals/findapi drafts   -project <выгрузка> -data ... -drafts ...             # обратная проверка черновика
+//	go run ./evals/findapi types    -project <выгрузка>                                   # доля методов с типом результата
 //
 // Рабочий каталог (work) содержит код конфигурации и в git не идёт.
 package main
@@ -137,6 +138,8 @@ func main() {
 		err = runQuery(args)
 	case "drafts":
 		err = runDrafts(args)
+	case "types":
+		err = runTypes(args)
 	default:
 		usage()
 	}
@@ -146,7 +149,7 @@ func main() {
 }
 
 func usage() {
-	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query|drafts [флаги]; описание шагов в начале evals/findapi/main.go")
+	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query|drafts|types [флаги]; описание шагов в начале evals/findapi/main.go")
 }
 
 // projectFlags добавляет флаги, общие для шагов, которым нужен индекс.
@@ -532,6 +535,8 @@ func runQuery(args []string) error {
 	fs := flag.NewFlagSet("query", flag.ExitOnError)
 	root, workspace, syntaxIndex, reindex := projectFlags(fs)
 	limit := fs.Int("limit", 0, "limit инструмента; 0: выдача по умолчанию")
+	returns := fs.String("returns", "", "отбор по типу возвращаемого значения")
+	accepts := fs.String("accepts", "", "отбор по типу параметра")
 	fs.Parse(args)
 	if fs.NArg() == 0 {
 		return fmt.Errorf("query: запрос не задан")
@@ -542,7 +547,7 @@ func runQuery(args []string) error {
 		return err
 	}
 	defer p.close()
-	resp, err := p.api.FindAPI(ctx, app.FindAPIInput{Query: strings.Join(fs.Args(), " "), Limit: *limit})
+	resp, err := p.api.FindAPI(ctx, app.FindAPIInput{Query: strings.Join(fs.Args(), " "), Limit: *limit, Returns: *returns, Accepts: *accepts})
 	if err != nil {
 		return err
 	}
@@ -551,6 +556,9 @@ func runQuery(args []string) error {
 		fmt.Printf("%s: совпало %d\n", name, matched)
 		for i, it := range items {
 			fmt.Printf("  %2d. %s: %s\n", i+1, it.Call, it.Summary)
+			if it.Returns != "" || it.Calls > 0 {
+				fmt.Printf("      возвращает: %s; вызовов из других модулей: %d; пример: %s\n", it.Returns, it.Calls, it.Example)
+			}
 		}
 		for i, it := range more {
 			fmt.Printf("  %2d+ %s: %s\n", len(items)+i+1, it.Call, it.Summary)

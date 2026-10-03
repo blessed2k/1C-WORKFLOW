@@ -91,3 +91,58 @@ func (tx *ReadTx) ExportedMethodsInRegions(moduleKinds, topRegions []string) ([]
 func placeholders(n int) string {
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
+
+// ExternalCallCount считает, сколько раз символ зовут из других модулей:
+// вызовы внутри своего модуля о востребованности метода снаружи не говорят.
+// Запрос идёт по индексу callee_id и стоит столько, сколько у символа вызовов.
+func (tx *ReadTx) ExternalCallCount(symbolID int64) (int, error) {
+	if err := tx.check(); err != nil {
+		return 0, err
+	}
+	rows, err := tx.c.query(tx.ctx, `
+		SELECT COUNT(*)
+		FROM call_edge e
+		JOIN symbol caller ON caller.id = e.caller_id
+		JOIN symbol callee ON callee.id = e.callee_id
+		WHERE e.callee_id = ? AND caller.module_id != callee.module_id`, symbolID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	n := 0
+	if rows.Next() {
+		if err := rows.Scan(&n); err != nil {
+			return 0, err
+		}
+	}
+	return n, rows.Err()
+}
+
+// ExternalCallSite находит одно место, где символ зовут из другого модуля:
+// файл и байтовое смещение начала ссылки на метод. Условие «другой модуль» то
+// же, что у ExternalCallCount. Берётся первое по порядку индексации: пример
+// один и тот же от вызова к вызову в пределах поколения индекса.
+func (tx *ReadTx) ExternalCallSite(symbolID int64) (fileID int64, byteStart int, ok bool, err error) {
+	if err := tx.check(); err != nil {
+		return 0, 0, false, err
+	}
+	rows, err := tx.c.query(tx.ctx, `
+		SELECT r.file_id, r.byte_start
+		FROM call_edge e
+		JOIN reference r ON r.id = e.ref_id
+		JOIN symbol caller ON caller.id = e.caller_id
+		JOIN symbol callee ON callee.id = e.callee_id
+		WHERE e.callee_id = ? AND caller.module_id != callee.module_id
+		ORDER BY e.id LIMIT 1`, symbolID)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		if err := rows.Scan(&fileID, &byteStart); err != nil {
+			return 0, 0, false, err
+		}
+		return fileID, byteStart, true, rows.Err()
+	}
+	return 0, 0, false, rows.Err()
+}
