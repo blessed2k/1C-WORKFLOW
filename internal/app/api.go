@@ -96,7 +96,7 @@ type APISearchItem struct {
 	Note         string `json:"note"`
 }
 
-const apiSearchNote = "Поиск лексический: слово запроса должно совпасть с началом слова в имени метода, имени модуля или первой строке описания. " +
+const apiSearchNote = "Поиск лексический: слово запроса ищется среди слов имени метода, имени модуля и первой строки описания, словоформы сводятся (удаление = удалить), синонимы не сводятся. " +
 	"Нужного нет: повторите запрос, дописав синонимы и термины самой конфигурации (не «сохранить пароль», а «записать данные безопасное хранилище»). " +
 	"Тело и полное описание параметров: get_symbol по uid."
 
@@ -112,8 +112,11 @@ type apiCandidate struct {
 	call        string
 	execContext string
 	deprecated  bool
-	coverage    int
-	score       int
+	// covered — какие слова запроса нашлись у метода.
+	covered apiTermSet
+	// coverage — сумма весов найденных слов (apiCoverage).
+	coverage float64
+	score    int
 }
 
 // FindAPI ищет по описанию задачи готовые экспортные методы программного
@@ -127,7 +130,7 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 	terms := apiQueryTerms(query)
 	if len(terms) == 0 {
 		return Response[APISearchItem]{}, NewError(CodeInvalidArgument,
-			"find_api требует query со словами длиннее двух букв",
+			"find_api требует query хотя бы с одним значимым словом: слова короче трёх букв и служебные (или, для, при) запросом не считаются",
 			"опишите задачу словами, например: разбить строку по разделителю").WithProject(op.Entry.ID)
 	}
 	limit := clampLimit(in.Limit, defaultAPILimit, maxAPILimit)
@@ -168,21 +171,31 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 			})
 		}
 
-		var bsp, other []apiCandidate
+		// Редкость слова считается по всем сравниваемым методам сразу, а не
+		// по секции: слово не становится редким оттого, что в библиотеке его
+		// меньше, чем в конфигурации.
+		matcher := newAPIMatcher(terms)
+		var found []apiCandidate
 		for _, r := range rows {
 			if r.ModuleKind == string(bsl.ModuleCommon) && apiOverridableModule(r.ModuleName) {
 				continue
 			}
-			coverage, score := apiRank(terms, apiSearchTextOf(r))
-			if coverage == 0 {
+			covered, score := matcher.match(apiSearchTextOf(r))
+			if covered == 0 {
 				continue
 			}
 			// Выражение вызова и контекст выводятся только у совпавших: разбор
 			// свойств модуля на каждый из десятков тысяч методов стоил бы
 			// дороже самого сравнения.
 			c := newAPICandidate(r)
-			c.coverage, c.score = coverage, score
-			if lib.objects[apiObjectKey(r.ComponentID, apiOwnerRef(r))] {
+			c.covered, c.score = covered, score
+			found = append(found, c)
+		}
+		weights := matcher.weights()
+		var bsp, other []apiCandidate
+		for _, c := range found {
+			c.coverage = apiCoverage(c.covered, weights)
+			if lib.objects[apiObjectKey(c.row.ComponentID, apiOwnerRef(c.row))] {
 				bsp = append(bsp, c)
 			} else {
 				other = append(other, c)
