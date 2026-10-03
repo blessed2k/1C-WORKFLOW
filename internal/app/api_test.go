@@ -335,10 +335,10 @@ func TestFindAPIGlobalModuleCall(t *testing.T) {
 	}
 }
 
-// TestAPIRankCoverageBeforeScore: метод, покрывший все три слова запроса,
-// стоит выше метода, у которого два слова совпали сразу в имени, модуле и
-// описании и набрали больший вес.
-func TestAPIRankCoverageBeforeScore(t *testing.T) {
+// TestFindAPIFullCoverageBeforeScore: метод, у которого нашлись все три слова
+// запроса, стоит выше метода, у которого два слова совпали сразу в имени,
+// модуле и описании и набрали больший вес места.
+func TestFindAPIFullCoverageBeforeScore(t *testing.T) {
 	files := apiFixtureFiles()
 	files[declPath("CommonModule", "ЗаказыРазбиение")] = общийМодульXML("ЗаказыРазбиение", true, false, false)
 	files[commonModulePath("ЗаказыРазбиение")] = `#Область ПрограммныйИнтерфейс
@@ -355,6 +355,52 @@ func TestAPIRankCoverageBeforeScore(t *testing.T) {
 	want := []string{"ПродажиВызовСервера.РазбитьСтрокуЗаказа", "ЗаказыРазбиение.РазбитьЗаказ"}
 	if calls := apiCalls(item.Other); !reflect.DeepEqual(calls, want) {
 		t.Fatalf("other = %q, want %q", calls, want)
+	}
+}
+
+// TestFindAPIMatchesDerivedWordForm: запрос отглагольным существительным
+// находит метод, названный глаголом: «разложение» это «Разложить».
+func TestFindAPIMatchesDerivedWordForm(t *testing.T) {
+	p := newAPIFixtureProject(t, "api-derived")
+	item, _ := findAPIItem(t, p, "разложение")
+	// Вторым идёт устаревший метод: слово нашлось в его описании, где названа
+	// замена («Следует использовать ...РазложитьСтрокуВМассив»).
+	want := []string{"СтроковыеУтилиты.РазложитьСтрокуВМассив", "СтроковыеУтилиты.РазбитьСтроку"}
+	if calls := apiCalls(item.BSP); !reflect.DeepEqual(calls, want) {
+		t.Fatalf("bsp = %q, want %q", calls, want)
+	}
+}
+
+// TestFindAPIRareWordOutweighsCommonWords: метод, совпавший одним редким
+// словом запроса, стоит выше методов, совпавших двумя словами, которые есть
+// почти в каждом имени: редкое слово говорит о назначении больше.
+func TestFindAPIRareWordOutweighsCommonWords(t *testing.T) {
+	files := apiFixtureFiles()
+	var tables strings.Builder
+	tables.WriteString("#Область ПрограммныйИнтерфейс\n")
+	for _, verb := range []string{"Заполнить", "Очистить", "Скопировать", "Свернуть", "Сгруппировать", "Отсортировать", "Выгрузить"} {
+		tables.WriteString("\nПроцедура " + verb + "ТаблицуДанных(Таблица) Экспорт\nКонецПроцедуры\n")
+	}
+	tables.WriteString("\n#КонецОбласти\n")
+	files[declPath("CommonModule", "ОбработкаКоллекций")] = общийМодульXML("ОбработкаКоллекций", true, false, false)
+	files[commonModulePath("ОбработкаКоллекций")] = tables.String()
+	files[declPath("CommonModule", "КолонкиСервер")] = общийМодульXML("КолонкиСервер", true, false, false)
+	files[commonModulePath("КолонкиСервер")] = `#Область ПрограммныйИнтерфейс
+
+// Строит индекс по колонкам.
+Процедура ИндексацияКолонок(Колонки) Экспорт
+КонецПроцедуры
+
+#КонецОбласти
+`
+	p, _ := newFilesFixtureProject(t, "api-rare", files, index.Config{})
+	item, _ := findAPIItem(t, p, "индексировать таблицу данных")
+
+	if len(item.Other) != 8 {
+		t.Fatalf("other: отдано %d методов, want 8 (семь табличных и один с индексацией): %q", len(item.Other), apiCalls(item.Other))
+	}
+	if got := item.Other[0].Call; got != "КолонкиСервер.ИндексацияКолонок" {
+		t.Fatalf("other[0] = %q, want КолонкиСервер.ИндексацияКолонок; вся секция: %q", got, apiCalls(item.Other))
 	}
 }
 
@@ -431,7 +477,7 @@ func TestFindAPIWithoutRegionMarkup(t *testing.T) {
 // как неверный аргумент.
 func TestFindAPIRejectsEmptyQuery(t *testing.T) {
 	p := newAPIFixtureProject(t, "api-empty")
-	for _, q := range []string{"", "   ", "в по на"} {
+	for _, q := range []string{"", "   ", "в по на", "или для при"} {
 		_, err := NewAPIService(p).FindAPI(context.Background(), FindAPIInput{Query: q})
 		var appErr *Error
 		if !errors.As(err, &appErr) || appErr.Code != CodeInvalidArgument {
@@ -478,19 +524,101 @@ func TestAPIWords(t *testing.T) {
 	}
 }
 
-// TestAPIQueryTerms: запрос сводится к основам без повторов и коротких слов.
+// TestAPIQueryTerms: запрос сводится к словам без повторов, коротких и
+// служебных слов; идентификатор в запросе делится так же, как имя метода.
 func TestAPIQueryTerms(t *testing.T) {
 	for _, c := range []struct {
 		in   string
 		want []string
 	}{
-		{"разбить строку по разделителю", []string{"разб", "стро", "разделит"}},
+		{"разбить строку по разделителю", []string{"разбить", "строку", "разделителю"}},
 		{"цена цена на дату", []string{"цена", "дату"}},
+		{"цена цену номенклатуры", []string{"цена", "номенклатуры"}},
 		{"в по на", nil},
-		{"ЗначениеРеквизитаОбъекта", []string{"значе", "реквиз", "объе"}},
+		{"организация или контрагент для печати", []string{"организация", "контрагент", "печати"}},
+		{"ЗначениеРеквизитаОбъекта", []string{"значение", "реквизита", "объекта"}},
 	} {
 		if got := apiQueryTerms(c.in); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("apiQueryTerms(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// TestAPISameWord: два слова считаются одним, когда у них общее начало, а
+// расходятся они только русскими суффиксами и окончаниями. Пары выписаны по
+// смыслу слов: родственные формы обязаны сойтись, чужие слова с общим началом
+// обязаны разойтись.
+func TestAPISameWord(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		// падежи и числа
+		{"строку", "строка", true},
+		{"файлы", "файлов", true},
+		{"file", "files", true},
+		{"http", "https", true},
+		{"полям", "полей", true},
+		{"цена", "цену", true},
+		{"дату", "дата", true},
+		{"организации", "организация", true},
+		{"сумм", "сумма", true},
+		{"url", "url", true},
+		// глагол, отглагольное существительное, причастие
+		{"удаление", "удалить", true},
+		{"форматирование", "формат", true},
+		{"индексировать", "индексацию", true},
+		{"упорядочение", "упорядочивания", true},
+		{"получить", "получаемых", true},
+		{"записей", "записать", true},
+		{"разложение", "разложить", true},
+		{"план", "планирование", true},
+		// существительные на -ка и беглая гласная
+		{"загрузка", "загрузить", true},
+		{"проверка", "проверить", true},
+		{"обработка", "обработать", true},
+		{"сортировка", "сортировать", true},
+		{"настройка", "настроить", true},
+		{"настроек", "настройки", true},
+		{"ошибок", "ошибка", true},
+		{"ссылок", "ссылка", true},
+		{"остатки", "остаток", true},
+		// прилагательные
+		{"печать", "печатных", true},
+		{"склад", "складской", true},
+		{"файл", "файловый", true},
+		// чужие слова с общим началом
+		{"строку", "строитель", false},
+		{"цена", "центр", false},
+		{"прописью", "пропуск", false},
+		{"записей", "запроса", false},
+		{"документ", "документооборот", false},
+		{"выборка", "выбрать", false},
+		// общее начало в три буквы сводит только окончания
+		{"вид", "видимость", false},
+		{"цена", "ценник", false},
+		{"тип", "типовой", false},
+	} {
+		if got := apiSameWord(c.a, c.b); got != c.want {
+			t.Errorf("apiSameWord(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+		if got := apiSameWord(c.b, c.a); got != c.want {
+			t.Errorf("apiSameWord(%q, %q) = %v, want %v (сравнение обязано быть симметричным)", c.b, c.a, got, c.want)
+		}
+	}
+}
+
+// TestAPIQueryTermsLimit: запрос длиннее apiMaxTerms слов усекается до первых
+// apiMaxTerms: совпавшие слова метода хранятся битами одного числа.
+func TestAPIQueryTermsLimit(t *testing.T) {
+	var words []string
+	for i := 0; i < apiMaxTerms+8; i++ {
+		// Разные слова: общий префикс короче трёх букв, словоформами друг
+		// друга они не считаются.
+		words = append(words, string([]rune{'а' + rune(i%30), 'б' + rune(i/30), 'в', 'г', 'д'}))
+	}
+	got := apiQueryTerms(strings.Join(words, " "))
+	if len(got) != apiMaxTerms || !reflect.DeepEqual(got, words[:apiMaxTerms]) {
+		t.Fatalf("apiQueryTerms: %d слов, want первые %d из %d; получено %q", len(got), apiMaxTerms, len(words), got)
 	}
 }
