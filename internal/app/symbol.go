@@ -61,6 +61,9 @@ type ParameterItem struct {
 // (усечённое, с resource link на полное) + признак расхождения с диском.
 type SymbolDetail struct {
 	SymbolItem
+	// Doc: комментарий над объявлением целиком: назначение, параметры,
+	// возвращаемое значение. В тело символа он не входит.
+	Doc              string          `json:"doc,omitempty"`
 	Parameters       []ParameterItem `json:"parameters,omitempty"`
 	Body             string          `json:"body,omitempty"`
 	BodyTruncated    bool            `json:"bodyTruncated,omitempty"`
@@ -308,6 +311,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 	type txResult struct {
 		row           store.SymbolRow
 		params        []store.ParameterRow
+		doc           string
 		gen           domain.Generation
 		body          string
 		bodyTruncated bool
@@ -365,6 +369,9 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 			return out, perr
 		}
 		out.params = params
+		if out.doc, perr = tx.SymbolDoc(row.ID); perr != nil {
+			return out, perr
+		}
 
 		sf, sfOK, sferr := tx.SourceFileByID(row.OriginFileID)
 		if sferr != nil {
@@ -415,6 +422,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 
 	item := SymbolDetail{
 		SymbolItem:       symbolItemFromRow(res.row),
+		Doc:              res.doc,
 		BodyResourceURI:  symbolResourceURI(op.Entry.ID, res.row.UID, res.gen),
 		StaleAgainstDisk: stale,
 	}

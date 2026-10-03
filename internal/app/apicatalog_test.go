@@ -86,7 +86,13 @@ func TestAPICatalogMethodFields(t *testing.T) {
 	if len(found.BSP) == 0 {
 		t.Fatalf("find_api не нашёл метод, который есть в каталоге")
 	}
-	if got, want := found.BSP[0], byCall[found.BSP[0].Call]; !reflect.DeepEqual(got, want) {
+	// Полный комментарий отдаёт только каталог: в ответе поиска его нет.
+	want := byCall[found.BSP[0].Call]
+	if want.Doc == "" {
+		t.Errorf("каталог отдал метод %s без полного комментария", want.Call)
+	}
+	want.Doc = ""
+	if got := found.BSP[0]; !reflect.DeepEqual(got, want) {
 		t.Errorf("метод в поиске и в каталоге описан по-разному:\n поиск   %+v\n каталог %+v", got, want)
 	}
 }

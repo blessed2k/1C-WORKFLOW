@@ -131,7 +131,7 @@ func TestSummarize(t *testing.T) {
 
 // TestCompare: падение на глубине 10, 20 или 50 в любой половине секции валит
 // сравнение, перестановка внутри глубины нет; база с другого набора или с
-// другой выгрузки не сравнивается.
+// другой выгрузки или с другими карточками поиска не сравнивается.
 func TestCompare(t *testing.T) {
 	base := scoreReport(t, "hash", 1, 0, 4, 25, 3)
 
@@ -159,5 +159,46 @@ func TestCompare(t *testing.T) {
 	moved.Catalog.BSPVersion = "3.2"
 	if _, err := compare(moved, base); err == nil {
 		t.Errorf("база с другой выгрузки принята к сравнению")
+	}
+	carded := scoreReport(t, "hash", 1, 0, 4, 25, 3)
+	carded.Cards = "bsp-3.1:10"
+	if _, err := compare(carded, base); err == nil {
+		t.Errorf("прогон с карточками принят к сравнению с базой без карточек")
+	}
+}
+
+// TestCompareFirstPlaceWithCards: у базы с карточками сравнивается и первое
+// место, с допуском; у базы без карточек перестановка внутри первой десятки
+// падением не считается.
+func TestCompareFirstPlaceWithCards(t *testing.T) {
+	// Пять пар одной группы: в базе все на первом месте.
+	pairs := make([]pair, 5)
+	first, fourth, second := make([]result, 5), make([]result, 5), make([]result, 5)
+	for i := range pairs {
+		id := string(rune('a' + i))
+		pairs[i] = pair{ID: id, Section: sectionBSP, Split: splitDev, Stratum: stratumRest, Variant: variantDirect, NameOverlap: true}
+		first[i] = result{ID: id, Shown: 1, Deep: 1}
+		fourth[i] = result{ID: id, Shown: 4, Deep: 4}
+		second[i] = first[i]
+		if i < ratchetFirstSlack {
+			second[i] = result{ID: id, Shown: 2, Deep: 2}
+		}
+	}
+	rep := func(cards string, results []result) report {
+		groups, _, err := summarize(pairs, results)
+		if err != nil {
+			t.Fatalf("summarize: %v", err)
+		}
+		return report{Dataset: "hash", Cards: cards, Groups: groups}
+	}
+	if drops, err := compare(rep("", fourth), rep("", first)); err != nil || len(drops) != 0 {
+		t.Errorf("без карточек уход с первого места сочтён падением: %q, %v", drops, err)
+	}
+	if drops, err := compare(rep("p@1", second), rep("p@1", first)); err != nil || len(drops) != 0 {
+		t.Errorf("падение первого места в пределах допуска сочтено падением: %q, %v", drops, err)
+	}
+	drops, err := compare(rep("p@1", fourth), rep("p@1", first))
+	if err != nil || len(drops) != 1 || !strings.Contains(drops[0], "на первом месте") {
+		t.Errorf("с карточками уход всех пар с первого места: %q, %v", drops, err)
 	}
 }

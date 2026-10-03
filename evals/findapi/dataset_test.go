@@ -257,10 +257,17 @@ func TestShippedDataset(t *testing.T) {
 			meta.Funnel.Pairs, len(pairs), meta.Sections, count)
 	}
 
-	var base report
-	readJSON(t, "data/ut_demo.baseline.json", &base)
-	if got := datasetDigest(data); base.Dataset != got {
-		t.Errorf("база снята на другом наборе: отпечаток %s, у набора %s", short(base.Dataset), short(got))
+	// Баз две: без карточек поиска и с карточками. Обе сняты на этом наборе;
+	// первая обязана быть без карточек, вторая с ними.
+	for file, wantCards := range map[string]bool{"data/ut_demo.baseline.json": false, "data/ut_demo.cards.baseline.json": true} {
+		var base report
+		readJSON(t, file, &base)
+		if got := datasetDigest(data); base.Dataset != got {
+			t.Errorf("%s: база снята на другом наборе: отпечаток %s, у набора %s", file, short(base.Dataset), short(got))
+		}
+		if (base.Cards != "") != wantCards {
+			t.Errorf("%s: карточки базы %q", file, base.Cards)
+		}
 	}
 }
 

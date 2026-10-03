@@ -349,6 +349,11 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	app.ConfigureGraphTunables(opts.graphChainDepth, opts.graphHubFanIn,
 		opts.graphDepthPenalty, opts.graphHubPenalty)
 
+	// Search cards of find_api are process-wide for the same reason: the flag
+	// is parsed once, the search service reads the directory when it builds
+	// its word index.
+	app.ConfigureAPICards(opts.apiCardsDir())
+
 	// NewLazy: a session that never asks for platform syntax never pays the
 	// corpus parse. The index file lives outside the repository (cmd/syntaxgen
 	// builds it from the user's platform); a missing or broken file is visible

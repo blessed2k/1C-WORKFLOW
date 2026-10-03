@@ -9,6 +9,8 @@ import (
 
 // SubsystemContent — состав одной подсистемы, как он записан в её объявлении.
 type SubsystemContent struct {
+	// Synonym: представление подсистемы для человека («Работа с файлами»).
+	Synonym string
 	// Objects — объекты состава в виде "Вид.Имя" (CommonModule.ОбщегоНазначения).
 	Objects []string
 	// Children — имена дочерних подсистем. Их объявления лежат в каталоге
@@ -20,6 +22,7 @@ type xmlSubsystemRoot struct {
 	XMLName   xml.Name `xml:"MetaDataObject"`
 	Subsystem struct {
 		Properties struct {
+			Synonym xmlSynonym `xml:"Synonym"`
 			Content struct {
 				Items []string `xml:"Item"`
 			} `xml:"Content"`
@@ -42,6 +45,7 @@ func ParseSubsystemContent(relPath string, src []byte) (SubsystemContent, []doma
 		return SubsystemContent{}, diags
 	}
 	return SubsystemContent{
+		Synonym:  root.Subsystem.Properties.Synonym.ru(),
 		Objects:  trimmedNonEmpty(root.Subsystem.Properties.Content.Items),
 		Children: trimmedNonEmpty(root.Subsystem.ChildObjects.Subsystems),
 	}, nil

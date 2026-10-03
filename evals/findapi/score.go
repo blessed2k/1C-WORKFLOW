@@ -80,9 +80,13 @@ type catalogInfo struct {
 type report struct {
 	// Dataset: отпечаток набора: база сравнима только с тем набором, на
 	// котором снята.
-	Dataset string                `json:"dataset"`
-	Catalog catalogInfo           `json:"catalog"`
-	Groups  map[string]groupStats `json:"groups"`
+	Dataset string      `json:"dataset"`
+	Catalog catalogInfo `json:"catalog"`
+	// Cards: наборы карточек поиска, с которыми шёл прогон (имя и число
+	// карточек); пусто: без карточек. База сравнима только с прогоном на тех
+	// же карточках.
+	Cards  string                `json:"cards,omitempty"`
+	Groups map[string]groupStats `json:"groups"`
 	// MedianMS: медиана времени вызова find_api при том числе потоков, с
 	// которым шёл прогон.
 	MedianMS float64 `json:"medianMs"`
@@ -199,15 +203,26 @@ var (
 	ratchetCutoffs = []int{scoreFull, scoreShown, scoreDepth}
 )
 
+// ratchetFirstSlack: на сколько пар первое место группы может упасть против
+// базы с карточками. Карточки почти не меняют, виден ли метод вообще, они
+// поднимают его к началу списка: это их главный измеримый эффект, и без
+// сравнения первого места его потеря прошла бы как «не ниже базы». Допуск
+// нужен потому, что перестановка двух-трёх пар на первом месте случается от
+// любой правки рядом.
+const ratchetFirstSlack = 3
+
 // compare сверяет прогон с базой и возвращает список падений; пустой список
-// значит «не ниже базы». Ошибка: база снята на другом наборе или на другой
-// выгрузке.
+// значит «не ниже базы». Ошибка: база снята на другом наборе, на другой
+// выгрузке или с другими карточками поиска.
 func compare(cur, base report) ([]string, error) {
 	if cur.Dataset != base.Dataset {
 		return nil, fmt.Errorf("база снята на другом наборе (%s против %s): сравнивать нечего, снимите базу заново", short(base.Dataset), short(cur.Dataset))
 	}
 	if cur.Catalog != base.Catalog {
 		return nil, fmt.Errorf("база снята на другой выгрузке (%+v против %+v): сравнивать нечего, снимите базу заново", base.Catalog, cur.Catalog)
+	}
+	if cur.Cards != base.Cards {
+		return nil, fmt.Errorf("база снята с другими карточками поиска (%q против %q): сравнивать нечего, задайте те же карточки флагом -cards или снимите базу заново", base.Cards, cur.Cards)
 	}
 	var drops []string
 	for _, key := range ratchetGroups {
@@ -220,6 +235,9 @@ func compare(cur, base report) ([]string, error) {
 			if c.Hits[k] < b.Hits[k] {
 				drops = append(drops, fmt.Sprintf("%s: в первых %d найдено %d из %d, в базе %d", key, k, c.Hits[k], c.N, b.Hits[k]))
 			}
+		}
+		if base.Cards != "" && c.Hits[1] < b.Hits[1]-ratchetFirstSlack {
+			drops = append(drops, fmt.Sprintf("%s: на первом месте %d из %d, в базе с карточками %d (допуск %d)", key, c.Hits[1], c.N, b.Hits[1], ratchetFirstSlack))
 		}
 	}
 	return drops, nil
@@ -253,6 +271,11 @@ func formatReport(rep report) string {
 			fmt.Fprintf(&b, " %4d (%3.0f%%)", g.Hits[k], 100*float64(g.Hits[k])/float64(g.N))
 		}
 		fmt.Fprintf(&b, " %6.3f\n", g.MRR)
+	}
+	if rep.Cards != "" {
+		fmt.Fprintf(&b, "карточки поиска: %s\n", rep.Cards)
+	} else {
+		fmt.Fprintf(&b, "карточки поиска: нет\n")
 	}
 	fmt.Fprintf(&b, "медиана вызова find_api: %.0f мс при %d одновременных запросах\n", rep.MedianMS, rep.Jobs)
 	return b.String()

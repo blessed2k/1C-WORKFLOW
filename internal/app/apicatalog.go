@@ -55,6 +55,7 @@ func (s *APIService) Catalog(ctx context.Context) (Response[APICatalogItem], err
 			if ierr != nil {
 				return out, ierr
 			}
+			item.Doc = r.Doc
 			if lib.contains(r) {
 				out.item.BSP = append(out.item.BSP, item)
 			} else {

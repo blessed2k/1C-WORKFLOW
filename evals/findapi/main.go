@@ -149,10 +149,66 @@ func usage() {
 // projectFlags добавляет флаги, общие для шагов, которым нужен индекс.
 func projectFlags(fs *flag.FlagSet) (root, workspace, syntaxIndex *string, reindex *bool) {
 	root = fs.String("project", firstEnv("ONEC_DUMP", "MCP1C_SPIKE_DUMP"), "каталог проекта с 1c-project.json (по умолчанию ONEC_DUMP)")
-	workspace = fs.String("workspace", defaultWorkspace(), "рабочий каталог оценки: здесь её индекс живёт между запусками")
-	syntaxIndex = fs.String("syntax-index", defaultSyntaxIndex(), "индекс синтаксиса платформы (cmd/syntaxgen)")
+	workspace = fs.String("workspace", app.DefaultStandaloneWorkspace(), "рабочий каталог оценки: здесь её индекс живёт между запусками")
+	syntaxIndex = fs.String("syntax-index", app.DefaultSyntaxIndexPath(), "индекс синтаксиса платформы (cmd/syntaxgen)")
+	// Без флага карточек нет: прогон не должен зависеть от того, что лежит в
+	// каталоге настроек пользователя.
+	fs.Func("cards", "каталог карточек поиска (cmd/apicards); server: каталог сервера; none или без флага: поиск без карточек", func(v string) error {
+		switch v {
+		case "server":
+			v = app.DefaultAPICardsDir()
+		case "none":
+			v = ""
+		}
+		cardsDir = v
+		app.ConfigureAPICards(v)
+		return nil
+	})
 	reindex = fs.Bool("reindex", false, "пересобрать индекс целиком (после правки выгрузки или смены схемы индекса); новый проект индексируется и без флага")
 	return
+}
+
+// cardsDir: каталог карточек, с которым идёт прогон; пусто: без карточек.
+var cardsDir string
+
+// cardsInfo называет наборы карточек прогона одной строкой: имя набора и
+// начало отпечатка его содержимого ("bsp-3.1.11.366@3fa1c2d4e5b6,
+// ut-11.5.22@9b0c..."); пусто: карточек нет. Отпечаток, а не число карточек:
+// набор, пересобранный заново, носит то же имя и то же число.
+func cardsInfo() (string, error) {
+	packs, err := app.APICardPacks(cardsDir)
+	if err != nil {
+		return "", err
+	}
+	parts := make([]string, len(packs))
+	for i, h := range packs {
+		parts[i] = h.Pack + "@" + short(h.Digest)
+	}
+	return strings.Join(parts, ", "), nil
+}
+
+// checkCards сверяет, что прогон идёт с теми карточками, которыми будет
+// подписан: каталог задан, а поиск карточек не прочитал или не привязал ни
+// одной к методам этой выгрузки: такой прогон мерил бы поиск без карточек
+// под видом поиска с карточками.
+func checkCards(ctx context.Context, p *project) error {
+	if cardsDir == "" {
+		return nil
+	}
+	resp, err := p.api.FindAPI(ctx, app.FindAPIInput{})
+	if err != nil {
+		return err
+	}
+	for _, w := range resp.Warnings {
+		if w.Code == "api_cards_unreadable" {
+			return fmt.Errorf("карточки из %s не прочитаны: %s", cardsDir, w.Message)
+		}
+	}
+	if resp.Items[0].Cards == 0 {
+		return fmt.Errorf("карточки из %s не подошли ни одному методу выгрузки: каталог пуст или наборы от другой конфигурации", cardsDir)
+	}
+	log.Printf("карточек привязано к методам: %d", resp.Items[0].Cards)
+	return nil
 }
 
 func firstEnv(keys ...string) string {
@@ -332,7 +388,11 @@ func runScore(args []string) error {
 	writeBaseline := fs.String("write-baseline", "", "записать итог прогона как новую базу; вместе с -baseline пишется, только если прогон не ниже прежней")
 	raw := fs.String("out", "", "записать исход каждого запроса (место и первые методы выдачи)")
 	jobs := fs.Int("jobs", 4, "сколько запросов выполнять одновременно; для замера времени вызова ставьте 1")
+	split := fs.String("split", "", "мерить только одну половину набора (dev: настройка правил, проверочную половину при настройке не смотрят); с базой не сравнивается")
 	fs.Parse(args)
+	if *split != "" && (*baseline != "" || *writeBaseline != "") {
+		return fmt.Errorf("score: -split меряет половину набора, база снимается и сравнивается только на целом")
+	}
 	if *jobs < 1 {
 		return fmt.Errorf("score: потоков должно быть не меньше одного: %d", *jobs)
 	}
@@ -348,6 +408,18 @@ func runScore(args []string) error {
 	if err := checkDataset(pairs, datasetLimits{}); err != nil {
 		return err
 	}
+	if *split != "" {
+		var half []pair
+		for _, pr := range pairs {
+			if pr.Split == *split {
+				half = append(half, pr)
+			}
+		}
+		if len(half) == 0 {
+			return fmt.Errorf("score: в наборе нет половины %q", *split)
+		}
+		pairs = half
+	}
 
 	ctx := context.Background()
 	p, err := openProject(ctx, *root, *workspace, *syntaxIndex, *reindex)
@@ -360,6 +432,9 @@ func runScore(args []string) error {
 	// каком поиске, и набор мерил бы не поиск, а расхождение с выгрузкой.
 	cat, err := readCatalog(ctx, p)
 	if err != nil {
+		return err
+	}
+	if err := checkCards(ctx, p); err != nil {
 		return err
 	}
 	var missing []string
@@ -409,7 +484,11 @@ func runScore(args []string) error {
 	if err != nil {
 		return err
 	}
-	rep := report{Dataset: datasetDigest(bytes), Catalog: cat.info, Groups: groups, MedianMS: median, Jobs: *jobs}
+	cards, err := cardsInfo()
+	if err != nil {
+		return err
+	}
+	rep := report{Dataset: datasetDigest(bytes), Catalog: cat.info, Cards: cards, Groups: groups, MedianMS: median, Jobs: *jobs}
 	fmt.Print(formatReport(rep))
 	if *raw != "" {
 		if err := writeJSON(*raw, results); err != nil {

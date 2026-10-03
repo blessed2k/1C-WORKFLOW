@@ -321,6 +321,27 @@ type ParameterRow struct {
 	DefaultExpr string
 }
 
+// SymbolDoc читает полный комментарий символа. Пусто: комментария нет либо
+// индекс собран до схемы 8. В общий набор колонок символа комментарий не
+// входит: он длинный, а списки символов его не показывают.
+func (tx *ReadTx) SymbolDoc(symbolID int64) (string, error) {
+	if err := tx.check(); err != nil {
+		return "", err
+	}
+	rows, err := tx.c.query(tx.ctx, `SELECT doc FROM symbol WHERE id=?`, symbolID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var doc sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&doc); err != nil {
+			return "", err
+		}
+	}
+	return doc.String, rows.Err()
+}
+
 // SymbolParameters читает параметры символа по порядку (ord).
 func (tx *ReadTx) SymbolParameters(symbolID int64) ([]ParameterRow, error) {
 	if err := tx.check(); err != nil {

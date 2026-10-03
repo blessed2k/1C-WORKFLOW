@@ -81,6 +81,7 @@ func parseFlags() (options, bool) {
 	registerGraphFlags(flag.CommandLine, &opts)
 	registerToolsFlag(flag.CommandLine, &opts)
 	registerSyntaxIndexFlag(flag.CommandLine, &opts)
+	registerAPICardsFlag(flag.CommandLine, &opts)
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
 

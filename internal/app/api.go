@@ -59,10 +59,34 @@ const (
 // описания подсистемы. Вычисляемую версию (вызов функции) не достаёт.
 var reAPILibraryVersion = regexp.MustCompile(`Описание\.Версия\s*=\s*"([^"]+)"`)
 
-// FindAPIInput: вход find_api.
+// FindAPIInput: вход find_api. Режимов три:
+//
+//   - Query: поиск метода по описанию задачи (с Module: только в этом модуле);
+//   - Module без Query: весь программный интерфейс модуля списком;
+//   - ни Query, ни Module: карта библиотеки (подсистемы и их модули).
 type FindAPIInput struct {
-	Query string
-	Limit int
+	Query  string
+	Module string
+	Limit  int
+}
+
+// APIMapSubsystem: подсистема библиотеки на карте: какие её модули несут
+// программный интерфейс.
+type APIMapSubsystem struct {
+	// Name: имя подсистемы от подсистемы библиотеки (БазоваяФункциональность,
+	// РаботаСФайлами); у самой подсистемы библиотеки её имя.
+	Name string `json:"name"`
+	// Title: представление подсистемы («Работа с файлами»).
+	Title   string         `json:"title,omitempty"`
+	Modules []APIMapModule `json:"modules"`
+}
+
+// APIMapModule: модуль на карте библиотеки. Methods: сколько у него
+// действующих методов программного интерфейса; устаревшие в счёт не идут, а в
+// списке модуля (MethodsTotal) они есть, поэтому там число может быть больше.
+type APIMapModule struct {
+	Name    string `json:"name"`
+	Methods int    `json:"methods"`
 }
 
 // APIMethodItem: один готовый метод программного интерфейса.
@@ -81,10 +105,14 @@ type APIMethodItem struct {
 	Component  domain.ComponentID `json:"component"`
 	Line       int                `json:"line"`
 	UID        string             `json:"uid"`
+	// Doc: полный комментарий метода. Заполняется только в каталоге
+	// (APIService.Catalog): в ответе поиска его нет, его отдаёт get_symbol.
+	Doc string `json:"doc,omitempty"`
 }
 
 // APIBriefItem: метод программного интерфейса одной строкой: вызов и
-// назначение. Сигнатуру и полное описание отдаёт get_symbol по uid.
+// назначение. Сигнатуру, параметры и полный комментарий отдаёт get_symbol по
+// uid.
 type APIBriefItem struct {
 	Call       string `json:"call"`
 	Summary    string `json:"summary,omitempty"`
@@ -108,13 +136,38 @@ type APISearchItem struct {
 	Other     []APIMethodItem `json:"other"`
 	OtherMore []APIBriefItem  `json:"otherMore,omitempty"`
 	// BSPMatched/OtherMatched: сколько методов секции совпало с запросом всего.
-	BSPMatched   int    `json:"bspMatched"`
-	OtherMatched int    `json:"otherMatched"`
-	Note         string `json:"note"`
+	BSPMatched   int `json:"bspMatched"`
+	OtherMatched int `json:"otherMatched"`
+	// Module: модуль, которым ограничен ответ (вход module).
+	Module string `json:"module,omitempty"`
+	// Methods: весь программный интерфейс модуля в порядке объявления (режим
+	// без query); MethodsTotal: сколько их всего.
+	Methods      []APIBriefItem `json:"methods,omitempty"`
+	MethodsTotal int            `json:"methodsTotal,omitempty"`
+	// Map: карта библиотеки (режим без query и без module).
+	Map []APIMapSubsystem `json:"map,omitempty"`
+	// Cards: у скольких методов программного интерфейса есть карточка задач.
+	// Ноль: карточки не подключены или не подходят этой конфигурации, поиск
+	// идёт только по имени и комментарию.
+	Cards int    `json:"cards"`
+	Note  string `json:"note"`
 }
 
+// apiModuleListLimit: потолок списка методов одного модуля. Самые большие
+// модули программного интерфейса несут около двухсот методов.
+const apiModuleListLimit = 300
+
+const apiMapNote = "Карта библиотеки: подсистемы и их модули с числом методов программного интерфейса. " +
+	"Весь интерфейс модуля: find_api с module. Поиск по описанию задачи: find_api с query."
+
+const apiNoLibraryMapNote = "Библиотеки стандартных подсистем в выгрузке нет, карты нет. " +
+	"Весь интерфейс модуля: find_api с module (имя общего модуля или Справочники.Имя). Поиск по описанию задачи: find_api с query."
+
+const apiModuleNote = "Весь программный интерфейс модуля в порядке объявления: вызов и назначение одной строкой. " +
+	"Сигнатуру, параметры и полный комментарий (поле doc) даёт get_symbol по uid; поиск внутри модуля: тот же вызов с query."
+
 const apiSearchNote = "Поиск лексический: слово запроса ищется в имени метода, имени модуля и комментарии метода, словоформы сводятся (удаление = удалить), синонимы не сводятся. " +
-	"Списки bspMore и otherMore продолжают секции: вызов и назначение одной строкой. Подходит метод оттуда: get_symbol по uid даст сигнатуру и описание параметров. " +
+	"Списки bspMore и otherMore продолжают секции: вызов и назначение одной строкой. Подходит метод оттуда: get_symbol по uid даст сигнатуру, параметры и полный комментарий (поле doc). " +
 	"Нужного нет: повторите запрос, дописав синонимы и термины самой конфигурации (не «сохранить пароль», а «записать данные безопасное хранилище»)."
 
 // APIService: сервис за find_api.
@@ -141,11 +194,11 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 	if err != nil {
 		return Response[APISearchItem]{}, err
 	}
-	query := strings.TrimSpace(in.Query)
+	query, module := strings.TrimSpace(in.Query), strings.TrimSpace(in.Module)
 	terms := apiQueryTerms(query)
-	if len(terms) == 0 {
+	if query != "" && len(terms) == 0 {
 		return Response[APISearchItem]{}, NewError(CodeInvalidArgument,
-			"find_api требует query хотя бы с одним значимым словом: слова короче трёх букв и служебные (или, для, при) запросом не считаются",
+			"в query find_api нет ни одного значимого слова: слова короче трёх букв и служебные (или, для, при) запросом не считаются",
 			"опишите задачу словами, например: разбить строку по разделителю").WithProject(op.Entry.ID)
 	}
 	limit := clampLimit(in.Limit, defaultAPILimit, maxAPILimit)
@@ -156,7 +209,8 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		warn []Warning
 	}
 	res, snap, err := ReadSnapshot(ctx, op, func(tx *store.ReadTx) (txResult, error) {
-		out := txResult{item: APISearchItem{Query: query, Note: apiSearchNote}}
+		// Секции пусты, а не отсутствуют, в любом режиме: в JSON это [], не null.
+		out := txResult{item: APISearchItem{Query: query, Note: apiSearchNote, BSP: []APIMethodItem{}, Other: []APIMethodItem{}}}
 		gen, gerr := tx.Generation()
 		if gerr != nil {
 			return out, gerr
@@ -167,11 +221,54 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		if ierr != nil {
 			return out, ierr
 		}
-		out.item.BSPVersion = ix.version
+		out.item.BSPVersion, out.item.Cards = ix.version, ix.cards
 		out.warn = append([]Warning(nil), ix.warn...)
+
+		// Без запроса и без модуля: карта библиотеки.
+		if query == "" && module == "" {
+			out.item.Map, out.item.Note = ix.libraryMap, apiMapNote
+			if len(ix.libraryMap) == 0 {
+				out.item.Note = apiNoLibraryMapNote
+			}
+			return out, nil
+		}
+		var inModule map[int32]bool
+		if module != "" {
+			methods := ix.byOwner[strings.ToLower(apiOwnerName(module))]
+			if len(methods) == 0 {
+				// Причин три, и по ответу их не различить: модуля нет, это
+				// переопределяемый модуль, либо у модуля нет экспортных
+				// методов в области программного интерфейса.
+				return out, NotFoundError("модуль с методами программного интерфейса", module, ix.owners()).
+					WithProject(op.Entry.ID).WithGeneration(gen)
+			}
+			out.item.Module = ix.methods[methods[0]].owner
+			// Без запроса: весь интерфейс модуля списком.
+			if query == "" {
+				out.item.Note, out.item.MethodsTotal = apiModuleNote, len(methods)
+				if len(methods) > apiModuleListLimit {
+					out.item.Note = "Показаны первые " + strconv.Itoa(apiModuleListLimit) + " методов из " + strconv.Itoa(len(methods)) +
+						": остальные ищите тем же вызовом с query. " + apiModuleNote
+				}
+				for _, m := range methods[:min(len(methods), apiModuleListLimit)] {
+					im := ix.methods[m]
+					out.item.Methods = append(out.item.Methods, APIBriefItem{
+						Call: im.call, Summary: im.row.DocFirstLine, Deprecated: im.deprecated, UID: im.row.UID,
+					})
+				}
+				return out, nil
+			}
+			inModule = make(map[int32]bool, len(methods))
+			for _, m := range methods {
+				inModule[m] = true
+			}
+		}
 
 		var bsp, other []apiRanked
 		for _, r := range ix.search(terms) {
+			if inModule != nil && !inModule[r.method] {
+				continue
+			}
 			if ix.methods[r.method].library {
 				bsp = append(bsp, r)
 			} else {
@@ -395,6 +492,19 @@ type apiLibraryInfo struct {
 	objects map[string]bool
 	version string
 	warn    []Warning
+	// subsystems: подсистемы библиотеки в порядке обхода: по ним строится
+	// карта библиотеки.
+	subsystems []apiLibraryPart
+}
+
+// apiLibraryPart: подсистема библиотеки и объекты её состава.
+type apiLibraryPart struct {
+	// path: имена от подсистемы библиотеки до этой, через точку; у самой
+	// подсистемы библиотеки пусто.
+	path        string
+	synonym     string
+	componentID string
+	objects     []string
 }
 
 // contains сообщает, входит ли модуль метода в состав библиотеки.
@@ -406,9 +516,10 @@ func (info apiLibraryInfo) contains(r store.ExportedMethodRow) bool {
 // проекта.
 //
 // упрощение: состав подсистемы читается из её объявлений, сохранённых в
-// индексе, на каждый вызов (десятки небольших XML). Индекс рёбер
-// «подсистема содержит объект» не хранит; когда начнёт, чтение уходит в один
-// запрос по рёбрам, ответ инструмента при этом не меняется.
+// индексе (десятки небольших XML): раз на поколение индекса при постройке
+// индекса слов и на каждый вызов каталога. Индекс рёбер «подсистема содержит
+// объект» не хранит; когда начнёт, чтение уходит в один запрос по рёбрам,
+// ответ инструмента при этом не меняется.
 func readAPILibrary(tx *store.ReadTx) (apiLibraryInfo, error) {
 	info := apiLibraryInfo{objects: map[string]bool{}}
 	// Строители путей выгрузки паникуют на виде, которого нет в словаре
@@ -440,7 +551,8 @@ func readAPILibrary(tx *store.ReadTx) (apiLibraryInfo, error) {
 // collectSubsystemObjects обходит подсистему библиотеки и все вложенные и
 // складывает объекты их состава в info.objects.
 func collectSubsystemObjects(tx *store.ReadTx, componentID string, info *apiLibraryInfo) error {
-	queue := []string{workspace.DumpDeclarationPath("Subsystem", apiLibrarySubsystem)}
+	type entry struct{ rel, path string }
+	queue := []entry{{rel: workspace.DumpDeclarationPath("Subsystem", apiLibrarySubsystem)}}
 	seen := map[string]bool{}
 	for len(queue) > 0 {
 		if len(seen) >= apiSubsystemFilesLimit {
@@ -451,13 +563,13 @@ func collectSubsystemObjects(tx *store.ReadTx, componentID string, info *apiLibr
 			})
 			return nil
 		}
-		rel := queue[0]
+		cur := queue[0]
 		queue = queue[1:]
-		if seen[rel] {
+		if seen[cur.rel] {
 			continue
 		}
-		seen[rel] = true
-		fileID, ok, err := tx.SourceFileID(componentID, rel)
+		seen[cur.rel] = true
+		fileID, ok, err := tx.SourceFileID(componentID, cur.rel)
 		if err != nil {
 			return err
 		}
@@ -469,11 +581,11 @@ func collectSubsystemObjects(tx *store.ReadTx, componentID string, info *apiLibr
 			return err
 		}
 		info.found = true
-		content, diags := meta.ParseSubsystemContent(rel, src)
+		content, diags := meta.ParseSubsystemContent(cur.rel, src)
 		if len(diags) > 0 {
 			info.warn = append(info.warn, Warning{
 				Code:    "subsystem_content_unreadable",
-				Message: "объявление подсистемы " + rel + " не разобрано: " + diags[0].Message,
+				Message: "объявление подсистемы " + cur.rel + " не разобрано: " + diags[0].Message,
 				Hint:    "методы её объектов попадут в секцию other",
 			})
 			continue
@@ -481,8 +593,15 @@ func collectSubsystemObjects(tx *store.ReadTx, componentID string, info *apiLibr
 		for _, obj := range content.Objects {
 			info.objects[apiObjectKey(componentID, obj)] = true
 		}
+		info.subsystems = append(info.subsystems, apiLibraryPart{
+			path: cur.path, synonym: content.Synonym, componentID: componentID, objects: content.Objects,
+		})
 		for _, child := range content.Children {
-			queue = append(queue, workspace.DumpChildSubsystemPath(rel, child))
+			path := child
+			if cur.path != "" {
+				path = cur.path + "." + child
+			}
+			queue = append(queue, entry{rel: workspace.DumpChildSubsystemPath(cur.rel, child), path: path})
 		}
 	}
 	return nil
