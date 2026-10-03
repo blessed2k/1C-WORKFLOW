@@ -1,36 +1,24 @@
 package app
 
 import (
-	"math"
 	"regexp"
 	"strings"
 	"unicode"
 )
 
 // Ранжирование find_api. Поиск лексический: слово запроса ищется среди слов
-// имени метода, имени модуля и первой строки описания. Слова сравниваются
-// целиком, а не подстрокой: подстрока «цен» находит «Сценарий», «Оценка» и
-// «Лицензия», и на общем наборе методов конфигурации такой шум занимает весь
-// топ.
+// имени метода, имени модуля и комментария метода. Слова сравниваются целиком,
+// а не подстрокой: подстрока «цен» находит «Сценарий», «Оценка» и «Лицензия»,
+// и на общем наборе методов конфигурации такой шум занимает весь топ.
 //
-// Правила ниже подобраны замером на выгрузке УТ 11.5 по 25 запросам с
-// известным ответом (7 методов БСП и 18 прикладных, названных в статьях
-// разработчиков): в первой тройке своей секции 23 против 19 у прежнего
-// правила «начало слова по усечённой основе, счёт совпавших слов». Это
-// настроечный набор, а не оценка качества: на 15 запросах другой статьи, в
-// настройке не участвовавших, в первой тройке 9 против 6. Оба набора
-// закреплены в TestRealDumpFindAPI.
+// Правила меряются эталоном evals/findapi (docs/find-api-eval.md): подбираются
+// по настроечной половине набора, качество называется по проверочной. Менять
+// их без прогона эталона нельзя.
 
-// Веса места совпадения: имя метода самый сильный признак того, для чего
-// метод, описание самый слабый.
-const (
-	apiWeightName    = 3
-	apiWeightModule  = 2
-	apiWeightSummary = 1
-)
-
-// apiMaxTerms: потолок слов запроса. Совпавшие слова метода хранятся битами
-// одного числа; запрос длиннее описывает уже не одну задачу.
+// apiMaxTerms: потолок слов запроса: запрос длиннее описывает уже не одну
+// задачу, а на каждое слово поиск держит по байту на метод. Не больше 32:
+// слова запроса, найденные в имени метода, поиск отмечает битами uint32
+// (apiRanked.nameMask).
 const apiMaxTerms = 32
 
 // apiStopWords: союзы, предлоги и местоимения, которые в запросе не значат
@@ -165,102 +153,4 @@ func apiSameWord(a, b string) bool {
 		return reAPIInflection.MatchString(restA) && reAPIInflection.MatchString(restB)
 	}
 	return reAPISuffix.MatchString(restA) && reAPISuffix.MatchString(restB)
-}
-
-// apiSearchText — метод, подготовленный к сравнению с запросом.
-type apiSearchText struct {
-	name, module, summary []string
-}
-
-// apiTermSet — набор слов запроса, бит на слово (слов не больше apiMaxTerms).
-type apiTermSet uint64
-
-func (s apiTermSet) has(term int) bool { return s&(1<<uint(term)) != 0 }
-
-func (s apiTermSet) with(term int) apiTermSet { return s | 1<<uint(term) }
-
-// apiMatcher сравнивает методы со словами одного запроса и копит по ходу,
-// сколько методов сравнено и у скольких нашлось каждое слово: из этого
-// выводится редкость слова. Словарь имён и описаний конфигурации на порядок
-// меньше числа слов во всех методах, поэтому исход сравнения пары «слово
-// запроса, слово метода» запоминается на вызов.
-type apiMatcher struct {
-	terms    []string
-	seen     []map[string]bool
-	compared int
-	matched  []int
-}
-
-func newAPIMatcher(terms []string) *apiMatcher {
-	m := &apiMatcher{terms: terms, seen: make([]map[string]bool, len(terms)), matched: make([]int, len(terms))}
-	for i := range m.seen {
-		m.seen[i] = map[string]bool{}
-	}
-	return m
-}
-
-func (m *apiMatcher) has(term int, words []string) bool {
-	for _, w := range words {
-		same, known := m.seen[term][w]
-		if !known {
-			same = apiSameWord(m.terms[term], w)
-			m.seen[term][w] = same
-		}
-		if same {
-			return true
-		}
-	}
-	return false
-}
-
-// match сравнивает метод с запросом: covered — какие слова запроса нашлись
-// хоть где-то, score — сумма весов мест совпадения.
-func (m *apiMatcher) match(d apiSearchText) (covered apiTermSet, score int) {
-	m.compared++
-	for i := range m.terms {
-		hit := 0
-		if m.has(i, d.name) {
-			hit += apiWeightName
-		}
-		if m.has(i, d.module) {
-			hit += apiWeightModule
-		}
-		if m.has(i, d.summary) {
-			hit += apiWeightSummary
-		}
-		if hit > 0 {
-			covered = covered.with(i)
-			m.matched[i]++
-			score += hit
-		}
-	}
-	return covered, score
-}
-
-// weights: вес каждого слова запроса в охвате по его редкости среди всех
-// сравненных методов. Зовётся после того, как сравнены все методы.
-//
-// Слово, которое есть почти в каждом методе («получить», «данные»,
-// «таблица»), о назначении метода не говорит ничего, а редкое («индексация»,
-// «факсимиле») называет его почти однозначно. Простой счёт совпавших слов
-// ставил метод с двумя общими словами выше метода с одним точным.
-func (m *apiMatcher) weights() []float64 {
-	out := make([]float64, len(m.matched))
-	for i, n := range m.matched {
-		if n > 0 {
-			out[i] = math.Log(1 + float64(m.compared)/float64(n))
-		}
-	}
-	return out
-}
-
-// apiCoverage складывает веса найденных слов запроса.
-func apiCoverage(covered apiTermSet, weights []float64) float64 {
-	var sum float64
-	for i, w := range weights {
-		if covered.has(i) {
-			sum += w
-		}
-	}
-	return sum
 }

@@ -44,6 +44,12 @@ func подсистемаXML(name string, content, children []string) string {
   <Subsystem uuid="00000000-0000-0000-0000-000000000002">
     <Properties>
       <Name>` + name + `</Name>
+      <Synonym>
+        <v8:item xmlns:v8="http://v8.1c.ru/8.1/data/core">
+          <v8:lang>ru</v8:lang>
+          <v8:content>Подсистема ` + name + `</v8:content>
+        </v8:item>
+      </Synonym>
       <Content>`)
 	for _, c := range content {
 		b.WriteString(`
@@ -473,11 +479,12 @@ func TestFindAPIWithoutRegionMarkup(t *testing.T) {
 	}
 }
 
-// TestFindAPIRejectsEmptyQuery: запрос без единого значимого слова отклонён
-// как неверный аргумент.
+// TestFindAPIRejectsEmptyQuery: запрос, в котором нет ни одного значимого
+// слова, отклонён как неверный аргумент. Пустой запрос сюда не относится: это
+// режим карты библиотеки.
 func TestFindAPIRejectsEmptyQuery(t *testing.T) {
 	p := newAPIFixtureProject(t, "api-empty")
-	for _, q := range []string{"", "   ", "в по на", "или для при"} {
+	for _, q := range []string{"в по на", "или для при"} {
 		_, err := NewAPIService(p).FindAPI(context.Background(), FindAPIInput{Query: q})
 		var appErr *Error
 		if !errors.As(err, &appErr) || appErr.Code != CodeInvalidArgument {

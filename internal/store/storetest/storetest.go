@@ -20,7 +20,7 @@ import (
 // база предыдущей версии, два (в internal/store — на открытой базе, здесь — на
 // закрытом файле), а список обязан быть один: две рукописные копии разъедутся,
 // и одна из проверок начнёт проверять пустое место.
-var DowngradeToSchema1Statements = append(append([]string{}, DowngradeToSchema4Statements...),
+var DowngradeToSchema1Statements = append(append(append([]string{}, DowngradeToSchema7Statements...), DowngradeToSchema4Statements...),
 	`DROP TABLE IF EXISTS object_data_edge_dep`,
 	`DROP TABLE IF EXISTS object_badge`,
 	`DROP TABLE IF EXISTS object_data_edge`,
@@ -35,6 +35,13 @@ var DowngradeToSchema1Statements = append(append([]string{}, DowngradeToSchema4S
 var DowngradeToSchema4Statements = []string{
 	`DROP TABLE IF EXISTS http_call`,
 	`DROP TABLE IF EXISTS http_endpoint`,
+}
+
+// DowngradeToSchema7Statements: обратный ход шага миграции до версии 8:
+// снимает колонку полного комментария метода. Версию схемы не трогает: её
+// выставляет вызывающий, которому нужна конкретная версия до восьмой.
+var DowngradeToSchema7Statements = []string{
+	`ALTER TABLE symbol DROP COLUMN doc`,
 }
 
 // DowngradeEpochToSchema1 приводит ЗАКРЫТЫЙ файл эпохи к виду схемы версии 1.

@@ -49,6 +49,11 @@ type Projects struct {
 	// их дожидается.
 	warmWG sync.WaitGroup
 
+	// apiIndexes: индексы слов find_api по проектам. Лежат у резолвера, а не
+	// у сервиса: find_api, validate_bsl и get_context_for_task держат каждый
+	// свой APIService, а индекс слов на проект должен быть один.
+	apiIndexes apiIndexCache
+
 	// activeMu охраняет active: одно состояние процесса «активный проект»
 	// (активная выгрузка + индексный проект), см. activeproject.go.
 	activeMu sync.Mutex

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blessed2k/1C-WORKFLOW/internal/app"
 	"github.com/blessed2k/1C-WORKFLOW/internal/syntax"
 )
 
@@ -47,6 +48,32 @@ type options struct {
 	// syntaxIndex is the path to the platform syntax index built by
 	// cmd/syntaxgen. Empty resolves to syntax.DefaultPath().
 	syntaxIndex string
+
+	// apiCards is the directory with search cards for find_api, built by
+	// cmd/apicards. Empty means no cards: options{} in tests never reads the
+	// user's own card files. The real process gets the default directory
+	// through the flag default.
+	apiCards string
+}
+
+// registerAPICardsFlag binds --api-cards (env MCP_1C_API_CARDS) into o. Unlike
+// the syntax index, the default location is baked into the flag value, so that
+// the zero options stay hermetic.
+//
+// The environment variable is read by app.DefaultAPICardsDir rather than by
+// envOr here: the default directory is shared with cmd/apicards and
+// evals/findapi, which write and read the same card files without this package.
+func registerAPICardsFlag(fs *flag.FlagSet, o *options) {
+	fs.StringVar(&o.apiCards, "api-cards", app.DefaultAPICardsDir(),
+		"directory with find_api search cards built by cmd/apicards (env "+app.APICardsEnv+"); none disables them")
+}
+
+// apiCardsDir resolves the cards directory; none and empty turn the cards off.
+func (o options) apiCardsDir() string {
+	if p := strings.TrimSpace(o.apiCards); p != "none" {
+		return p
+	}
+	return ""
 }
 
 // registerSyntaxIndexFlag binds --syntax-index (env MCP_1C_SYNTAX_INDEX) into

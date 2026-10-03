@@ -223,3 +223,63 @@ func TestToolsProfileResolution(t *testing.T) {
 		t.Errorf("zero options profile = %q, want full", got)
 	}
 }
+
+// resolveAPICards binds --api-cards to a private FlagSet and parses args.
+func resolveAPICards(t *testing.T, args ...string) string {
+	t.Helper()
+	var o options
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	registerAPICardsFlag(fs, &o)
+	if err := fs.Parse(args); err != nil {
+		t.Fatalf("parse %v: %v", args, err)
+	}
+	return o.apiCardsDir()
+}
+
+// TestAPICardsDirResolution pins the find_api cards directory: the flag beats
+// the environment, none switches the cards off, and the zero options read no
+// cards at all, so tests never pick up the user's own card files.
+func TestAPICardsDirResolution(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  string
+		args []string
+		want string
+	}{
+		{name: "env", env: "/cards/env", want: "/cards/env"},
+		{name: "flag over env", env: "/cards/env", args: []string{"--api-cards=/cards/flag"}, want: "/cards/flag"},
+		{name: "none", env: "/cards/env", args: []string{"--api-cards=none"}, want: ""},
+		{name: "empty flag", env: "/cards/env", args: []string{"--api-cards="}, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(app.APICardsEnv, tc.env)
+			if got := resolveAPICards(t, tc.args...); got != tc.want {
+				t.Errorf("dir = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	t.Run("default", func(t *testing.T) {
+		t.Setenv(app.APICardsEnv, "")
+		if got, want := resolveAPICards(t), app.DefaultAPICardsDir(); got != want {
+			t.Errorf("dir = %q, want the default %q", got, want)
+		}
+	})
+	if got := (options{}).apiCardsDir(); got != "" {
+		t.Errorf("zero options read cards from %q, want none", got)
+	}
+}
+
+// TestNewServerConfiguresAPICards: newServer hands the resolved directory to
+// the search service once.
+func TestNewServerConfiguresAPICards(t *testing.T) {
+	t.Cleanup(func() { app.ConfigureAPICards("") })
+	dir := t.TempDir()
+	newServer(options{apiCards: dir})
+	if got := app.APICardsDir(); got != dir {
+		t.Errorf("APICardsDir = %q, want %q", got, dir)
+	}
+	newServer(options{apiCards: "none"})
+	if got := app.APICardsDir(); got != "" {
+		t.Errorf("APICardsDir after none = %q, want empty", got)
+	}
+}

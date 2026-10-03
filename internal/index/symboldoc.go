@@ -14,6 +14,12 @@ import (
 // модуль не должен раздувать индекс одной строкой.
 const docFirstLineMaxRunes = 300
 
+// docMaxRunes ограничивает полный комментарий метода. Самые длинные
+// комментарии БСП (с таблицами свойств возвращаемой структуры и примерами)
+// занимают около пяти тысяч знаков; обрезается хвост, а назначение и параметры
+// стоят в начале.
+const docMaxRunes = 6000
+
 // regionPath возвращает путь областей препроцессора, покрывающих смещение, от
 // внешней к внутренней: "ПрограммныйИнтерфейс/Данные". Вне областей путь пуст.
 //
@@ -34,19 +40,25 @@ func regionPath(regions []bsl.Region, offset int) string {
 	return strings.Join(path, domain.RegionPathSeparator)
 }
 
-// docFirstLine возвращает первую содержательную строку комментария,
-// стоящего прямо над объявлением. before: текст модуля до начала объявления
-// (до директивы компиляции или ключевого слова).
+// docComment разбирает комментарий, стоящий прямо над объявлением: first:
+// первая содержательная строка (назначение метода), full: комментарий целиком,
+// строка в строку, без «//». before: текст модуля до начала объявления (до
+// директивы компиляции или ключевого слова).
 //
 // Строки над объявлением обходятся снизу вверх, байтами: у метода БСП длинный
 // комментарий, и строка на каждую его строчку стоила бы дороже разбора.
 // Блок, который открывается заголовком секции («Параметры:»), описания не
-// несёт: дальше идёт параметр, а не назначение метода. Заголовок опознаётся
-// вместе с двоеточием: описание «Параметры сеанса заполняются...» остаётся
-// описанием.
-func docFirstLine(before []byte) string {
+// несёт: дальше идёт параметр, а не назначение метода, и first у него пуст.
+// Заголовок опознаётся вместе с двоеточием: описание «Параметры сеанса
+// заполняются...» остаётся описанием.
+//
+// Полный комментарий хранится ради поиска готового метода по описанию
+// задачи: слова, которыми задачу называют, чаще стоят в описании параметров
+// и возвращаемого значения, чем в первой строке.
+func docComment(before []byte) (first, full string) {
 	lineStart := bytes.LastIndexByte(before, '\n') + 1
-	var top []byte // самая верхняя содержательная строка блока
+	var top []byte     // самая верхняя содержательная строка блока
+	var lines [][]byte // строки блока, снизу вверх
 	inBlock := false
 	for end := lineStart; end > 0; {
 		start := bytes.LastIndexByte(before[:end-1], '\n') + 1
@@ -61,17 +73,38 @@ func docFirstLine(before []byte) string {
 		}
 		inBlock = true
 		comment = bytes.TrimSpace(comment)
-		if len(comment) == 0 || bytes.HasPrefix(comment, []byte("//")) {
-			continue // пустая строка комментария или разделитель ////////
+		if bytes.HasPrefix(comment, []byte("//")) {
+			continue // разделитель ////////
 		}
-		top = comment
+		lines = append(lines, comment)
+		if len(comment) > 0 {
+			top = comment
+		}
 	}
+	if top == nil {
+		return "", ""
+	}
+	first = truncateRunes(string(top), docFirstLineMaxRunes)
 	for _, header := range docSectionHeaders {
 		if bytes.HasPrefix(top, header) {
-			return ""
+			first = ""
 		}
 	}
-	return truncateRunes(string(top), docFirstLineMaxRunes)
+	// Пустые строки по краям блока в полный комментарий не идут.
+	for len(lines) > 0 && len(lines[0]) == 0 {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
+		lines = lines[:len(lines)-1]
+	}
+	var b strings.Builder
+	for i := len(lines) - 1; i >= 0; i-- {
+		b.Write(lines[i])
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+	}
+	return first, truncateRunes(b.String(), docMaxRunes)
 }
 
 // docSectionHeaders: заголовки секций комментария к методу по стандарту
@@ -89,18 +122,18 @@ func truncateRunes(s string, limit int) string {
 	return string([]rune(s)[:limit])
 }
 
-// symbolRegionAndDoc выводит область и первую строку описания символа с
-// порядковым номером i в срезе buildSymbols: сначала методы модуля, за ними
-// переменные. У переменной описания нет: комментарий над оператором Перем
-// относится ко всему оператору, а не к имени.
-func symbolRegionAndDoc(mod *bsl.Module, i int) (region, doc string) {
+// symbolRegionAndDoc выводит область, первую строку описания и полный
+// комментарий символа с порядковым номером i в срезе buildSymbols: сначала
+// методы модуля, за ними переменные. У переменной описания нет: комментарий
+// над оператором Перем относится ко всему оператору, а не к имени.
+func symbolRegionAndDoc(mod *bsl.Module, i int) (region, docFirst, doc string) {
 	if i < len(mod.Methods) {
 		start := mod.Methods[i].Span.StartByte
-		return regionPath(mod.Regions, start),
-			docFirstLine(mod.Text(domain.Span{StartByte: 0, EndByte: start}))
+		docFirst, doc = docComment(mod.Text(domain.Span{StartByte: 0, EndByte: start}))
+		return regionPath(mod.Regions, start), docFirst, doc
 	}
 	if j := i - len(mod.Methods); j < len(mod.Variables) {
-		return regionPath(mod.Regions, mod.Variables[j].Span.StartByte), ""
+		return regionPath(mod.Regions, mod.Variables[j].Span.StartByte), "", ""
 	}
-	return "", ""
+	return "", "", ""
 }

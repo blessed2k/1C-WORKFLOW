@@ -69,3 +69,9 @@ index.json.gz
 .claude/
 .unlazy/
 GATES.md
+
+# Оценка find_api: рабочий каталог генератора содержит код конфигурации.
+/evals/findapi/work/
+
+# Генератор карточек поиска find_api: рабочий каталог содержит комментарии методов конфигурации.
+/cmd/apicards/work*/

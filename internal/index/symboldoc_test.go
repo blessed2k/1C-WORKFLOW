@@ -27,9 +27,36 @@ func TestDocFirstLine(t *testing.T) {
 		{"начало файла", "", ""},
 		{"длинная строка", "// " + long + "\n", strings.Repeat("я", docFirstLineMaxRunes)},
 	} {
-		if got := docFirstLine([]byte(c.before)); got != c.want {
-			t.Errorf("%s: docFirstLine = %q, want %q", c.name, got, c.want)
+		if got, _ := docComment([]byte(c.before)); got != c.want {
+			t.Errorf("%s: первая строка = %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+// TestDocCommentFull: полный комментарий идёт строка в строку, без «//», без
+// разделителей и без пустых строк по краям; блок из одних параметров первой
+// строки не даёт, а полный комментарий даёт.
+func TestDocCommentFull(t *testing.T) {
+	for _, c := range []struct {
+		name, before, wantFirst, wantFull string
+	}{
+		{"описание с параметрами",
+			"////////////\n// Возвращает цену.\n//\n// Параметры:\n//  Товар - СправочникСсылка.Товары - товар.\n//\n// Возвращаемое значение:\n//  Число - цена.\n//\n",
+			"Возвращает цену.",
+			"Возвращает цену.\n\nПараметры:\nТовар - СправочникСсылка.Товары - товар.\n\nВозвращаемое значение:\nЧисло - цена."},
+		{"блок из одних параметров", "// Параметры:\n//  Товар - СправочникСсылка\n", "", "Параметры:\nТовар - СправочникСсылка"},
+		{"CRLF и директива ниже", "// Возвращает цену.\r\n// На дату.\r\n", "Возвращает цену.", "Возвращает цену.\nНа дату."},
+		{"комментария нет", "КонецПроцедуры\n\n", "", ""},
+		{"один разделитель", "////////////\n", "", ""},
+	} {
+		first, full := docComment([]byte(c.before))
+		if first != c.wantFirst || full != c.wantFull {
+			t.Errorf("%s: docComment = (%q, %q), want (%q, %q)", c.name, first, full, c.wantFirst, c.wantFull)
+		}
+	}
+	long := "// " + strings.Repeat("я", docMaxRunes+100) + "\n"
+	if _, full := docComment([]byte(long)); len([]rune(full)) != docMaxRunes {
+		t.Errorf("длинный комментарий: %d рун, want %d", len([]rune(full)), docMaxRunes)
 	}
 }
 
