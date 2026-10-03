@@ -446,7 +446,7 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	registerContextPack(server, ds.source)
 	registerInspect(server, ds.source)
 	registerFormImpact(server, ds.source)
-	registerValidateBSL(server, ds.source, idx)
+	registerValidateBSL(server, ds.source, idx, app.NewAPIService(indexDeps.projects))
 	registerResources(server, ds.source)
 	registerStandardsResources(server)
 	registerWorkflowPrompts(server)

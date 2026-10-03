@@ -458,9 +458,9 @@ var контрактыИнструментов = []контрактИнстру�
 		имя:               "validate_bsl",
 		режимы:            режимОффлайн,
 		входОбязательные:  []string{"code"},
-		входПоля:          map[string]string{"code": "string"},
+		входПоля:          map[string]string{"code": "string", "module": "string"},
 		выходОбязательные: []string{"count", "findings", "checked"},
-		выходПоля:         []string{"checked", "count", "findings"},
+		выходПоля:         []string{"checked", "count", "findings", "readyMethods", "readyMethodsNote"},
 	},
 	{
 		имя:               "validate_query",

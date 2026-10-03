@@ -100,7 +100,7 @@ var instructionSections = []instrSection{
 		{tools: []string{"find_api"}, format: "%s: before a helper of your own: a ready БСП/configuration method."},
 	}},
 	{head: "VERIFY WHAT WAS WRITTEN, on the finished draft, before applying it.", lines: []instrLine{
-		{tools: []string{"validate_bsl"}, format: "%s: module or procedure: missing metadata, wrong argument counts."},
+		{tools: []string{"validate_bsl"}, format: "%s: module or procedure: missing metadata, wrong argument counts, possible ready methods for your procedures."},
 		{tools: []string{"form_impact"}, format: "%s + draftCode: form code: draft checked against the real sources."},
 		{tools: []string{"query_advisor"}, format: "%s: written query: anti-patterns, unindexed filters."},
 		{tools: []string{"validate_query", "analyze_query"}, format: "%s: compile-check, heavy-query check."},

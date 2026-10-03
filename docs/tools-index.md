@@ -769,7 +769,21 @@ complete_via_resource\|complete_empty\|partial\|missing, returnedCount, totalCou
 sufficiencyStatus (sufficient_inline\|requires_resource_fetch\|
 insufficient), missingRequired[], ambiguities[], budget
 (usedChars<=normalizedBudgetChars — инвариант), excludedHighScoring[],
-suggestedNextTools[]`.
+suggestedNextTools[], readyMethods[]`.
+
+`readyMethods`: готовые методы программного интерфейса, близкие задаче по её
+словам (`section` `bsp` или `other`, `call`, `summary`, `uid`): до пяти методов
+библиотеки и трёх прикладных, без устаревших. Ищет тот же индекс слов, что у
+`find_api`, по тексту `task`; называется метод, у которого не меньше двух слов
+задачи стоят в имени, имени модуля, первой строке описания или карточке.
+Вопрос «нет ли готового метода» агент до письма кода чаще не задаёт, и ответ
+на него приходит с первым же вызовом по задаче. Для intent `rights` и
+`exchange` блок не собирается. Он лежит вне бюджета символов (инвариант
+бюджета его не считает, размер до полутора тысяч знаков) и по достаточности
+не учитывается; сбой поиска даёт предупреждение `ready_methods_unavailable`,
+основной ответ не страдает. Качество блока не мерялось: на задаче уровня
+постановки методы часто нерелевантны, искать точнее надо `find_api` по
+описанию того, что должна сделать конкретная функция.
 
 **Коды ошибок**: `no_active_project`, `not_found` (`task` пуст; `project`
 не совпадает с активным), `index_not_fresh` (`require-fresh`, дедлайн

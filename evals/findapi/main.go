@@ -19,6 +19,7 @@
 //	go run ./evals/findapi check    -data evals/findapi/data/<имя>.jsonl
 //	go run ./evals/findapi score    -project <выгрузка> -data ... [-baseline ... | -write-baseline ...]
 //	go run ./evals/findapi query    -project <выгрузка> разбить строку по разделителю   # выдача на один запрос
+//	go run ./evals/findapi drafts   -project <выгрузка> -data ... -drafts ...             # обратная проверка черновика
 //
 // Рабочий каталог (work) содержит код конфигурации и в git не идёт.
 package main
@@ -134,6 +135,8 @@ func main() {
 		err = runScore(args)
 	case "query":
 		err = runQuery(args)
+	case "drafts":
+		err = runDrafts(args)
 	default:
 		usage()
 	}
@@ -143,7 +146,7 @@ func main() {
 }
 
 func usage() {
-	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query [флаги]; описание шагов в начале evals/findapi/main.go")
+	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query|drafts [флаги]; описание шагов в начале evals/findapi/main.go")
 }
 
 // projectFlags добавляет флаги, общие для шагов, которым нужен индекс.

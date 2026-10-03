@@ -70,7 +70,7 @@ func TestBrokenSyntaxCorpusIsAToolError(t *testing.T) {
 	corpus := brokenCorpus{err: errors.New("gzip: invalid header")}
 	cs := connectTools(t, func(srv *mcp.Server) {
 		registerCoreTools(srv, func() (string, string) { return "none", "" }, nil, func() source.ConfigSource { return nil }, corpus)
-		registerValidateBSL(srv, func() source.ConfigSource { return nil }, corpus)
+		registerValidateBSL(srv, func() source.ConfigSource { return nil }, corpus, nil)
 	})
 
 	for _, tc := range []struct {

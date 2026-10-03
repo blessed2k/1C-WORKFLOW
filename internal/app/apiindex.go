@@ -331,6 +331,14 @@ type apiRanked struct {
 	// ЗначениеРеквизитаОбъектаПоУмолчаниюДляФормы.
 	nameFit float64
 	score   float64
+	// nameMask: какие слова запроса (битами, по порядку слов) нашлись в
+	// имени метода; matched: сколько слов запроса нашлось у метода где
+	// угодно; strong: сколько нашлось в полях, называющих назначение
+	// (apiStrongFields). Нужны там, где решают не «кто выше», а «называть ли
+	// метод вообще» (обратная проверка черновика, готовые методы по задаче).
+	nameMask uint32
+	matched  int
+	strong   int
 }
 
 // apiStrongFields: поля, слова которых называют назначение метода: имя, имя
@@ -418,7 +426,13 @@ func (ix *apiIndex) search(terms []string) []apiRanked {
 			}
 			if fields[t][m]&(1<<uint(apiFieldName)) != 0 {
 				inName++
+				// Слов запроса не больше apiMaxTerms, маска их вмещает.
+				r.nameMask |= 1 << uint(t)
 			}
+			if fields[t][m]&apiStrongFields != 0 {
+				r.strong++
+			}
+			r.matched++
 			r.coverage += best
 		}
 		if n := ix.methods[m].nameWords; n > 0 {

@@ -173,11 +173,15 @@ const apiSearchNote = "Поиск лексический: слово запро�
 // APIService: сервис за find_api.
 type APIService struct {
 	projects *Projects
-	indexes  apiIndexCache
+	// indexes: индексы слов по проектам, общие для всех сервисов одного
+	// резолвера (Projects.apiIndexes).
+	indexes *apiIndexCache
 }
 
 // NewAPIService строит сервис поверх общего резолвера проектов.
-func NewAPIService(p *Projects) *APIService { return &APIService{projects: p} }
+func NewAPIService(p *Projects) *APIService {
+	return &APIService{projects: p, indexes: &p.apiIndexes}
+}
 
 // apiCandidate: метод с выведенными выражением вызова и контекстом.
 type apiCandidate struct {
