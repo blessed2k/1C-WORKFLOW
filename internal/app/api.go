@@ -18,6 +18,11 @@ import (
 const (
 	defaultAPILimit = 10
 	maxAPILimit     = 50
+	// apiMoreCount: сколько методов секции идёт коротким списком вслед за
+	// полными описаниями. Читает выдачу модель, и прочесть ещё десять строк ей
+	// нетрудно; на эталоне нужный метод стоит на местах с 11 по 20 примерно у
+	// каждого шестнадцатого запроса, и без этого списка агент его не увидел бы.
+	apiMoreCount = 10
 	// apiSubsystemFilesLimit: потолок объявлений подсистем на один вызов.
 	// Защита от зацикленного или испорченного дерева, не настройка: у БСП
 	// вложенных подсистем десятки.
@@ -54,23 +59,23 @@ const (
 // описания подсистемы. Вычисляемую версию (вызов функции) не достаёт.
 var reAPILibraryVersion = regexp.MustCompile(`Описание\.Версия\s*=\s*"([^"]+)"`)
 
-// FindAPIInput — вход find_api.
+// FindAPIInput: вход find_api.
 type FindAPIInput struct {
 	Query string
 	Limit int
 }
 
-// APIMethodItem — один готовый метод программного интерфейса.
+// APIMethodItem: один готовый метод программного интерфейса.
 type APIMethodItem struct {
-	// Call — выражение вызова без скобок: "ОбщегоНазначения.ЗначениеРеквизитаОбъекта",
+	// Call: выражение вызова без скобок: "ОбщегоНазначения.ЗначениеРеквизитаОбъекта",
 	// "Справочники.Номенклатура.Метод"; у глобального модуля одно имя метода.
 	Call      string `json:"call"`
 	Kind      string `json:"kind"`
 	Signature string `json:"signature"`
 	Summary   string `json:"summary,omitempty"`
-	// Context — где метод доступен: сервер, клиент, клиент-сервер, вызов сервера.
+	// Context: где метод доступен: сервер, клиент, клиент-сервер, вызов сервера.
 	Context string `json:"context,omitempty"`
-	// Deprecated — метод лежит в области устаревших; замену называет Summary.
+	// Deprecated: метод лежит в области устаревших; замену называет Summary.
 	Deprecated bool               `json:"deprecated,omitempty"`
 	Module     string             `json:"module"`
 	Component  domain.ComponentID `json:"component"`
@@ -78,45 +83,55 @@ type APIMethodItem struct {
 	UID        string             `json:"uid"`
 }
 
-// APISearchItem — items[0] ответа find_api: две независимо ранжированные
+// APIBriefItem: метод программного интерфейса одной строкой: вызов и
+// назначение. Сигнатуру и полное описание отдаёт get_symbol по uid.
+type APIBriefItem struct {
+	Call       string `json:"call"`
+	Summary    string `json:"summary,omitempty"`
+	Deprecated bool   `json:"deprecated,omitempty"`
+	UID        string `json:"uid"`
+}
+
+// APISearchItem: items[0] ответа find_api: две независимо ранжированные
 // секции. Секций две, потому что в общем списке методы библиотеки тонут среди
 // прикладных с похожими словами в именах.
 type APISearchItem struct {
 	Query string `json:"query"`
-	// BSPVersion — версия библиотеки стандартных подсистем из выгрузки.
+	// BSPVersion: версия библиотеки стандартных подсистем из выгрузки.
 	BSPVersion string `json:"bspVersion,omitempty"`
-	// BSP — методы общих модулей и модулей менеджеров объектов, входящих в
+	// BSP: методы общих модулей и модулей менеджеров объектов, входящих в
 	// подсистему СтандартныеПодсистемы (со всеми вложенными).
 	BSP []APIMethodItem `json:"bsp"`
-	// Other — остальные общие модули и модули менеджеров конфигурации.
-	Other []APIMethodItem `json:"other"`
-	// BSPMatched/OtherMatched — сколько методов секции совпало с запросом всего.
+	// BSPMore: следующие по рангу методы библиотеки коротким списком.
+	BSPMore []APIBriefItem `json:"bspMore,omitempty"`
+	// Other: остальные общие модули и модули менеджеров конфигурации.
+	Other     []APIMethodItem `json:"other"`
+	OtherMore []APIBriefItem  `json:"otherMore,omitempty"`
+	// BSPMatched/OtherMatched: сколько методов секции совпало с запросом всего.
 	BSPMatched   int    `json:"bspMatched"`
 	OtherMatched int    `json:"otherMatched"`
 	Note         string `json:"note"`
 }
 
-const apiSearchNote = "Поиск лексический: слово запроса ищется среди слов имени метода, имени модуля и первой строки описания, словоформы сводятся (удаление = удалить), синонимы не сводятся. " +
-	"Нужного нет: повторите запрос, дописав синонимы и термины самой конфигурации (не «сохранить пароль», а «записать данные безопасное хранилище»). " +
-	"Тело и полное описание параметров: get_symbol по uid."
+const apiSearchNote = "Поиск лексический: слово запроса ищется в имени метода, имени модуля и комментарии метода, словоформы сводятся (удаление = удалить), синонимы не сводятся. " +
+	"Списки bspMore и otherMore продолжают секции: вызов и назначение одной строкой. Подходит метод оттуда: get_symbol по uid даст сигнатуру и описание параметров. " +
+	"Нужного нет: повторите запрос, дописав синонимы и термины самой конфигурации (не «сохранить пароль», а «записать данные безопасное хранилище»)."
 
-// APIService — сервис за find_api.
-type APIService struct{ projects *Projects }
+// APIService: сервис за find_api.
+type APIService struct {
+	projects *Projects
+	indexes  apiIndexCache
+}
 
 // NewAPIService строит сервис поверх общего резолвера проектов.
 func NewAPIService(p *Projects) *APIService { return &APIService{projects: p} }
 
-// apiCandidate — метод с посчитанным совпадением, до отбора в ответ.
+// apiCandidate: метод с выведенными выражением вызова и контекстом.
 type apiCandidate struct {
 	row         store.ExportedMethodRow
 	call        string
 	execContext string
 	deprecated  bool
-	// covered — какие слова запроса нашлись у метода.
-	covered apiTermSet
-	// coverage — сумма весов найденных слов (apiCoverage).
-	coverage float64
-	score    int
 }
 
 // FindAPI ищет по описанию задачи готовые экспортные методы программного
@@ -148,46 +163,27 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		}
 		out.gen = gen
 
-		rows, lib, warn, rerr := readAPIMethods(tx)
-		if rerr != nil {
-			return out, rerr
+		ix, ierr := s.indexes.get(op.Entry.ID, tx, gen)
+		if ierr != nil {
+			return out, ierr
 		}
-		out.item.BSPVersion = lib.version
-		out.warn = warn
+		out.item.BSPVersion = ix.version
+		out.warn = append([]Warning(nil), ix.warn...)
 
-		// Редкость слова считается по всем сравниваемым методам сразу, а не
-		// по секции: слово не становится редким оттого, что в библиотеке его
-		// меньше, чем в конфигурации.
-		matcher := newAPIMatcher(terms)
-		var found []apiCandidate
-		for _, r := range rows {
-			covered, score := matcher.match(apiSearchTextOf(r))
-			if covered == 0 {
-				continue
-			}
-			// Выражение вызова и контекст выводятся только у совпавших: разбор
-			// свойств модуля на каждый из десятков тысяч методов стоил бы
-			// дороже самого сравнения.
-			c := newAPICandidate(r)
-			c.covered, c.score = covered, score
-			found = append(found, c)
-		}
-		weights := matcher.weights()
-		var bsp, other []apiCandidate
-		for _, c := range found {
-			c.coverage = apiCoverage(c.covered, weights)
-			if lib.contains(c.row) {
-				bsp = append(bsp, c)
+		var bsp, other []apiRanked
+		for _, r := range ix.search(terms) {
+			if ix.methods[r.method].library {
+				bsp = append(bsp, r)
 			} else {
-				other = append(other, c)
+				other = append(other, r)
 			}
 		}
 		out.item.BSPMatched, out.item.OtherMatched = len(bsp), len(other)
 		var serr error
-		if out.item.BSP, serr = apiSection(tx, bsp, limit); serr != nil {
+		if out.item.BSP, out.item.BSPMore, serr = apiSection(tx, ix, bsp, limit); serr != nil {
 			return out, serr
 		}
-		if out.item.Other, serr = apiSection(tx, other, limit); serr != nil {
+		if out.item.Other, out.item.OtherMore, serr = apiSection(tx, ix, other, limit); serr != nil {
 			return out, serr
 		}
 		return out, nil
@@ -199,8 +195,8 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 	return withSnapshot(resp, snap), nil
 }
 
-// apiSection отбирает первые limit кандидатов секции и превращает их в
-// элементы ответа.
+// apiSection превращает ранжированные методы секции в ответ: первые limit
+// полными описаниями, следующие apiMoreCount коротким списком.
 //
 // Устаревшие ранжируются наравне с действующими и только после среза уходят в
 // хвост отданного: поставь их в конец всей секции до среза, и при десятках
@@ -209,31 +205,29 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 //
 // Параметры читаются только у отобранных: сигнатура со значениями по
 // умолчанию нужна в ответе, а не в ранжировании.
-func apiSection(tx *store.ReadTx, cands []apiCandidate, limit int) ([]APIMethodItem, error) {
-	sort.SliceStable(cands, func(i, j int) bool {
-		a, b := cands[i], cands[j]
-		if a.coverage != b.coverage {
-			return a.coverage > b.coverage
-		}
-		if a.score != b.score {
-			return a.score > b.score
-		}
-		return a.call < b.call
+func apiSection(tx *store.ReadTx, ix *apiIndex, ranked []apiRanked, limit int) ([]APIMethodItem, []APIBriefItem, error) {
+	full := ranked[:min(limit, len(ranked))]
+	rest := ranked[len(full):min(len(full)+apiMoreCount, len(ranked))]
+	full = append([]apiRanked(nil), full...)
+	sort.SliceStable(full, func(i, j int) bool {
+		return !ix.methods[full[i].method].deprecated && ix.methods[full[j].method].deprecated
 	})
-	if len(cands) > limit {
-		cands = cands[:limit]
-	}
-	sort.SliceStable(cands, func(i, j int) bool { return !cands[i].deprecated && cands[j].deprecated })
 
-	out := make([]APIMethodItem, 0, len(cands))
-	for _, c := range cands {
-		item, err := apiMethodItem(tx, c)
+	items := make([]APIMethodItem, 0, len(full))
+	for _, r := range full {
+		m := ix.methods[r.method]
+		item, err := apiMethodItem(tx, apiCandidate{row: m.row, call: m.call, execContext: m.execContext, deprecated: m.deprecated})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		out = append(out, item)
+		items = append(items, item)
 	}
-	return out, nil
+	var more []APIBriefItem
+	for _, r := range rest {
+		m := ix.methods[r.method]
+		more = append(more, APIBriefItem{Call: m.call, Summary: m.row.DocFirstLine, Deprecated: m.deprecated, UID: m.row.UID})
+	}
+	return items, more, nil
 }
 
 // apiMethodItem превращает кандидата в элемент ответа: дочитывает параметры
@@ -352,15 +346,6 @@ func newAPICandidate(r store.ExportedMethodRow) apiCandidate {
 		c.call = r.NameDisplay
 	}
 	return c
-}
-
-// apiSearchTextOf готовит метод к сравнению с запросом.
-func apiSearchTextOf(r store.ExportedMethodRow) apiSearchText {
-	module := r.ModuleName
-	if r.ModuleKind == string(bsl.ModuleManager) && r.OwnerName != "" {
-		module = r.OwnerName
-	}
-	return apiSearchText{name: apiWords(r.NameDisplay), module: apiWords(module), summary: apiWords(r.DocFirstLine)}
 }
 
 // apiDeprecated: путь областей проходит через область устаревших.

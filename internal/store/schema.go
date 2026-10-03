@@ -26,7 +26,9 @@ package store
 // 7: DDL прежний; индексация начала заполнять symbol.region (путь областей) и
 // symbol.doc_first_line (issue #15). У индексов версии 6 обе колонки пусты, и
 // find_api на них честно не нашёл бы ничего, тот же шаг без DDL.
-const SchemaVersion = 7
+// 8: symbol.doc, полный комментарий метода: find_api ищет по нему готовый
+// метод под описание задачи. Колонка пуста до полной пересборки.
+const SchemaVersion = 8
 
 // createScript — схема раздела 15 архитектуры целиком: единое пространство id в
 // node, aspect-модель (module_context/module_code, form_declaration/form_structure),
@@ -125,7 +127,8 @@ CREATE TABLE symbol(
   end_col INTEGER NOT NULL,
   signature TEXT,
   doc_first_line TEXT,
-  region TEXT);
+  region TEXT,
+  doc TEXT);
 
 CREATE TABLE parameter(
   symbol_id INTEGER NOT NULL REFERENCES symbol(id) ON DELETE CASCADE,

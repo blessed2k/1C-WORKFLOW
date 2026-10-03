@@ -254,13 +254,13 @@ func planModuleSymbols(pc planContext, rel string, rec *fileRecord) *modulePlan 
 			continue
 		}
 		seen[sym.UID] = true
-		region, doc := symbolRegionAndDoc(mod, i)
+		region, docFirst, doc := symbolRegionAndDoc(mod, i)
 		sp := symbolPlan{row: store.Symbol{
 			IdentityKey: key, ComponentID: string(pc.component), UID: string(sym.UID),
 			Kind: string(sym.Kind), NameNorm: sym.NameNorm,
 			NameDisplay: sym.NameDisplay, IsExport: sym.Export, Directive: sym.Directive, IsAsync: sym.Async,
 			Span: sym.Span, Signature: signatureOf(sym),
-			DocFirstLine: doc, Region: region,
+			DocFirstLine: docFirst, Doc: doc, Region: region,
 		}}
 		for _, prm := range sym.Params {
 			sp.params = append(sp.params, store.Parameter{

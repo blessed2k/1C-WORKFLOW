@@ -157,18 +157,25 @@ func TestCallFamily(t *testing.T) {
 }
 
 // TestAcceptedCalls: сам метод первым, за ним близнецы по семейству и
-// одноимённые методы другого семейства.
+// одноимённый метод другой секции; одноимённый метод своей секции нет.
 func TestAcceptedCalls(t *testing.T) {
-	calls := []string{
-		"ОбщегоНазначенияКлиент.СообщитьПользователю", "ОбщегоНазначения.СообщитьПользователю",
-		"ОбщегоНазначения.Другой", "ПодборТоваров.СообщитьПользователю",
+	sections := map[string]string{
+		"ОбщегоНазначенияКлиент.СообщитьПользователю": sectionBSP,
+		"ОбщегоНазначения.СообщитьПользователю":       sectionBSP,
+		"ОбщегоНазначения.Другой":                     sectionBSP,
+		"Пользователи.СообщитьПользователю":           sectionBSP,
+		"ПодборТоваров.СообщитьПользователю":          sectionOther,
 	}
-	got := acceptedCalls("ОбщегоНазначенияКлиент.СообщитьПользователю", familyIndex(calls), nameIndex(calls))
+	var calls []string
+	for c := range sections {
+		calls = append(calls, c)
+	}
+	got := newEquivalents(calls, sections).accepted("ОбщегоНазначенияКлиент.СообщитьПользователю")
 	want := []string{
 		"ОбщегоНазначенияКлиент.СообщитьПользователю", "ОбщегоНазначения.СообщитьПользователю",
 		"ПодборТоваров.СообщитьПользователю",
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("acceptedCalls = %q, want %q", got, want)
+		t.Errorf("accepted = %q, want %q", got, want)
 	}
 }

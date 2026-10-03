@@ -68,20 +68,24 @@ func TestBestPosition(t *testing.T) {
 	}
 }
 
-// TestResultHit: первая десятка считается по выдаче по умолчанию, а не по
-// месту в длинной выдаче: метод, которого в выдаче по умолчанию нет, в первую
-// десятку не засчитывается, даже если в длинной он стоит десятым.
+// TestResultHit: глубины до scoreShown считаются по выдаче по умолчанию, а не
+// по месту в длинной выдаче: метод, которого в выдаче по умолчанию нет, в неё
+// не засчитывается, даже если в длинной он стоит десятым.
 func TestResultHit(t *testing.T) {
 	r := result{Shown: 0, Deep: 10}
-	if r.hit(scoreShown) {
-		t.Errorf("метод вне выдачи по умолчанию засчитан в первые %d", scoreShown)
+	if r.hit(scoreFull) || r.hit(scoreShown) {
+		t.Errorf("метод вне выдачи по умолчанию засчитан в неё")
 	}
 	if !r.hit(scoreDepth) {
 		t.Errorf("метод с местом 10 в длинной выдаче не засчитан в первые %d", scoreDepth)
 	}
 	r = result{Shown: 4, Deep: 0}
-	if !r.hit(scoreShown) || !r.hit(scoreDepth) || r.hit(3) {
-		t.Errorf("метод с местом 4 в выдаче по умолчанию: hit(3)=%v hit(10)=%v hit(50)=%v", r.hit(3), r.hit(scoreShown), r.hit(scoreDepth))
+	if !r.hit(scoreFull) || !r.hit(scoreShown) || !r.hit(scoreDepth) || r.hit(3) {
+		t.Errorf("метод с местом 4 в выдаче по умолчанию: hit(3)=%v hit(10)=%v hit(50)=%v", r.hit(3), r.hit(scoreFull), r.hit(scoreDepth))
+	}
+	r = result{Shown: 14, Deep: 14}
+	if r.hit(scoreFull) || !r.hit(scoreShown) {
+		t.Errorf("метод с местом 14 (короткий список): hit(10)=%v hit(20)=%v", r.hit(scoreFull), r.hit(scoreShown))
 	}
 }
 
@@ -111,7 +115,7 @@ func TestSummarize(t *testing.T) {
 	if g := rep.Groups[sectionBSP+"/"+splitDev+"/прямой запрос"]; g.N != 1 || g.Hits[1] != 1 {
 		t.Errorf("bsp/dev/прямой запрос = %+v", g)
 	}
-	if g := rep.Groups[sectionOther]; g.N != 2 || g.Hits[10] != 1 || g.Hits[50] != 2 {
+	if g := rep.Groups[sectionOther]; g.N != 2 || g.Hits[10] != 1 || g.Hits[20] != 2 || g.Hits[50] != 2 {
 		t.Errorf("other = %+v", g)
 	}
 	if rep.MedianMS != 300 {
@@ -125,11 +129,11 @@ func TestSummarize(t *testing.T) {
 	}
 }
 
-// TestCompare: падение на глубине 10 или 50 в любой половине секции валит
+// TestCompare: падение на глубине 10, 20 или 50 в любой половине секции валит
 // сравнение, перестановка внутри глубины нет; база с другого набора или с
 // другой выгрузки не сравнивается.
 func TestCompare(t *testing.T) {
-	base := scoreReport(t, "hash", 1, 0, 4, 12, 3)
+	base := scoreReport(t, "hash", 1, 0, 4, 25, 3)
 
 	if drops, err := compare(scoreReport(t, "hash", 9, 0, 1, 50, 10), base); err != nil || len(drops) != 0 {
 		t.Errorf("перестановка внутри глубины сочтена падением: %q, %v", drops, err)
@@ -137,17 +141,21 @@ func TestCompare(t *testing.T) {
 	if drops, err := compare(scoreReport(t, "hash", 1, 5, 4, 2, 3), base); err != nil || len(drops) != 0 {
 		t.Errorf("улучшение сочтено падением: %q, %v", drops, err)
 	}
-	drops, err := compare(scoreReport(t, "hash", 1, 0, 11, 12, 3), base)
+	drops, err := compare(scoreReport(t, "hash", 1, 0, 11, 25, 3), base)
 	if err != nil || len(drops) != 1 || !strings.Contains(drops[0], sectionBSP+"/"+splitTest) || !strings.Contains(drops[0], "первых 10") {
 		t.Errorf("падение bsp/test на глубине 10: %q, %v", drops, err)
 	}
 	if drops, _ := compare(scoreReport(t, "hash", 1, 0, 4, 0, 3), base); len(drops) != 1 || !strings.Contains(drops[0], "первых 50") {
 		t.Errorf("пропажа из выдачи other/dev: %q", drops)
 	}
-	if _, err := compare(scoreReport(t, "other-hash", 1, 0, 4, 12, 3), base); err == nil {
+	// Метод ушёл из короткого списка в глубину: падение на глубине 20.
+	if drops, _ := compare(scoreReport(t, "hash", 1, 0, 4, 25, 30), base); len(drops) != 2 || !strings.Contains(drops[1], "первых 20") {
+		t.Errorf("уход other/test за пределы выдачи по умолчанию: %q", drops)
+	}
+	if _, err := compare(scoreReport(t, "other-hash", 1, 0, 4, 25, 3), base); err == nil {
 		t.Errorf("база с другого набора принята к сравнению")
 	}
-	moved := scoreReport(t, "hash", 1, 0, 4, 12, 3)
+	moved := scoreReport(t, "hash", 1, 0, 4, 25, 3)
 	moved.Catalog.BSPVersion = "3.2"
 	if _, err := compare(moved, base); err == nil {
 		t.Errorf("база с другой выгрузки принята к сравнению")

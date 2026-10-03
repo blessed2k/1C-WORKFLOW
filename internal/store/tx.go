@@ -469,6 +469,8 @@ type Symbol struct {
 	Signature    string
 	DocFirstLine string
 	Region       string
+	// Doc: полный комментарий над объявлением, строка в строку, без «//».
+	Doc string
 }
 
 // InsertSymbol вставляет символ и его строку полнотекстового индекса.
@@ -479,12 +481,12 @@ func (tx *WriteTx) InsertSymbol(s Symbol) (int64, error) {
 	}
 	if err := tx.c.exec(tx.ctx, `INSERT INTO symbol(id,uid,module_id,origin_file_id,kind,name_norm,name_display,
 		 is_export,directive,is_async,byte_start,byte_end,start_line,start_col,end_line,end_col,
-		 signature,doc_first_line,region)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 signature,doc_first_line,region,doc)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		id, s.UID, s.ModuleID, s.OriginFileID, s.Kind, s.NameNorm, s.NameDisplay,
 		boolInt(s.IsExport), nullString(s.Directive), boolInt(s.IsAsync),
 		s.Span.StartByte, s.Span.EndByte, s.Span.StartLine, s.Span.StartCol, s.Span.EndLine, s.Span.EndCol,
-		nullString(s.Signature), nullString(s.DocFirstLine), nullString(s.Region)); err != nil {
+		nullString(s.Signature), nullString(s.DocFirstLine), nullString(s.Region), nullString(s.Doc)); err != nil {
 		return 0, err
 	}
 	// rowid FTS-строки = symbol.id: удаление символа стоит один DELETE by rowid.

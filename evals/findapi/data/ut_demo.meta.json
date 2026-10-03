@@ -13,6 +13,7 @@
     "rejected": 20,
     "direct": 259,
     "paraphrases": 239,
+    "paraphrasesNotJudged": 0,
     "pairs": 498
   },
   "sections": {

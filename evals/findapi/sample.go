@@ -160,26 +160,44 @@ func callFamily(call string) string {
 	return module + name
 }
 
-// acceptedCalls: какие ответы поиска засчитываются для метода: он сам, его
-// близнецы по семейству и одноимённые методы другого семейства, когда такое
-// семейство одно (прикладная обёртка над методом библиотеки:
-// ПодборТоваровКлиентСервер.УстановитьПараметрДинамическогоСписка рядом с
-// ОбщегоНазначенияКлиентСервер.УстановитьПараметрДинамическогоСписка). Запрос,
-// написанный по вызову одного из них, второй не исключает, и поиск, вернувший
-// второй, не промахнулся. Сам метод стоит первым.
-func acceptedCalls(call string, families, names map[string][]string) []string {
+// equivalents: какие методы каталога засчитываются друг за друга.
+type equivalents struct {
+	families map[string][]string
+	names    map[string][]string
+	// sections: секция каждого действующего метода.
+	sections map[string]string
+}
+
+func newEquivalents(calls []string, sections map[string]string) equivalents {
+	return equivalents{families: familyIndex(calls), names: nameIndex(calls), sections: sections}
+}
+
+// accepted: какие ответы поиска засчитываются для метода. Сам метод стоит
+// первым, за ним:
+//
+//   - близнецы по семейству (тот же метод в модуле с другим местом исполнения);
+//   - одноимённые методы другой секции: прикладная обёртка над методом
+//     библиотеки (ПодборТоваровКлиентСервер.УстановитьПараметрДинамическогоСписка
+//     рядом с ОбщегоНазначенияКлиентСервер.УстановитьПараметрДинамическогоСписка).
+//     Запрос, написанный по вызову одного из них, второй не исключает.
+//
+// Одноимённый метод той же секции равноценным не считается: ДобавитьСтроку у
+// дат запрета изменения и у шаблонов фискальных документов делают разное.
+func (eq equivalents) accepted(call string) []string {
 	out := []string{call}
 	seen := map[string]bool{call: true}
-	add := func(calls []string) {
-		for _, c := range calls {
-			if !seen[c] {
-				seen[c] = true
-				out = append(out, c)
-			}
+	for _, twin := range eq.families[callFamily(call)] {
+		if !seen[twin] {
+			seen[twin] = true
+			out = append(out, twin)
 		}
 	}
-	add(families[callFamily(call)])
-	add(names[strings.ToLower(methodName(call))])
+	for _, namesake := range eq.names[strings.ToLower(methodName(call))] {
+		if !seen[namesake] && eq.sections[namesake] != eq.sections[call] {
+			seen[namesake] = true
+			out = append(out, namesake)
+		}
+	}
 	return out
 }
 

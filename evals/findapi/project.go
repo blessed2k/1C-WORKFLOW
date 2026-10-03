@@ -48,7 +48,7 @@ func defaultSyntaxIndex() string {
 // упрощение: уже проиндексированный проект открывается без сверки индекса с
 // выгрузкой: сверка на той же конфигурации стоит столько же, сколько полная
 // индексация, а выгрузка между прогонами оценки не меняется. После правки
-// выгрузки индекс обновляет reindex=true; от прогона на чужой выгрузке
+// выгрузки и после смены схемы индекса его пересобирает reindex=true; от прогона на чужой выгрузке
 // страхует сверка каталога с базой (compare).
 func openProject(ctx context.Context, root, workspace, syntaxIndex string, reindex bool) (*project, error) {
 	if root == "" {
@@ -67,10 +67,9 @@ func openProject(ctx context.Context, root, workspace, syntaxIndex string, reind
 		return nil, err
 	}
 	if registered || reindex {
-		in := app.ReindexInput{ProjectRoot: root}
-		if registered {
-			in.Mode = "full"
-		}
+		// Пересборка всегда полная: сверка с выгрузкой на типовой конфигурации
+		// не быстрее, а индекс прежней схемы обновить может только она.
+		in := app.ReindexInput{ProjectRoot: root, Mode: "full"}
 		t0 := time.Now()
 		resp, err := app.NewIndexStatusService(projects).Reindex(ctx, in)
 		if err != nil {

@@ -118,7 +118,7 @@ func externalSites(ctx context.Context, p *project, m method) ([]callSite, error
 
 // taskOf строит задачу по методу: пробует места вызова по порядку, пока из
 // одного не получится годный фрагмент.
-func taskOf(p *project, pk picked, families, names map[string][]string, seed int) (task, bool) {
+func taskOf(p *project, pk picked, eq equivalents, seed int) (task, bool) {
 	name := methodName(pk.Call)
 	for i, site := range siteOrder(pk.method, seed) {
 		if i == maxSiteTries {
@@ -138,7 +138,7 @@ func taskOf(p *project, pk picked, families, names map[string][]string, seed int
 		}
 		return task{
 			ID: taskID(pk.UID, site), Section: pk.Section, Stratum: pk.Stratum, Call: pk.Call,
-			Accept: acceptedCalls(pk.Call, families, names), UID: pk.UID, Signature: pk.Signature, Doc: doc,
+			Accept: eq.accepted(pk.Call), UID: pk.UID, Signature: pk.Signature, Doc: doc,
 			Callers: len(pk.Sites), Site: site, Snippet: snippet,
 		}, true
 	}
@@ -154,7 +154,14 @@ func buildTasks(ctx context.Context, p *project, opt tasksOptions) ([]task, erro
 	log.Printf("каталог: bsp %d, other %d действующих методов, библиотека %s", len(cat.bsp), len(cat.other), cat.info.BSPVersion)
 	// Близнецы и неоднозначные имена считаются по действующим методам:
 	// устаревший близнец ответом не считается.
-	families, names := familyIndex(cat.live), nameIndex(cat.live)
+	sections := map[string]string{}
+	for _, m := range cat.bsp {
+		sections[m.Call] = sectionBSP
+	}
+	for _, m := range cat.other {
+		sections[m.Call] = sectionOther
+	}
+	eq := newEquivalents(cat.live, sections)
 	ambiguous := ambiguousNames(cat.live)
 	unambiguous := func(methods []method) []method {
 		var out []method
@@ -177,7 +184,7 @@ func buildTasks(ctx context.Context, p *project, opt tasksOptions) ([]task, erro
 	var tasks []task
 	skipped := 0
 	for _, pk := range pickLibrary(bsp, opt.Core, opt.Rest, opt.Seed, taken) {
-		if t, ok := taskOf(p, pk, families, names, opt.Seed); ok {
+		if t, ok := taskOf(p, pk, eq, opt.Seed); ok {
 			tasks = append(tasks, t)
 		} else {
 			skipped++
@@ -202,13 +209,23 @@ func buildTasks(ctx context.Context, p *project, opt tasksOptions) ([]task, erro
 		if len(m.Sites) == 0 {
 			continue
 		}
-		if t, ok := taskOf(p, picked{method: m, Stratum: stratumRest}, families, names, opt.Seed); ok {
+		if t, ok := taskOf(p, picked{method: m, Stratum: stratumRest}, eq, opt.Seed); ok {
 			taken[callFamily(m.Call)] = true
 			tasks = append(tasks, t)
 			got++
 		}
 	}
 	log.Printf("other: задач %d, просмотрено методов %d", got, walked)
+
+	// Идентификатор задачи короткий (32 бита): повтор маловероятен, но ответы
+	// моделей привязаны к нему, и молчаливое совпадение склеило бы чужие.
+	ids := map[string]string{}
+	for _, t := range tasks {
+		if prev, dup := ids[t.ID]; dup {
+			return nil, fmt.Errorf("задачи по %s и %s получили один идентификатор %s: смените зерно выборки", prev, t.Call, t.ID)
+		}
+		ids[t.ID] = t.Call
+	}
 
 	// Задачи перемешиваются, чтобы в одной пачке не шли подряд методы одного
 	// модуля.
@@ -237,19 +254,22 @@ func batchFiles[T any](rows []T, batch int) (names []string, bodies [][]byte, er
 // writeBatches кладёт в каталог пачки входа модели и её задание.
 //
 // Пачки и ответы прежнего запуска рядом с новым входом склеились бы с ним при
-// сборке. Поэтому: вход тот же, что уже лежит (повторный запуск на той же
-// выгрузке с теми же параметрами), каталог не трогается, и ответы на него
-// остаются в силе; вход другой, старые файлы это ошибка, а с clean они
-// удаляются.
+// сборке. Поэтому: вход и задание те же, что уже лежат (повторный запуск на
+// той же выгрузке с теми же параметрами), каталог не трогается, и ответы
+// остаются в силе; вход или задание другие, старые файлы это ошибка. С clean
+// старые файлы удаляются всегда.
 func writeBatches[T any](dir, prompt string, rows []T, batch int, clean bool) (int, error) {
 	names, bodies, err := batchFiles(rows, batch)
 	if err != nil {
 		return 0, err
 	}
+	// Ответы на тот же вход остаются в силе, только пока прежним остаётся и
+	// задание модели: ответы, написанные по старому заданию, новому не верны.
 	stale := staleFiles(dir)
-	if len(stale) > 0 && !sameInputs(dir, names, bodies) {
+	same := sameInputs(dir, names, bodies) && samePrompt(dir, prompt)
+	if len(stale) > 0 && (clean || !same) {
 		if !clean {
-			return 0, fmt.Errorf("в %s лежат пачки и ответы прежнего запуска с другим входом (%d файлов, например %s): удалите их флагом -clean или уберите вручную",
+			return 0, fmt.Errorf("в %s лежат пачки и ответы прежнего запуска с другим входом или другим заданием (%d файлов, например %s): удалите их флагом -clean или уберите вручную",
 				dir, len(stale), filepath.Base(stale[0]))
 		}
 		for _, name := range stale {
@@ -264,6 +284,12 @@ func writeBatches[T any](dir, prompt string, rows []T, batch int, clean bool) (i
 		}
 	}
 	return len(names), writeText(filepath.Join(dir, "PROMPT.md"), prompt)
+}
+
+// samePrompt сообщает, лежит ли в каталоге то же задание модели.
+func samePrompt(dir, prompt string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "PROMPT.md"))
+	return err == nil && string(data) == prompt
 }
 
 // sameInputs сообщает, совпадает ли вход, лежащий в каталоге, с новым: те же

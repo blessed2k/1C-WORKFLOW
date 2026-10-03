@@ -99,6 +99,41 @@ type judgeIn struct {
 type judgeOut struct {
 	ID      string `json:"id"`
 	Verdict string `json:"verdict"`
+	// Judge: кто из проверяющих вынес вердикт. В файле ответа поля нет: его
+	// ставит чтение по имени файла (judgeOfFile).
+	Judge string `json:"-"`
+}
+
+// judgeOfFile: метка проверяющего из имени файла ответа: out-NN-a.jsonl
+// даёт "a". У файла без метки (out-NN.jsonl) проверяющий один, без имени.
+func judgeOfFile(name string) string {
+	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+	parts := strings.Split(base, "-")
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+// readVerdicts читает вердикты всех проверяющих и помечает каждый тем, чей он.
+func readVerdicts(pattern string) ([]judgeOut, error) {
+	names, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(names)
+	var out []judgeOut
+	for _, name := range names {
+		rows, err := readJSONL[judgeOut](name)
+		if err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			rows[i].Judge = judgeOfFile(name)
+		}
+		out = append(out, rows...)
+	}
+	return out, nil
 }
 
 // judgeID: идентификатор пары на проверке: задача, вид запроса и отпечаток
@@ -144,7 +179,10 @@ type funnel struct {
 	Rejected    int `json:"rejected"`
 	Direct      int `json:"direct"`
 	Paraphrases int `json:"paraphrases"`
-	Pairs       int `json:"pairs"`
+	// ParaphrasesNotJudged: пересказы, по которым вердиктов меньше, чем
+	// проверяющих (пропавшая пачка одной из моделей видна здесь).
+	ParaphrasesNotJudged int `json:"paraphrasesNotJudged"`
+	Pairs                int `json:"pairs"`
 }
 
 func readJSONL[T any](path string) ([]T, error) {
@@ -340,13 +378,23 @@ func assemble(tasks []task, written []writerOut, judged []judgeOut, seed, judges
 		}
 		queries[w.ID] = w
 	}
+	// Считаются проверяющие, а не строки: два «да» одной модели по паре,
+	// которую вторая пропустила, двумя голосами не являются.
 	votes := map[string][]string{}
+	voted := map[string]map[string]bool{}
 	for _, j := range judged {
 		switch j.Verdict {
 		case verdictYes, verdictPartial, verdictNo:
 		default:
 			return res, fmt.Errorf("запрос %s: неизвестный вердикт %q", j.ID, j.Verdict)
 		}
+		if voted[j.ID] == nil {
+			voted[j.ID] = map[string]bool{}
+		}
+		if voted[j.ID][j.Judge] {
+			return res, fmt.Errorf("запрос %s: проверяющий %q вынес вердикт дважды", j.ID, j.Judge)
+		}
+		voted[j.ID][j.Judge] = true
 		votes[j.ID] = append(votes[j.ID], j.Verdict)
 		if len(votes[j.ID]) > judges {
 			return res, fmt.Errorf("запрос %s: вердиктов больше, чем проверяющих (%d)", j.ID, judges)
@@ -362,21 +410,25 @@ func assemble(tasks []task, written []writerOut, judged []judgeOut, seed, judges
 			Callers: t.Callers, Site: t.Site,
 		}
 	}
+	// Одноимённые методы засчитываются друг за друга (equivalents.accepted),
+	// и вторая задача по имени, уже давшему пару, считала бы один случай
+	// дважды. Имя занимает только задача, от которой в набор что-то вошло.
 	takenName := map[string]bool{}
 	for _, t := range tasks {
 		knownTask[t.ID] = true
 		w, ok := queries[t.ID]
-		if alt, ok := usableQuery(w.Alt); ok {
+		alt, altOK := usableQuery(w.Alt)
+		query, queryOK := usableQuery(w.Query)
+		if altOK {
 			knownQuery[judgeID(t.ID, variantParaphrase, alt)] = true
 		}
-		if q, ok := usableQuery(w.Query); ok {
-			knownQuery[judgeID(t.ID, variantDirect, q)] = true
+		if queryOK {
+			knownQuery[judgeID(t.ID, variantDirect, query)] = true
 		}
-		if name := strings.ToLower(methodName(t.Call)); takenName[name] {
+		name := strings.ToLower(methodName(t.Call))
+		if takenName[name] {
 			res.Funnel.SameName++
 			continue
-		} else {
-			takenName[name] = true
 		}
 		if !ok {
 			res.Funnel.NoAnswer++
@@ -386,26 +438,25 @@ func assemble(tasks []task, written []writerOut, judged []judgeOut, seed, judges
 			res.Funnel.Unclear++
 			continue
 		}
-		if alt, ok := usableQuery(w.Alt); ok && !namesMethod(alt, t.Call) {
-			id := judgeID(t.ID, variantParaphrase, alt)
-			knownQuery[id] = true
-			if verdictOf(votes[id], judges) == verdictYes {
+		if altOK && !namesMethod(alt, t.Call) {
+			switch verdictOf(votes[judgeID(t.ID, variantParaphrase, alt)], judges) {
+			case verdictYes:
 				res.Pairs = append(res.Pairs, mk(t, t.ID+paraphraseSuffix, variantParaphrase, alt))
 				res.Funnel.Paraphrases++
+				takenName[name] = true
+			case "":
+				res.Funnel.ParaphrasesNotJudged++
 			}
 		}
-		query, ok := usableQuery(w.Query)
 		switch {
-		case !ok:
+		case !queryOK:
 			res.Funnel.Unclear++
 			continue
 		case namesMethod(query, t.Call):
 			res.Funnel.NamedMethod++
 			continue
 		}
-		id := judgeID(t.ID, variantDirect, query)
-		knownQuery[id] = true
-		switch verdictOf(votes[id], judges) {
+		switch verdictOf(votes[judgeID(t.ID, variantDirect, query)], judges) {
 		case "":
 			res.Funnel.NotJudged++
 		case verdictPartial:
@@ -416,6 +467,7 @@ func assemble(tasks []task, written []writerOut, judged []judgeOut, seed, judges
 		default:
 			res.Pairs = append(res.Pairs, mk(t, t.ID, variantDirect, query))
 			res.Funnel.Direct++
+			takenName[name] = true
 		}
 	}
 	for id := range queries {

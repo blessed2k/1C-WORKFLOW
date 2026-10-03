@@ -277,14 +277,16 @@ func TestMigrationToSchema2(t *testing.T) {
 // Индекс, собранный и полностью переиндексированный версией схемы 2, мог
 // накопить оборванные инкрементом указатели (ADR-037), версией 3 потерянные
 // каскадом строки нетронутых файлов (ADR-038), у версии 4 нет фактов HTTP
-// (ADR-039), версия 5 могла оставить висячим владельца модуля (issue #14).
+// (ADR-039), версия 5 могла оставить висячим владельца модуля (issue #14),
+// у версии 6 пусты область и первая строка описания символа (issue #15), у
+// версии 7 нет полного комментария метода.
 // Открытие новой версией обязано затребовать полную пересборку, не трогая
 // данные и эпоху.
 func TestMigrationFromUnreliableContentRequiresFullRebuild(t *testing.T) {
-	if SchemaVersion != 7 {
+	if SchemaVersion != 8 {
 		t.Fatalf("SchemaVersion=%d: новая версия добавляет сюда свою строку и меняет ожидание", SchemaVersion)
 	}
-	for _, from := range []string{"2", "3", "4", "5", "6"} {
+	for _, from := range []string{"2", "3", "4", "5", "6", "7"} {
 		t.Run("из "+from, func(t *testing.T) { checkMigrationRequiresFullRebuild(t, from) })
 	}
 }
@@ -311,6 +313,12 @@ func checkMigrationRequiresFullRebuild(t *testing.T, from string) {
 				if err := tx.c.exec(tx.ctx, q); err != nil {
 					return err
 				}
+			}
+		}
+		// Колонки шага до 8 у индекса версии 2...7 ещё нет.
+		for _, q := range storetest.DowngradeToSchema7Statements {
+			if err := tx.c.exec(tx.ctx, q); err != nil {
+				return err
 			}
 		}
 		return tx.SetMeta(metaSchemaVersion, from)
@@ -357,7 +365,7 @@ func TestMigratedSchemaMatchesFresh(t *testing.T) {
 	if _, err := migrate(context.Background(), migrated.writer, migrations, SchemaVersion); err != nil {
 		t.Fatalf("миграция: %v", err)
 	}
-	for _, table := range []string{"register_access", "object_data_edge", "object_data_edge_dep", "object_badge", "http_call", "http_endpoint"} {
+	for _, table := range []string{"symbol", "register_access", "object_data_edge", "object_data_edge_dep", "object_badge", "http_call", "http_endpoint"} {
 		a := strings.Join(tableColumns(t, fresh, table), ",")
 		b := strings.Join(tableColumns(t, migrated, table), ",")
 		if a != b {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,9 +38,16 @@ func testWritten() []writerOut {
 	}
 }
 
-// vote: вердикт одного проверяющего по запросу задачи.
+// vote: вердикт первого проверяющего по запросу задачи.
 func vote(task, variant, query, verdict string) judgeOut {
-	return judgeOut{ID: judgeID(task, variant, query), Verdict: verdict}
+	return judgeOut{ID: judgeID(task, variant, query), Verdict: verdict, Judge: "a"}
+}
+
+// voteB: вердикт второго проверяющего.
+func voteB(task, variant, query, verdict string) judgeOut {
+	v := vote(task, variant, query, verdict)
+	v.Judge = "b"
+	return v
 }
 
 // TestAssembleFunnel: в набор идёт только пара с написанным запросом, не
@@ -114,10 +123,11 @@ func TestAssembleFunnel(t *testing.T) {
 func TestAssembleTwoJudges(t *testing.T) {
 	const q1, q4, q5 = "получить значение поля по ссылке", "пересчитать суммы в строках", "проверить остатки товаров"
 	judged := []judgeOut{
-		vote("t1", variantDirect, q1, verdictYes), vote("t1", variantDirect, q1, verdictYes),
-		vote("t4", variantDirect, q4, verdictYes), vote("t4", variantDirect, q4, verdictPartial),
+		vote("t1", variantDirect, q1, verdictYes), voteB("t1", variantDirect, q1, verdictYes),
+		vote("t1", variantParaphrase, "прочитать колонку записи из базы", verdictYes),
+		vote("t4", variantDirect, q4, verdictYes), voteB("t4", variantDirect, q4, verdictPartial),
 		vote("t5", variantDirect, q5, verdictYes),
-		vote("t6", variantDirect, "убрать пустые строки", verdictNo), vote("t6", variantDirect, "убрать пустые строки", verdictYes),
+		vote("t6", variantDirect, "убрать пустые строки", verdictNo), voteB("t6", variantDirect, "убрать пустые строки", verdictYes),
 	}
 	res, err := assemble(testTasks(), testWritten(), judged, 1, 2)
 	if err != nil {
@@ -126,34 +136,56 @@ func TestAssembleTwoJudges(t *testing.T) {
 	if len(res.Pairs) != 1 || res.Pairs[0].ID != "t1" {
 		t.Errorf("пары = %+v, want только t1", res.Pairs)
 	}
-	if fn := res.Funnel; fn.Partial != 1 || fn.NotJudged != 1 || fn.Rejected != 1 || fn.Direct != 1 {
-		t.Errorf("воронка = %+v, want partial 1 (t4), notJudged 1 (t5), rejected 1 (t6), direct 1", fn)
+	// Пересказы t1 и t4 получили меньше двух вердиктов: это видно в воронке.
+	if fn := res.Funnel; fn.Partial != 1 || fn.NotJudged != 1 || fn.Rejected != 1 || fn.Direct != 1 || fn.ParaphrasesNotJudged != 2 {
+		t.Errorf("воронка = %+v, want partial 1 (t4), notJudged 1 (t5), rejected 1 (t6), direct 1, пересказов без проверки 2", fn)
 	}
-	third := append(judged, vote("t1", variantDirect, q1, verdictYes))
+	// Два «да» одного проверяющего двумя голосами не являются.
+	twice := []judgeOut{vote("t1", variantDirect, q1, verdictYes), vote("t1", variantDirect, q1, verdictYes)}
+	if _, err := assemble(testTasks(), testWritten(), twice, 1, 2); err == nil {
+		t.Errorf("два вердикта одного проверяющего приняты за два голоса")
+	}
+	third := append(judged, judgeOut{ID: judgeID("t1", variantDirect, q1), Verdict: verdictYes, Judge: "c"})
 	if _, err := assemble(testTasks(), testWritten(), third, 1, 2); err == nil {
 		t.Errorf("третий вердикт при двух проверяющих принят")
 	}
 }
 
+// TestJudgeOfFile: проверяющий узнаётся по метке в имени файла ответа.
+func TestJudgeOfFile(t *testing.T) {
+	for name, want := range map[string]string{
+		"work/judge/out-07-a.jsonl": "a", "out-12-b.jsonl": "b", "out-03.jsonl": "",
+	} {
+		if got := judgeOfFile(name); got != want {
+			t.Errorf("judgeOfFile(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
 // TestAssembleOneTaskPerMethodName: из двух задач по одноимённым методам в
-// набор идёт первая; вердикт по второй чужим не считается.
+// набор идёт первая, давшая пару; задача, от которой в набор ничего не вошло,
+// имя не занимает.
 func TestAssembleOneTaskPerMethodName(t *testing.T) {
-	tasks := testTasks()[:2]
-	tasks[1].Call, tasks[1].Accept = "ПодборТоваров.ЗначениеРеквизитаОбъекта", []string{"ПодборТоваров.ЗначениеРеквизитаОбъекта"}
+	tasks := testTasks()[:3]
+	for i, call := range []string{"Первый.ЗначениеРеквизитаОбъекта", "Второй.ЗначениеРеквизитаОбъекта", "Третий.ЗначениеРеквизитаОбъекта"} {
+		tasks[i].Call, tasks[i].Accept = call, []string{call}
+	}
 	written := []writerOut{
-		{ID: "t1", Clear: true, Query: "получить значение поля по ссылке"},
+		{ID: "t1", Clear: true, Query: "запрос первой задачи"},
 		{ID: "t2", Clear: true, Query: "прочитать поле объекта"},
+		{ID: "t3", Clear: true, Query: "получить значение поля"},
 	}
 	judged := []judgeOut{
-		vote("t1", variantDirect, "получить значение поля по ссылке", verdictYes),
+		vote("t1", variantDirect, "запрос первой задачи", verdictNo),
 		vote("t2", variantDirect, "прочитать поле объекта", verdictYes),
+		vote("t3", variantDirect, "получить значение поля", verdictYes),
 	}
 	res, err := assemble(tasks, written, judged, 1, 1)
 	if err != nil {
 		t.Fatalf("assemble: %v", err)
 	}
-	if len(res.Pairs) != 1 || res.Pairs[0].ID != "t1" || res.Funnel.SameName != 1 {
-		t.Errorf("пары = %+v, воронка = %+v; want одна пара t1 и sameName 1", res.Pairs, res.Funnel)
+	if len(res.Pairs) != 1 || res.Pairs[0].ID != "t2" || res.Funnel.SameName != 1 || res.Funnel.Rejected != 1 {
+		t.Errorf("пары = %+v, воронка = %+v; want одна пара t2, sameName 1, rejected 1", res.Pairs, res.Funnel)
 	}
 }
 
@@ -196,15 +228,60 @@ func TestTaskAndJudgeID(t *testing.T) {
 	}
 }
 
-// TestShippedDataset: набор, лежащий в репозитории, цел и не меньше
-// обещанного размера.
+// TestShippedDataset: набор, лежащий в репозитории, цел, сходится со своими
+// сведениями (meta) и с базой: расхождение значит, что один из трёх файлов
+// обновили без остальных.
 func TestShippedDataset(t *testing.T) {
-	pairs, err := readJSONL[pair]("data/ut_demo.jsonl")
+	data, err := os.ReadFile("data/ut_demo.jsonl")
 	if err != nil {
 		t.Fatalf("набор не читается: %v", err)
 	}
+	pairs, err := decodeJSONL[pair](strings.NewReader(string(data)), "data/ut_demo.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := checkDataset(pairs, datasetLimits{Total: 300, BSP: 150, Other: 100}); err != nil {
 		t.Errorf("набор data/ut_demo.jsonl: %v", err)
+	}
+
+	var meta datasetMeta
+	readJSON(t, "data/ut_demo.meta.json", &meta)
+	count := map[string]int{}
+	for _, p := range pairs {
+		count[p.Section]++
+		count[p.Section+"/"+p.Split]++
+		count[p.Section+"/"+p.Variant]++
+	}
+	if meta.Funnel.Pairs != len(pairs) || !reflect.DeepEqual(meta.Sections, count) {
+		t.Errorf("сведения о наборе расходятся с набором: пар %d против %d, секции %v против %v",
+			meta.Funnel.Pairs, len(pairs), meta.Sections, count)
+	}
+
+	var base report
+	readJSON(t, "data/ut_demo.baseline.json", &base)
+	if got := datasetDigest(data); base.Dataset != got {
+		t.Errorf("база снята на другом наборе: отпечаток %s, у набора %s", short(base.Dataset), short(got))
+	}
+}
+
+func readJSON(t *testing.T, path string, v any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, v); err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+}
+
+// TestDatasetDigest: отпечаток набора не зависит от вида перевода строк.
+func TestDatasetDigest(t *testing.T) {
+	if datasetDigest([]byte("a\nb\n")) != datasetDigest([]byte("a\r\nb\r\n")) {
+		t.Errorf("отпечаток зависит от перевода строк")
+	}
+	if datasetDigest([]byte("a\nb\n")) == datasetDigest([]byte("a\nc\n")) {
+		t.Errorf("отпечаток не различает содержимое")
 	}
 }
 

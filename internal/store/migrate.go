@@ -91,6 +91,12 @@ var migrations = []migration{{
 }, {
 	to:               7,
 	needsFullRebuild: true,
+}, {
+	// Шаг до 8: полный комментарий метода (symbol.doc). Колонку создаёт DDL,
+	// наполнить её может только разбор модулей.
+	to:               8,
+	needsFullRebuild: true,
+	statements:       []string{`ALTER TABLE symbol ADD COLUMN doc TEXT`},
 }}
 
 // errSchemaFromFuture — БД собрана более новой версией пакета. По разделу 15

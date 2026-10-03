@@ -18,6 +18,7 @@
 //	go run ./evals/findapi assemble -out evals/findapi/data/<имя>.jsonl
 //	go run ./evals/findapi check    -data evals/findapi/data/<имя>.jsonl
 //	go run ./evals/findapi score    -project <выгрузка> -data ... [-baseline ... | -write-baseline ...]
+//	go run ./evals/findapi query    -project <выгрузка> разбить строку по разделителю   # выдача на один запрос
 //
 // Рабочий каталог (work) содержит код конфигурации и в git не идёт.
 package main
@@ -131,6 +132,8 @@ func main() {
 		err = runCheck(args)
 	case "score":
 		err = runScore(args)
+	case "query":
+		err = runQuery(args)
 	default:
 		usage()
 	}
@@ -140,7 +143,7 @@ func main() {
 }
 
 func usage() {
-	log.Fatal("использование: findapi tasks|judge|assemble|check|score [флаги]; описание шагов в начале evals/findapi/main.go")
+	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query [флаги]; описание шагов в начале evals/findapi/main.go")
 }
 
 // projectFlags добавляет флаги, общие для шагов, которым нужен индекс.
@@ -148,7 +151,7 @@ func projectFlags(fs *flag.FlagSet) (root, workspace, syntaxIndex *string, reind
 	root = fs.String("project", firstEnv("ONEC_DUMP", "MCP1C_SPIKE_DUMP"), "каталог проекта с 1c-project.json (по умолчанию ONEC_DUMP)")
 	workspace = fs.String("workspace", defaultWorkspace(), "рабочий каталог оценки: здесь её индекс живёт между запусками")
 	syntaxIndex = fs.String("syntax-index", defaultSyntaxIndex(), "индекс синтаксиса платформы (cmd/syntaxgen)")
-	reindex = fs.Bool("reindex", false, "обновить индекс по выгрузке (после её правки); новый проект индексируется и без флага")
+	reindex = fs.Bool("reindex", false, "пересобрать индекс целиком (после правки выгрузки или смены схемы индекса); новый проект индексируется и без флага")
 	return
 }
 
@@ -263,7 +266,7 @@ func runAssemble(args []string) error {
 	if err != nil {
 		return err
 	}
-	judged, err := readGlobJSONL[judgeOut](filepath.Join(*work, judgeDir, "out-*.jsonl"))
+	judged, err := readVerdicts(filepath.Join(*work, judgeDir, "out-*.jsonl"))
 	if err != nil {
 		return err
 	}
@@ -441,19 +444,62 @@ func runScore(args []string) error {
 	return nil
 }
 
-// scoreOne задаёт find_api запрос набора дважды: с выдачей по умолчанию (её
-// видит агент) и с выдачей до потолка, и находит место ожидаемого метода в
-// каждой. Метод ищется в обеих секциях ответа.
-func scoreOne(ctx context.Context, p *project, pr pair) (result, error) {
-	calls := func(items []app.APIMethodItem) []string {
-		out := make([]string, len(items))
+// runQuery печатает выдачу find_api на один запрос: разобрать, почему метод
+// стоит там, где стоит, проще по живой выдаче, чем по сводной таблице.
+func runQuery(args []string) error {
+	fs := flag.NewFlagSet("query", flag.ExitOnError)
+	root, workspace, syntaxIndex, reindex := projectFlags(fs)
+	limit := fs.Int("limit", 0, "limit инструмента; 0: выдача по умолчанию")
+	fs.Parse(args)
+	if fs.NArg() == 0 {
+		return fmt.Errorf("query: запрос не задан")
+	}
+	ctx := context.Background()
+	p, err := openProject(ctx, *root, *workspace, *syntaxIndex, *reindex)
+	if err != nil {
+		return err
+	}
+	defer p.close()
+	resp, err := p.api.FindAPI(ctx, app.FindAPIInput{Query: strings.Join(fs.Args(), " "), Limit: *limit})
+	if err != nil {
+		return err
+	}
+	item := resp.Items[0]
+	section := func(name string, items []app.APIMethodItem, more []app.APIBriefItem, matched int) {
+		fmt.Printf("%s: совпало %d\n", name, matched)
 		for i, it := range items {
-			out[i] = it.Call
+			fmt.Printf("  %2d. %s: %s\n", i+1, it.Call, it.Summary)
+		}
+		for i, it := range more {
+			fmt.Printf("  %2d+ %s: %s\n", len(items)+i+1, it.Call, it.Summary)
+		}
+	}
+	section("bsp", item.BSP, item.BSPMore, item.BSPMatched)
+	section("other", item.Other, item.OtherMore, item.OtherMatched)
+	return nil
+}
+
+// scoreOne задаёт find_api запрос набора дважды: без limit (это видит агент)
+// и с выдачей до потолка, и находит место ожидаемого метода в каждой. Секция
+// читается целиком: полные описания, за ними короткий список. Метод ищется в
+// обеих секциях ответа.
+func scoreOne(ctx context.Context, p *project, pr pair) (result, error) {
+	section := func(items []app.APIMethodItem, more []app.APIBriefItem) []string {
+		out := make([]string, 0, len(items)+len(more))
+		for _, it := range items {
+			out = append(out, it.Call)
+		}
+		for _, it := range more {
+			out = append(out, it.Call)
 		}
 		return out
 	}
+	lists := func(item app.APISearchItem, depth int) (bsp, other []string) {
+		bsp, other = section(item.BSP, item.BSPMore), section(item.Other, item.OtherMore)
+		return bsp[:min(depth, len(bsp))], other[:min(depth, len(other))]
+	}
 	t0 := time.Now()
-	shown, err := p.api.FindAPI(ctx, app.FindAPIInput{Query: pr.Query, Limit: scoreShown})
+	shown, err := p.api.FindAPI(ctx, app.FindAPIInput{Query: pr.Query})
 	if err != nil {
 		return result{}, err
 	}
@@ -462,15 +508,16 @@ func scoreOne(ctx context.Context, p *project, pr pair) (result, error) {
 	if err != nil {
 		return result{}, err
 	}
-	own := shown.Items[0].BSP
+	shownBSP, shownOther := lists(shown.Items[0], scoreShown)
+	deepBSP, deepOther := lists(deep.Items[0], scoreDepth)
+	top := shownBSP
 	if pr.Section == sectionOther {
-		own = shown.Items[0].Other
+		top = shownOther
 	}
-	top := calls(own)
 	return result{
 		ID:         pr.ID,
-		Shown:      bestPosition(pr.Accept, calls(shown.Items[0].BSP), calls(shown.Items[0].Other)),
-		Deep:       bestPosition(pr.Accept, calls(deep.Items[0].BSP), calls(deep.Items[0].Other)),
+		Shown:      bestPosition(pr.Accept, shownBSP, shownOther),
+		Deep:       bestPosition(pr.Accept, deepBSP, deepOther),
 		DurationMS: float64(took.Microseconds()) / 1000, Top: top[:min(5, len(top))],
 	}, nil
 }

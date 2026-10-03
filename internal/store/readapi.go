@@ -19,8 +19,10 @@ type ExportedMethodRow struct {
 	Kind         string
 	NameDisplay  string
 	DocFirstLine string
-	Region       string
-	StartLine    int
+	// Doc: полный комментарий метода; пуст у индекса, собранного до схемы 8.
+	Doc       string
+	Region    string
+	StartLine int
 	// OwnerMType/OwnerName пусты, когда владелец модуля не определён.
 	OwnerMType string
 	OwnerName  string
@@ -54,7 +56,7 @@ func (tx *ReadTx) ExportedMethodsInRegions(moduleKinds, topRegions []string) ([]
 		args = append(args, r, escapeLike(r+domain.RegionPathSeparator)+`%`)
 	}
 	rows, err := tx.c.query(tx.ctx, `SELECT s.id, s.uid, mo.component_id, sf.rel_path, mo.kind, mo.name_display,
-			s.kind, s.name_display, s.doc_first_line, s.region, s.start_line,
+			s.kind, s.name_display, s.doc_first_line, s.doc, s.region, s.start_line,
 			o.mtype, o.name_display, mc.props
 		FROM symbol s
 		JOIN module mo ON mo.id = s.module_id
@@ -72,13 +74,13 @@ func (tx *ReadTx) ExportedMethodsInRegions(moduleKinds, topRegions []string) ([]
 	var out []ExportedMethodRow
 	for rows.Next() {
 		var r ExportedMethodRow
-		var doc, region, ownerMType, ownerName, props sql.NullString
+		var docFirst, doc, region, ownerMType, ownerName, props sql.NullString
 		if err := rows.Scan(&r.SymbolID, &r.UID, &r.ComponentID, &r.ModulePath, &r.ModuleKind, &r.ModuleName,
-			&r.Kind, &r.NameDisplay, &doc, &region, &r.StartLine,
+			&r.Kind, &r.NameDisplay, &docFirst, &doc, &region, &r.StartLine,
 			&ownerMType, &ownerName, &props); err != nil {
 			return nil, err
 		}
-		r.DocFirstLine, r.Region = doc.String, region.String
+		r.DocFirstLine, r.Doc, r.Region = docFirst.String, doc.String, region.String
 		r.OwnerMType, r.OwnerName, r.ModuleProps = ownerMType.String, ownerName.String, props.String
 		out = append(out, r)
 	}
