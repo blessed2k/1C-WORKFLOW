@@ -148,28 +148,12 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		}
 		out.gen = gen
 
-		rows, rerr := tx.ExportedMethodsInRegions(apiModuleKinds, apiTopRegions)
+		rows, lib, warn, rerr := readAPIMethods(tx)
 		if rerr != nil {
 			return out, rerr
 		}
-		lib, lerr := readAPILibrary(tx)
-		if lerr != nil {
-			return out, lerr
-		}
 		out.item.BSPVersion = lib.version
-		out.warn = lib.warn
-		if len(rows) == 0 {
-			out.warn = append(out.warn, Warning{
-				Code:    "api_regions_not_indexed",
-				Message: "в индексе нет экспортных методов в области ПрограммныйИнтерфейс",
-				Hint:    "индекс собран прежней версией сервера: выполните reindex; модули без разметки областями find_api не видит: ищите по имени через find_symbol",
-			})
-		} else if !lib.found {
-			out.warn = append(out.warn, Warning{
-				Code:    "bsp_library_not_found",
-				Message: "подсистема " + apiLibrarySubsystem + " в индексе не найдена: секция bsp пуста, все методы в other",
-			})
-		}
+		out.warn = warn
 
 		// Редкость слова считается по всем сравниваемым методам сразу, а не
 		// по секции: слово не становится редким оттого, что в библиотеке его
@@ -177,9 +161,6 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		matcher := newAPIMatcher(terms)
 		var found []apiCandidate
 		for _, r := range rows {
-			if r.ModuleKind == string(bsl.ModuleCommon) && apiOverridableModule(r.ModuleName) {
-				continue
-			}
 			covered, score := matcher.match(apiSearchTextOf(r))
 			if covered == 0 {
 				continue
@@ -195,7 +176,7 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 		var bsp, other []apiCandidate
 		for _, c := range found {
 			c.coverage = apiCoverage(c.covered, weights)
-			if lib.objects[apiObjectKey(c.row.ComponentID, apiOwnerRef(c.row))] {
+			if lib.contains(c.row) {
 				bsp = append(bsp, c)
 			} else {
 				other = append(other, c)
@@ -246,18 +227,63 @@ func apiSection(tx *store.ReadTx, cands []apiCandidate, limit int) ([]APIMethodI
 
 	out := make([]APIMethodItem, 0, len(cands))
 	for _, c := range cands {
-		params, err := tx.SymbolParameters(c.row.SymbolID)
+		item, err := apiMethodItem(tx, c)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, APIMethodItem{
-			Call: c.call, Kind: c.row.Kind, Signature: apiSignature(c.row.NameDisplay, params),
-			Summary: c.row.DocFirstLine, Context: c.execContext, Deprecated: c.deprecated,
-			Module: c.row.ModulePath, Component: domain.ComponentID(c.row.ComponentID),
-			Line: c.row.StartLine, UID: c.row.UID,
-		})
+		out = append(out, item)
 	}
 	return out, nil
+}
+
+// apiMethodItem превращает кандидата в элемент ответа: дочитывает параметры
+// и собирает сигнатуру.
+func apiMethodItem(tx *store.ReadTx, c apiCandidate) (APIMethodItem, error) {
+	params, err := tx.SymbolParameters(c.row.SymbolID)
+	if err != nil {
+		return APIMethodItem{}, err
+	}
+	return APIMethodItem{
+		Call: c.call, Kind: c.row.Kind, Signature: apiSignature(c.row.NameDisplay, params),
+		Summary: c.row.DocFirstLine, Context: c.execContext, Deprecated: c.deprecated,
+		Module: c.row.ModulePath, Component: domain.ComponentID(c.row.ComponentID),
+		Line: c.row.StartLine, UID: c.row.UID,
+	}, nil
+}
+
+// readAPIMethods читает методы программного интерфейса и состав библиотеки:
+// общий отбор для поиска (FindAPI) и каталога (Catalog). Методы
+// переопределяемых модулей сюда не входят. warn — предупреждения о том, чего
+// в индексе не нашлось.
+func readAPIMethods(tx *store.ReadTx) (rows []store.ExportedMethodRow, lib apiLibraryInfo, warn []Warning, err error) {
+	all, err := tx.ExportedMethodsInRegions(apiModuleKinds, apiTopRegions)
+	if err != nil {
+		return nil, lib, nil, err
+	}
+	if lib, err = readAPILibrary(tx); err != nil {
+		return nil, lib, nil, err
+	}
+	warn = lib.warn
+	if len(all) == 0 {
+		warn = append(warn, Warning{
+			Code:    "api_regions_not_indexed",
+			Message: "в индексе нет экспортных методов в области ПрограммныйИнтерфейс",
+			Hint:    "индекс собран прежней версией сервера: выполните reindex; модули без разметки областями find_api не видит: ищите по имени через find_symbol",
+		})
+	} else if !lib.found {
+		warn = append(warn, Warning{
+			Code:    "bsp_library_not_found",
+			Message: "подсистема " + apiLibrarySubsystem + " в индексе не найдена: секция bsp пуста, все методы в other",
+		})
+	}
+	rows = all[:0]
+	for _, r := range all {
+		if r.ModuleKind == string(bsl.ModuleCommon) && apiOverridableModule(r.ModuleName) {
+			continue
+		}
+		rows = append(rows, r)
+	}
+	return rows, lib, warn, nil
 }
 
 // apiSignature: имя и параметры как в объявлении, со «Знач» и значениями по
@@ -384,6 +410,11 @@ type apiLibraryInfo struct {
 	objects map[string]bool
 	version string
 	warn    []Warning
+}
+
+// contains сообщает, входит ли модуль метода в состав библиотеки.
+func (info apiLibraryInfo) contains(r store.ExportedMethodRow) bool {
+	return info.objects[apiObjectKey(r.ComponentID, apiOwnerRef(r))]
 }
 
 // readAPILibrary собирает состав библиотеки и её версию по всем компонентам

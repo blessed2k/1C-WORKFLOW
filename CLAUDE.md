@@ -13,7 +13,7 @@ live HTTP-коннектор по требованию на каждый выз�
 
 | Команда | Что делает |
 |---|---|
-| `go build ./...` | Собрать всё (включая `cmd/syntaxgen`, `evals/runner`) |
+| `go build ./...` | Собрать всё (включая `cmd/syntaxgen`, `evals/runner`, `evals/findapi`) |
 | `go vet ./...` | Статический анализ, вывод пуст |
 | `go test ./...` | Юнит- и fixture-тесты, без реальной выгрузки и без индекса синтаксиса платформы |
 | `go test -count=1 ./...` | То же без кэша; самый долгий пакет `cmd/mcp1c` ~25 с |
@@ -66,9 +66,9 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/arch` — гард на граф импортов (обычные `go test`, не отдельный линтер)
 - `internal/{source,onec,standards,syntax,validate}`: легаси-слой инструментов, без индекса, по запросу читает XML/live-коннектор; кэш разобранных коллекций живёт здесь (`internal/source/cache.go`); новый код не импортирует этот слой, кроме `internal/syntax`
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
-- `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
+- `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`); `evals/findapi`: эталон и счётчик качества `find_api` (`docs/find-api-eval.md`)
 - `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-039), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-039), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества), `find-api-eval.md` (эталон `find_api`)
 
 ## Ключевые файлы
 
@@ -85,6 +85,8 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c/indexreg.go` — реестр индексных инструментов (не редактировать)
 - `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph,api}.go` — регистрация индексных инструментов, по файлу на группу
 - `internal/app/api.go`, `apirank.go`: `find_api` (issue #15). Методы программного интерфейса берутся одним запросом `store.ExportedMethodsInRegions` по пути областей символа; секция `bsp` определяется составом подсистемы `СтандартныеПодсистемы` (любой объект состава: общий модуль или владелец модуля менеджера), который читается из объявлений подсистем в блобах индекса (`meta.ParseSubsystemContent`, `workspace.DumpChildSubsystemPath`), пока индекс не хранит рёбра состава. Ранжирование (`apirank.go`): слова сравнивает `apiSameWord` (общее начало плюс остатки из русских суффиксов и окончаний), сортировка сначала по охвату с весом редкости слова (`apiTermWeights`), затем по весу места совпадения; устаревшие уходят в хвост уже после среза `limit`. Правила выбраны замером на `ut_demo` по 25 запросам с известным ответом (`TestRealDumpFindAPI`): менять их только с тем же замером
+- `internal/app/apicatalog.go`: `APIService.Catalog`, все методы программного интерфейса двумя секциями без запроса (общий с `FindAPI` отбор `readAPIMethods`); потребитель: оценка `evals/findapi`
+- `evals/findapi`: эталон «задача словами → готовый метод» из реальных вызовов (`docs/find-api-eval.md`). Набор `data/ut_demo.jsonl` (498 пар, половины `dev`/`test`, каждая пара принята двумя проверяющими моделями), база `data/ut_demo.baseline.json`. **Любое изменение ранжирования `find_api` меряется прогоном `go run ./evals/findapi score -project <ut_demo> -data ... -baseline ...`**: падение на глубине 10 или 50 валит прогон; правила настраиваются на половине `dev`, качество называется по `test`. Рабочий каталог генератора `evals/findapi/work` содержит код конфигурации и в git не идёт
 - `internal/index/symboldoc.go`: `regionPath` и `docFirstLine` наполняют `symbol.region` (путь областей через `domain.RegionPathSeparator`) и `symbol.doc_first_line`; в `fts_symbols.doc` описание сознательно не кладётся (`internal/store/batch.go`)
 - `internal/source/cache.go` — `ConfigureCache(ttl, limitBytes)`, `CacheSnapshot() CacheStats`, `cached[T]`, `estimateSize`, `dirStamp`, сам `dumpCache` со сбросом по TTL и вытеснением
 - `internal/syntax/lazy.go`: `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go`: `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`; `owner.go` — `Lookup` (owner, `Тип.Член`, компактные члены `Member`, `TypeInfo`), `MemberLimit`

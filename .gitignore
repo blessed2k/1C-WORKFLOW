@@ -69,3 +69,6 @@ index.json.gz
 .claude/
 .unlazy/
 GATES.md
+
+# Оценка find_api: рабочий каталог генератора содержит код конфигурации.
+/evals/findapi/work/
