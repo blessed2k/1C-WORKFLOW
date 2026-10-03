@@ -83,7 +83,9 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c/surface.go`: `toolSurface`, набор объявленных сервером инструментов, снимается при `initialize` (`instructionsMiddleware`) и служит единственным источником для instructions и подсказок следующего шага (`nextStepsFor`, `suggestedNextTools` у `get_context_for_task`); сбой `tools/list` даёт полный текст instructions без фильтра и запись в stderr; хендлер находит свой набор через `surfaceOf(server)`
 - `cmd/mcp1c/surface_test.go`: табличный тест состава (режим x профиль x реестр: нет, открыт, сломан), списки `индексныеИнструменты` и `исключеныВCore` закреплены литералами
 - `cmd/mcp1c/indexreg.go` — реестр индексных инструментов (не редактировать)
-- `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph}.go` — регистрация индексных инструментов, по файлу на группу
+- `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph,api}.go` — регистрация индексных инструментов, по файлу на группу
+- `internal/app/api.go`, `apirank.go`: `find_api` (issue #15). Методы программного интерфейса берутся одним запросом `store.ExportedMethodsInRegions` по пути областей символа; секция `bsp` определяется составом подсистемы `СтандартныеПодсистемы` (любой объект состава: общий модуль или владелец модуля менеджера), который читается из объявлений подсистем в блобах индекса (`meta.ParseSubsystemContent`, `workspace.DumpChildSubsystemPath`), пока индекс не хранит рёбра состава. Ранжирование: основа слова запроса как начало слова, сортировка сначала по охвату слов запроса; устаревшие уходят в хвост уже после среза `limit`
+- `internal/index/symboldoc.go`: `regionPath` и `docFirstLine` наполняют `symbol.region` (путь областей через `domain.RegionPathSeparator`) и `symbol.doc_first_line`; в `fts_symbols.doc` описание сознательно не кладётся (`internal/store/batch.go`)
 - `internal/source/cache.go` — `ConfigureCache(ttl, limitBytes)`, `CacheSnapshot() CacheStats`, `cached[T]`, `estimateSize`, `dirStamp`, сам `dumpCache` со сбросом по TTL и вытеснением
 - `internal/syntax/lazy.go`: `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go`: `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`; `owner.go` — `Lookup` (owner, `Тип.Член`, компактные члены `Member`, `TypeInfo`), `MemberLimit`
 - `internal/syntax/syntaxtest`: `Fixture`/`FixtureFile` (синтетический корпус `internal/syntax/syntaxtest/testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
@@ -143,7 +145,8 @@ live HTTP-коннектор по требованию на каждый выз�
 
 Направление зависимостей: `cmd/mcp1c → internal/app → domain`; `app → store, resolve, index,
 retrieve, workspace`; `app, retrieve → effective → store, resolve, parse/bsl`; `store, resolve,
-parse/* → domain`. Проверяется тестом
+parse/* → domain`. `app → parse/meta, parse/bsl` только у `find_api` (`internal/app/api.go`):
+разбор состава подсистемы из блоба и имена видов модулей. Проверяется тестом
 (`internal/arch`), не только соглашением.
 
 Поток вызова индексного инструмента: MCP-запрос → `cmd/mcp1c/idx_*.go` резолвит активный
@@ -501,7 +504,8 @@ guard по корпусу, сервер без файла индекса син�
   версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
   указатели нетронутых файлов на пересозданные узлы; схема 4, ADR-038: сносил каскадом их права
   ролей, рёбра и бейджи графа; схема 6, issue #14: оставлял `module.owner_object_id` на
-  удалённом объекте). `ParserVersion` ради этого не поднимать.
+  удалённом объекте; схема 7, issue #15: индексация не заполняла `symbol.region` и
+  `symbol.doc_first_line`). `ParserVersion` ради этого не поднимать.
   Переключение бинарника `main` (схема 2) и схемы 3 на одном `--projects-root` каждый раз
   стоит полной пересборки: схема 3 требует её у эпохи версии 2, а `main` на эпохе версии 3
   заводит новую пустую эпоху.

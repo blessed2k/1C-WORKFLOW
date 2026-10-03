@@ -49,6 +49,12 @@ type Symbol struct {
 	Confidence  Confidence  `json:"confidence"`
 }
 
+// RegionPathSeparator разделяет имена областей препроцессора в пути области
+// символа ("ПрограммныйИнтерфейс/Данные"). Имя области в BSL идентификатор,
+// косой черты в нём не бывает. Константа одна на тех, кто путь пишет
+// (индексация), отбирает по нему (store) и разбирает (app).
+const RegionPathSeparator = "/"
+
 // Validate проверяет инварианты символа.
 func (s Symbol) Validate() error {
 	if s.UID == "" {

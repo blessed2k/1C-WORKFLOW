@@ -273,3 +273,29 @@ func TestToolDescriptionsHaveTriggers(t *testing.T) {
 		}
 	}
 }
+
+// TestInstructionsRouteToFindAPI: with the index the WRITE CODE phase sends the
+// model to find_api before it writes a helper of its own; without the index the
+// tool is not registered and the line is gone.
+func TestInstructionsRouteToFindAPI(t *testing.T) {
+	for _, v := range instructionVariants() {
+		t.Run(v.name, func(t *testing.T) {
+			got, tools := handshake(t, v)
+			if !tools["find_api"] {
+				if v.index == реестрОткрыт {
+					t.Fatal("the index is open, but find_api is not registered")
+				}
+				if mentions(got, "find_api") {
+					t.Errorf("find_api is not registered, but the instructions route to it:\n%s", got)
+				}
+				return
+			}
+			write := strings.Index(got, "WRITE CODE")
+			verify := strings.Index(got, "VERIFY WHAT WAS WRITTEN")
+			at := strings.Index(got, "find_api")
+			if write < 0 || at < write || (verify >= 0 && at > verify) {
+				t.Errorf("find_api is not routed from the WRITE CODE section:\n%s", got)
+			}
+		})
+	}
+}

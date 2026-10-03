@@ -74,6 +74,17 @@ func DumpDeclarationPath(mtype, nameDisplay string) string {
 	return DumpObjectDir(mtype, nameDisplay) + ".xml"
 }
 
+// DumpChildSubsystemPath — путь объявления вложенной подсистемы по пути
+// объявления её родителя: "Subsystems/А.xml" + "Б" даёт
+// "Subsystems/А/Subsystems/Б.xml". Вложенные подсистемы лежат в каталоге
+// родителя, в такой же коллекции, на любой глубине.
+//
+// Остальные лица правила (IsDumpConformantPath, обратный разбор) вложенных
+// подсистем пока не знают: объектами индекса они не становятся.
+func DumpChildSubsystemPath(parentDeclPath, childName string) string {
+	return strings.TrimSuffix(parentDeclPath, ".xml") + "/" + mustCollectionDir("Subsystem") + "/" + childName + ".xml"
+}
+
 // ModuleKind — вид модуля объекта, то есть имя файла модуля внутри "Ext".
 // Это ПАРАМЕТР правила, а не хвост-литерал у вызывающего: у одного вида
 // объекта модулей несколько (у регистра — набор записей и менеджер, у
