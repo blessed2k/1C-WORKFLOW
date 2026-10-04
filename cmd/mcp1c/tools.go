@@ -380,6 +380,13 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	// cost the client several thousand tokens of context.
 	indexAvailable := err == nil && strings.TrimSpace(opts.projectsRoot) != ""
 	profile := opts.toolsProfile.orDefault()
+	// The most used БСП methods are computed in the background from the start:
+	// a stdio server lives for one session, and server_info is usually called
+	// within its first seconds.
+	var core *coreWarmer
+	if indexAvailable {
+		core = newCoreWarmer(app.NewAPIService(indexDeps.projects), indexDeps.projects.ActiveState, opts.coreSnapshotDir())
+	}
 
 	// Live mode: a single --base and/or a --bases file (multi-base, switchable).
 	if opts.baseURL != "" || opts.basesFile != "" {
@@ -404,14 +411,15 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 		surface := newToolSurface()
 		surfaces.Store(server, surface)
 		registerCoreTools(server, ls.desc,
-			&serverInfoState{project: liveProjectInfo(indexDeps.projects), profile: profile}, ls.source, idx)
+			&serverInfoState{project: liveProjectInfo(indexDeps.projects), profile: profile, core: core}, ls.source, idx)
 		registerResources(server, ls.source)
 		registerStandardsResources(server)
 		registerLiveTools(server, ls)
 		registerCheckSync(server, ls.live)
 		registerBaseSwitching(server, ls)
 		finishSurface(server, surface, indexDeps, indexAvailable, profile)
-		return server, surfaceCloser{server: server, next: indexDeps.closer()}
+		core.warm()
+		return server, surfaceCloser{server: server, core: core, next: indexDeps.closer()}
 	}
 
 	// Offline / none: the dump directory is switchable via set_dump. A --dump at
@@ -433,7 +441,7 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	surface := newToolSurface()
 	surfaces.Store(server, surface)
 	registerCoreTools(server, describe,
-		&serverInfoState{project: offlineProjectInfo(indexDeps.projects), profile: profile}, ds.source, idx)
+		&serverInfoState{project: offlineProjectInfo(indexDeps.projects), profile: profile, core: core}, ds.source, idx)
 	registerQuerySchema(server, ds.source)
 	registerMetadataUsages(server, ds.source)
 	registerDependencyPaths(server, ds.source)
@@ -454,17 +462,22 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	registerListProjects(server, opts.projectsRoot)
 	registerDumpDiff(server, ds)
 	finishSurface(server, surface, indexDeps, indexAvailable, profile)
-	return server, surfaceCloser{server: server, next: indexDeps.closer()}
+	core.warm()
+	return server, surfaceCloser{server: server, core: core, next: indexDeps.closer()}
 }
 
 // surfaceCloser forgets the server's tool surface, then closes the rest.
 type surfaceCloser struct {
 	server *mcp.Server
-	next   io.Closer
+	// core is stopped before the projects close: its background computation
+	// reads the index.
+	core *coreWarmer
+	next io.Closer
 }
 
 func (c surfaceCloser) Close() error {
 	surfaces.Delete(c.server)
+	c.core.stop()
 	return c.next.Close()
 }
 
@@ -521,6 +534,9 @@ func syntaxCorpusErr(idx syntaxCorpus) error {
 type serverInfoState struct {
 	project func() *projectInfoOutput
 	profile toolsProfile
+	// core hands out the most used БСП methods of the active project; nil when
+	// the server has no indexed projects.
+	core *coreWarmer
 }
 
 // registerCoreTools wires server_info, bsl_syntax and the ConfigSource tools.
@@ -528,7 +544,7 @@ type serverInfoState struct {
 func registerCoreTools(server *mcp.Server, describe func() (string, string), info *serverInfoState, provide func() source.ConfigSource, idx syntaxCorpus) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "server_info",
-		Description: "Server version, active data source (offline dump, live base or none), active project (which indexed project the indexed tools read and whether it matches the dump) and tool profile. Call it when a tool reports no source or no active project.",
+		Description: "Server version, active data source (offline dump, live base or none), active project (which indexed project the indexed tools read and whether it matches the dump), tool profile and coreMethods: the БСП methods the applied code of this configuration calls most, to check before writing a helper of your own. Call it when a tool reports no source or no active project.",
 	}, serverInfoHandler(describe, info))
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -969,7 +985,14 @@ type serverInfoOutput struct {
 	Memory  memoryOutput       `json:"memory" jsonschema:"what this process holds: RSS, uptime and the export cache"`
 	Project *projectInfoOutput `json:"project,omitempty" jsonschema:"the process's active project: the indexed project and the dump the raw tools read"`
 	Profile string             `json:"profile,omitempty" jsonschema:"tool profile: full or core (--tools)"`
+	// CoreMethods is here because this is the tool an agent actually calls at
+	// the start of a session; see corewarm.go.
+	CoreMethods []app.APICoreModule `json:"coreMethods,omitempty" jsonschema:"the БСП methods the applied code of the active project calls most (names by module): before writing a helper check whether one of them already does it; signatures via get_symbol or find_api with module"`
+	CoreNote    string              `json:"coreNote,omitempty"`
 }
+
+// coreNotePending is what server_info says while the list is being computed.
+const coreNotePending = "Ходовые методы БСП этой базы ещё считаются (несколько секунд после запуска или переиндексации): их отдаст find_api без аргументов или следующий server_info."
 
 // projectInfoOutput is the one active-project state of the process as the
 // caller sees it: before it existed the raw and the indexed tools could answer
@@ -1027,6 +1050,9 @@ func serverInfoHandler(describe func() (string, string), info *serverInfoState) 
 			out.Profile = string(info.profile.orDefault())
 			if info.project != nil {
 				out.Project = info.project()
+			}
+			if info.core != nil && out.Project != nil && out.Project.IndexProject != "" {
+				out.CoreMethods, out.CoreNote = info.core.report()
 			}
 		}
 		if req != nil && req.Session != nil {

@@ -54,6 +54,28 @@ type options struct {
 	// user's own card files. The real process gets the default directory
 	// through the flag default.
 	apiCards string
+
+	// coreSnapshot is the directory where the most used БСП methods are
+	// mirrored for the Claude Code hook (corewarm.go). Empty means no file is
+	// written: options{} in tests never touches the user's cache directory.
+	// The real process gets the default directory through the flag default.
+	coreSnapshot string
+}
+
+// registerCoreSnapshotFlag binds --core-snapshot into o; like --api-cards, the
+// default location is baked into the flag value so that the zero options stay
+// hermetic.
+func registerCoreSnapshotFlag(fs *flag.FlagSet, o *options) {
+	fs.StringVar(&o.coreSnapshot, "core-snapshot", defaultCoreSnapshotDir(),
+		"directory where the most used БСП methods are mirrored for the BSL hook (tools/hooks/bsl_ready_methods.py reads the default one); none disables the file")
+}
+
+// coreSnapshotDir resolves the snapshot directory; none and empty turn it off.
+func (o options) coreSnapshotDir() string {
+	if p := strings.TrimSpace(o.coreSnapshot); p != "none" {
+		return p
+	}
+	return ""
 }
 
 // registerAPICardsFlag binds --api-cards (env MCP_1C_API_CARDS) into o. Unlike

@@ -428,7 +428,7 @@ var контрактыИнструментов = []контрактИнстру�
 		входОбязательные:  []string{},
 		входПоля:          map[string]string{},
 		выходОбязательные: []string{"name", "version", "mode", "source", "client", "memory"},
-		выходПоля:         []string{"client", "memory", "mode", "name", "source", "version"},
+		выходПоля:         []string{"client", "coreMethods", "coreNote", "memory", "mode", "name", "source", "version"},
 	},
 	{
 		имя:               "set_base",

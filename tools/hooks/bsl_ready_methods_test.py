@@ -43,7 +43,8 @@ MODULE = (
 def run(event, home):
     """Запускает хук на событии; возвращает текст напоминания или пустую строку."""
     raw = event if isinstance(event, str) else json.dumps(event, ensure_ascii=False)
-    env = dict(os.environ, HOME=home, USERPROFILE=home)
+    env = dict(os.environ, HOME=home, USERPROFILE=home,
+               XDG_CACHE_HOME=os.path.join(home, ".cache"), LocalAppData=os.path.join(home, "local"))
     proc = subprocess.run([sys.executable, HOOK], input=raw.encode("utf-8"), capture_output=True, check=False, env=env)
     if proc.returncode != 0:
         raise AssertionError("код выхода %d: %s" % (proc.returncode, proc.stderr.decode("utf-8", "replace")))
@@ -57,6 +58,52 @@ def check(name, ok):
     if not ok:
         print("УПАЛО: " + name)
         sys.exit(1)
+
+
+def put_snapshot(home, name, root, modules):
+    """Кладёт снимок ходовых методов туда, где его ищет хук на любой ОС."""
+    body = json.dumps({"root": root, "modules": modules}, ensure_ascii=False)
+    for base in (os.path.join(home, "Library", "Caches"), os.path.join(home, ".cache"), os.path.join(home, "local")):
+        folder = os.path.join(base, "mcp1c", "core")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
+            f.write(body)
+
+
+def core_scenario(home):
+    """Ходовые методы: один раз за сессию, на первом обращении к .bsl, для своей базы."""
+    session = "core-" + uuid.uuid4().hex
+    read = {"session_id": session, "tool_name": "Read", "tool_input": {"file_path": "/базы/зуп/src/Модуль.bsl"}}
+    check("снимка нет: о ходовых методах молчит", run(read, home) == "")
+
+    put_snapshot(home, "a.json", "/базы/ут", [{"module": "ОбщегоНазначенияУТ", "methods": ["МетодУТ"]}])
+    outside = {"session_id": "core-" + uuid.uuid4().hex, "tool_name": "Read", "tool_input": {"file_path": "/расширения/своё/Модуль.bsl"}}
+    text = run(outside, home)
+    check("файл вне корней при единственном свежем снимке: список этой базы с названным корнем",
+          "МетодУТ" in text and "/базы/ут" in text)
+    put_snapshot(home, "b.json", "/базы/зуп", [{"module": "ОбщегоНазначения", "methods": ["ЗначениеРеквизитаОбъекта", "СообщитьПользователю"]}])
+    text = run(read, home)
+    check("чтение .bsl отдаёт ходовые методы своей базы",
+          "ОбщегоНазначения: ЗначениеРеквизитаОбъекта, СообщитьПользователю" in text and "МетодУТ" not in text)
+    check("второе обращение в той же сессии молчит", run(read, home) == "")
+    outside["session_id"] = "core-" + uuid.uuid4().hex
+    check("файл вне корней при двух снимках: чужой список не подставляется", run(outside, home) == "")
+
+    write = {"session_id": "core-" + uuid.uuid4().hex, "tool_name": "Write", "tool_input": {
+        "file_path": "/базы/зуп/src/Новый.bsl", "content": "Функция СвояФункция()\nКонецФункции\n"}}
+    text = run(write, home)
+    check("запись новой процедуры в новой сессии: и список, и напоминание",
+          "ЗначениеРеквизитаОбъекта" in text and "СвояФункция" in text and "validate_bsl" in text)
+
+    no_session = {"tool_name": "Read", "tool_input": {"file_path": "/базы/зуп/src/Модуль.bsl"}}
+    check("без идентификатора сессии список не повторяется на каждом обращении", run(no_session, home) == "")
+
+    broken = os.path.join(home, "Library", "Caches", "mcp1c", "core", "c.json")
+    for base in ("Library/Caches", ".cache", "local"):
+        with open(os.path.join(home, *base.split("/"), "mcp1c", "core", "c.json"), "w", encoding="utf-8") as f:
+            f.write("{не json")
+    other = {"session_id": "core-" + uuid.uuid4().hex, "tool_name": "Read", "tool_input": {"file_path": "/базы/ут/Модуль.bsl"}}
+    check("битый снимок рядом не мешает", "МетодУТ" in run(other, home) and os.path.exists(broken))
 
 
 def scenario(home):
@@ -97,7 +144,8 @@ def scenario(home):
 
     state = os.path.join(home, ".cache", "mcp1c-hooks")
     check("состояние лежит в каталоге пользователя, без временных файлов",
-          sorted(n.endswith(".json") for n in os.listdir(state)) == [True, True])
+          not [n for n in os.listdir(state) if n.endswith(".tmp")] and len(os.listdir(state)) == 2)
+    core_scenario(home)
 
 
 def main():

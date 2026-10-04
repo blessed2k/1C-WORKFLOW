@@ -250,3 +250,30 @@ func (s *APIService) CoreMethods(ctx context.Context) (Response[APICoreItem], er
 	resp := Response[APICoreItem]{Generation: res.gen, Items: []APICoreItem{res.item}, TotalCount: 1, Warnings: res.warn}
 	return withSnapshot(resp, snap), nil
 }
+
+// CoreMethodsIfReady отдаёт ходовые методы библиотеки активного проекта, если
+// они уже посчитаны, и ничего не считает и не ждёт: индекс слов занят
+// постройкой или список ещё не считался: ready=false. Нужен инструменту,
+// который обязан отвечать мгновенно (server_info); считает список
+// CoreMethods. Список может быть от прошлого поколения индекса: для подсказки
+// это годится.
+func (s *APIService) CoreMethodsIfReady() (item APICoreItem, ready bool) {
+	project := s.projects.ActiveState().Project
+	if project == "" || !s.indexes.mu.TryLock() {
+		return APICoreItem{}, false
+	}
+	ix := s.indexes.indexes[project]
+	s.indexes.mu.Unlock()
+	if ix == nil || !ix.coreMu.TryLock() {
+		return APICoreItem{}, false
+	}
+	core := ix.coreDone
+	ix.coreMu.Unlock()
+	if core == nil {
+		return APICoreItem{}, false
+	}
+	return APICoreItem{
+		BSPVersion: ix.version, Modules: core.modules,
+		Methods: core.methods, Candidates: core.candidates, Coverage: core.coverage,
+	}, true
+}

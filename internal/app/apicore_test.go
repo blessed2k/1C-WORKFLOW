@@ -203,3 +203,28 @@ func TestFindAPIMapCarriesCore(t *testing.T) {
 		t.Errorf("core = %+v, покрытие %v, карта %d подсистем; want %+v", item.Core, item.CoreCoverage, len(item.Map), want)
 	}
 }
+
+// TestCoreMethodsIfReady: готовый список отдаётся без ожидания; пока он не
+// считался, ответ «не готов», и сам запрос ничего не считает.
+func TestCoreMethodsIfReady(t *testing.T) {
+	p := apiCoreFixture(t, "ready", []string{callSplit, callSplit, callSplit}, nil)
+	svc := NewAPIService(p)
+	if _, ready := svc.CoreMethodsIfReady(); ready {
+		t.Fatal("список готов до первого расчёта")
+	}
+	if _, ready := svc.CoreMethodsIfReady(); ready {
+		t.Fatal("запрос готового списка сам его посчитал")
+	}
+	if _, err := svc.CoreMethods(context.Background()); err != nil {
+		t.Fatalf("CoreMethods: %v", err)
+	}
+	// Готовый список виден и другому сервису того же резолвера проектов.
+	item, ready := NewAPIService(p).CoreMethodsIfReady()
+	want := []APICoreModule{{Module: "СтроковыеУтилиты", Methods: []string{"РазложитьСтрокуВМассив"}}}
+	if !ready || !reflect.DeepEqual(item.Modules, want) || item.BSPVersion != "3.1.11.366" {
+		t.Errorf("готовый список = %+v, готов %v; want %+v", item.Modules, ready, want)
+	}
+	if _, ready := NewAPIService(NewProjectsUnavailable("", nil)).CoreMethodsIfReady(); ready {
+		t.Error("список готов без активного проекта")
+	}
+}
