@@ -23,6 +23,12 @@
 //	go run ./evals/findapi types    -project <выгрузка>                                   # доля методов с типом результата
 //	go run ./evals/findapi core     -project <выгрузка>                                   # ходовые методы библиотеки
 //
+// Замер поведения агента (зовёт ли он готовый метод или пишет свой), agent.go:
+//
+//	go run ./evals/findapi agent-tasks -data ... -drafts ... -out <задачи>
+//	go run ./evals/findapi agent-run   -tasks <задачи> -arm <плечо> -claude <CLI> -mcp-config <файл> -dump <выгрузка> -out <каталог запусков>
+//	go run ./evals/findapi agent-score -tasks <задачи> -runs <каталог запусков> -arms before,after
+//
 // Рабочий каталог (work) содержит код конфигурации и в git не идёт.
 package main
 
@@ -143,6 +149,12 @@ func main() {
 		err = runTypes(args)
 	case "core":
 		err = runCore(args)
+	case "agent-tasks":
+		err = runAgentTasks(args)
+	case "agent-run":
+		err = runAgentRun(args)
+	case "agent-score":
+		err = runAgentScore(args)
 	default:
 		usage()
 	}
@@ -152,7 +164,7 @@ func main() {
 }
 
 func usage() {
-	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query|drafts|types|core [флаги]; описание шагов в начале evals/findapi/main.go")
+	log.Fatal("использование: findapi tasks|judge|assemble|check|score|query|drafts|types|core|agent-tasks|agent-run|agent-score [флаги]; описание шагов в начале evals/findapi/main.go")
 }
 
 // projectFlags добавляет флаги, общие для шагов, которым нужен индекс.
