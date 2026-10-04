@@ -107,6 +107,15 @@ type apiIndex struct {
 	// libraryMap: карта библиотеки: подсистемы и их модули с программным
 	// интерфейсом.
 	libraryMap []APIMapSubsystem
+	// libraryObjects: объекты состава библиотеки (ключ apiObjectKey): по ним
+	// вызывающий файл относится к библиотеке или к прикладному коду.
+	libraryObjects map[string]bool
+	// coreDone: ходовые методы библиотеки (apicore.go); считаются при первом
+	// обращении, под coreMu. coreStale: список прошлого поколения индекса,
+	// перенесённый сюда при смене поколения.
+	coreMu    sync.Mutex
+	coreDone  *apiCore
+	coreStale *apiCore
 }
 
 // apiOwnerOf: модуль метода, как его называют в коде. У общего модуля это его
@@ -144,7 +153,7 @@ func buildAPIIndex(tx *store.ReadTx, gen domain.Generation) (*apiIndex, error) {
 	ix := &apiIndex{
 		gen: gen, version: lib.version, warn: warn,
 		methods: make([]apiIndexMethod, 0, len(rows)), byPrefix: map[string][]int32{},
-		byOwner: map[string][]int32{},
+		byOwner: map[string][]int32{}, libraryObjects: lib.objects,
 	}
 	// live: сколько действующих методов у объекта состава библиотеки, и как
 	// его модуль называют в коде.
@@ -502,6 +511,12 @@ func (c *apiIndexCache) get(project domain.ProjectID, tx *store.ReadTx, gen doma
 	ix, err := buildAPIIndex(tx, gen)
 	if err != nil {
 		return nil, err
+	}
+	if old := c.indexes[project]; old != nil {
+		// Ходовые методы прошлого поколения: см. apiIndex.core.
+		old.coreMu.Lock()
+		ix.coreStale = old.coreDone
+		old.coreMu.Unlock()
 	}
 	if c.indexes == nil {
 		c.indexes = map[domain.ProjectID]*apiIndex{}

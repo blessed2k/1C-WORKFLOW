@@ -290,8 +290,19 @@ type Result struct {
 	// app.APIService.ReadyForTask): движок про программный интерфейс не
 	// знает, а поле живёт здесь потому, что Result и есть ответ инструмента.
 	// В бюджет пакинга блок не входит, потолок у него свой.
-	ReadyMethods []ReadyMethod     `json:"readyMethods,omitempty"`
-	Generation   domain.Generation `json:"generation"`
+	ReadyMethods []ReadyMethod `json:"readyMethods,omitempty"`
+	// CoreMethods: ходовые методы библиотеки стандартных подсистем в этой
+	// конфигурации: чем прикладной код пользуется чаще всего. Заполняет
+	// вызывающий (cmd/mcp1c, через app.APIService.CoreMethods), как и
+	// ReadyMethods; в бюджет пакинга блок не входит.
+	CoreMethods []CoreModule      `json:"coreMethods,omitempty"`
+	Generation  domain.Generation `json:"generation"`
+}
+
+// CoreModule: модуль библиотеки и его ходовые методы, только имена.
+type CoreModule struct {
+	Module  string   `json:"module"`
+	Methods []string `json:"methods"`
 }
 
 // ReadyMethod: готовый метод одной строкой: вызов и назначение. Section:

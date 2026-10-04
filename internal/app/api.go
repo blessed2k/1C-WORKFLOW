@@ -168,6 +168,11 @@ type APISearchItem struct {
 	MethodsTotal int            `json:"methodsTotal,omitempty"`
 	// Map: карта библиотеки (режим без query и без module).
 	Map []APIMapSubsystem `json:"map,omitempty"`
+	// Core: ходовые методы библиотеки в этой конфигурации (режим без query и
+	// без module): чем прикладной код пользуется чаще всего. CoreCoverage:
+	// какую долю вызовов библиотеки из прикладного кода они закрывают.
+	Core         []APICoreModule `json:"core,omitempty"`
+	CoreCoverage float64         `json:"coreCoverage,omitempty"`
 	// Cards: у скольких методов программного интерфейса есть карточка задач.
 	// Ноль: карточки не подключены или не подходят этой конфигурации, поиск
 	// идёт только по имени и комментарию.
@@ -179,7 +184,8 @@ type APISearchItem struct {
 // модули программного интерфейса несут около двухсот методов.
 const apiModuleListLimit = 300
 
-const apiMapNote = "Карта библиотеки: подсистемы и их модули с числом методов программного интерфейса. " +
+const apiMapNote = "core: ходовые методы библиотеки: те, которыми пользуется больше всего прикладных объектов этой конфигурации (только имена; описание даст find_api с module или get_symbol): прежде чем писать свою функцию, проверьте, нет ли её здесь. " +
+	"map: карта библиотеки: подсистемы и их модули с числом методов программного интерфейса. " +
 	"Весь интерфейс модуля: find_api с module. Поиск по описанию задачи: find_api с query."
 
 const apiNoLibraryMapNote = "Библиотеки стандартных подсистем в выгрузке нет, карты нет. " +
@@ -265,7 +271,15 @@ func (s *APIService) FindAPI(ctx context.Context, in FindAPIInput) (Response[API
 			out.item.Map, out.item.Note = ix.libraryMap, apiMapNote
 			if len(ix.libraryMap) == 0 {
 				out.item.Note = apiNoLibraryMapNote
+				return out, nil
 			}
+			// Ходовые методы необязательны: сбой их расчёта карту не роняет.
+			core, cerr := ix.core(tx)
+			if cerr != nil {
+				out.warn = append(out.warn, apiCoreUnavailable(cerr))
+				return out, nil
+			}
+			out.item.Core, out.item.CoreCoverage = core.modules, core.coverage
 			return out, nil
 		}
 		var inModule map[int32]bool
@@ -419,6 +433,16 @@ func apiMethodItem(tx *store.ReadTx, c apiCandidate) (APIMethodItem, error) {
 		Module: c.row.ModulePath, Component: domain.ComponentID(c.row.ComponentID),
 		Line: c.row.StartLine, UID: c.row.UID,
 	}, nil
+}
+
+// apiCoreUnavailable: предупреждение о том, что ходовые методы библиотеки
+// посчитать не удалось.
+func apiCoreUnavailable(err error) Warning {
+	return Warning{
+		Code:    "core_methods_unavailable",
+		Message: "ходовые методы библиотеки не посчитаны: " + err.Error(),
+		Hint:    "на поиск это не влияет: готовые методы ищет find_api с query",
+	}
 }
 
 // apiBriefItem: метод одной строкой: вызов, назначение, тип результата и

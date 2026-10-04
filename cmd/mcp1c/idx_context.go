@@ -49,7 +49,7 @@ func registerContextTool(server *mcp.Server, deps indexToolDeps) {
 	api := app.NewAPIService(deps.projects)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_context_for_task",
-		Description: "Describe a task in words and get the minimal sufficient context for it: the definition and the exact place to edit first, then only what proved relevant for the classified intent (callers/callees, references, register access, form bindings, metadata, role rights), each fact with whyIncluded, provenance and confidence, within a hard character budget. requiredCoverage[] says per mandatory category: complete_inline, complete_via_resource (+ suggestedNextAction), complete_empty (collected, honestly nothing), partial or missing; sufficiencyStatus sums it up. readyMethods lists up to 8 ready-made methods of БСП and the configuration that share words with the task (a lexical hint outside the budget, often unrelated on a broad task; absent for rights and exchange questions): glance at them before writing a helper of your own and ask find_api with what the helper must do. No anchor found gives a warning and suggestedNextTools, not a guess. Call it first on any non-trivial task, then follow up with find_symbol, get_object or find_impact.",
+		Description: "Describe a task in words and get the minimal sufficient context for it: the definition and the exact place to edit first, then only what proved relevant for the classified intent (callers/callees, references, register access, form bindings, metadata, role rights), each fact with whyIncluded, provenance and confidence, within a hard character budget. requiredCoverage[] says per mandatory category: complete_inline, complete_via_resource (+ suggestedNextAction), complete_empty (collected, honestly nothing), partial or missing; sufficiencyStatus sums it up. coreMethods names the БСП methods the applied code of this configuration calls most (names only, grouped by module): before writing a helper check whether one of them already does it. readyMethods lists up to 8 ready-made methods of БСП and the configuration that share words with the task (a lexical hint, often unrelated on a broad task); both blocks are outside the budget (coreMethods is about 3 thousand characters and the same on every call) and absent for rights and exchange questions: glance at them before writing a helper of your own and ask find_api with what the helper must do. No anchor found gives a warning and suggestedNextTools, not a guess. Call it first on any non-trivial task, then follow up with find_symbol, get_object or find_impact.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &falseHint, DestructiveHint: &falseHint,
 		},
@@ -143,10 +143,12 @@ func keepAdvertisedNextTools(resp *app.Response[retrieve.Result], surface *toolS
 	}
 }
 
-// readyMethodsSearcher: готовые методы по тексту задачи. Интерфейс объявлен у
+// readyMethodsSearcher: готовые методы для ответа get_context_for_task: по
+// тексту задачи и ходовые методы библиотеки. Интерфейс объявлен у
 // потребителя: тест подставляет заглушку вместо индексного проекта.
 type readyMethodsSearcher interface {
 	ReadyForTask(ctx context.Context, task string) (app.Response[app.APITaskMethod], error)
+	CoreMethods(ctx context.Context) (app.Response[app.APICoreItem], error)
 }
 
 // readyMethodsSkipIntents: при каком назначении задачи блок готовых методов не
@@ -172,6 +174,22 @@ var readyMethodsSkipIntents = map[string]bool{
 func attachReadyMethods(ctx context.Context, api readyMethodsSearcher, resp *app.Response[retrieve.Result], task string) {
 	if len(resp.Items) == 0 || readyMethodsSkipIntents[resp.Items[0].Intent.Primary] {
 		return
+	}
+	// Ходовые методы библиотеки: от задачи не зависят, одни и те же на базу.
+	// Агент видит их, ничего не решая: готовый метод он чаще теряет не на
+	// поиске, а до него, не подумав искать.
+	// Блок один и тот же на каждом вызове в сессии: сервер о сессии не знает.
+	if core, cerr := api.CoreMethods(ctx); cerr != nil {
+		resp.Warnings = append(resp.Warnings, app.Warning{
+			Code:    "core_methods_unavailable",
+			Message: "ходовые методы библиотеки (coreMethods) не посчитаны: " + cerr.Error(),
+			Hint:    "готовые методы ищет find_api по описанию того, что должна сделать функция",
+		})
+	} else if len(core.Items) > 0 {
+		for _, m := range core.Items[0].Modules {
+			resp.Items[0].CoreMethods = append(resp.Items[0].CoreMethods,
+				retrieve.CoreModule{Module: m.Module, Methods: append([]string(nil), m.Methods...)})
+		}
 	}
 	found, err := api.ReadyForTask(ctx, task)
 	if err != nil {

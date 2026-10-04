@@ -146,3 +146,48 @@ func (tx *ReadTx) ExternalCallSite(symbolID int64) (fileID int64, byteStart int,
 	}
 	return 0, 0, false, rows.Err()
 }
+
+// CallerFileRow: сколько раз символ зовут из одного файла другого модуля.
+type CallerFileRow struct {
+	CalleeID    int64
+	ComponentID string
+	RelPath     string
+	Calls       int
+}
+
+// CallerFilesOf отдаёт по каждому из символов файлы других модулей, из
+// которых его зовут, с числом вызовов. Список символов уходит одним
+// параметром (json_each): методов программного интерфейса тысячи, и
+// плейсхолдер на каждый упёрся бы в лимит переменных SQLite. Отбор идёт по
+// индексу callee_id и стоит столько, сколько у этих символов вызовов, а не
+// сколько строк во всей таблице вызовов.
+func (tx *ReadTx) CallerFilesOf(symbolIDs []int64) ([]CallerFileRow, error) {
+	if err := tx.check(); err != nil {
+		return nil, err
+	}
+	if len(symbolIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := tx.c.query(tx.ctx, `
+		SELECT e.callee_id, sf.component_id, sf.rel_path, COUNT(*)
+		FROM call_edge e
+		JOIN symbol caller ON caller.id = e.caller_id
+		JOIN symbol callee ON callee.id = e.callee_id
+		JOIN source_file sf ON sf.id = caller.origin_file_id
+		WHERE e.callee_id IN (SELECT value FROM json_each(?)) AND caller.module_id != callee.module_id
+		GROUP BY e.callee_id, caller.origin_file_id
+		ORDER BY e.callee_id, caller.origin_file_id`, int64ListJSON(symbolIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CallerFileRow
+	for rows.Next() {
+		var r CallerFileRow
+		if err := rows.Scan(&r.CalleeID, &r.ComponentID, &r.RelPath, &r.Calls); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
