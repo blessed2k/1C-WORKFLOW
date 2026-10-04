@@ -18,7 +18,7 @@ type queryAdvisorInput struct {
 func registerQueryAdvisor(server *mcp.Server, provide func() source.ConfigSource) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "query_advisor",
-		Description: "Static review of a 1C query: anti-patterns with concrete rewrites (ВЫБРАТЬ *, join with a subquery, virtual table without parameters, outer join without ЕСТЬNULL, leading-wildcard LIKE) and index hints from metadata (filters and join keys no index covers, filters skipping a register's leading dimension). Use it after writing a query, or on a slow one. Offline; it neither runs the query nor gives an SQL plan.",
+		Description: "Static review of a 1C query: anti-patterns with concrete rewrites (ВЫБРАТЬ *, join with a subquery, virtual table without parameters, outer join without ЕСТЬNULL, leading-wildcard LIKE), rules of the ITS standards with the standard number in the message (СУММА(1) as a row count, nested joins, ПОЛНОЕ СОЕДИНЕНИЕ, ОБЪЕДИНИТЬ without ВСЕ, ИЛИ across fields, a function over a filtered field, Регистратор dereferenced through a dot, ПЕРВЫЕ with АВТОУПОРЯДОЧИВАНИЕ, complex virtual-table parameters, a dimension filtered in ГДЕ instead of the parameters) and index hints from metadata (filters and join keys no index covers, filters skipping a register's leading dimension). Use it after writing a query, or on a slow one. Offline; it neither runs the query nor gives an SQL plan.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in queryAdvisorInput) (*mcp.CallToolResult, source.QueryAdvice, error) {
 		xs, ok := provide().(*source.XMLSource)
 		if !ok {

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // reverseQueryPrefix maps a Russian query-table prefix back to its metadata type.
@@ -66,6 +67,7 @@ func (s *XMLSource) AdviseQuery(_ context.Context, text string) (*QueryAdvice, e
 	adv.Warnings = append(adv.Warnings, s.unindexedFilters(text, aliases)...)
 	adv.Warnings = append(adv.Warnings, s.unindexedJoins(text, aliases)...)
 	adv.Warnings = append(adv.Warnings, s.nonLeadingDimensionFilters(text, sources)...)
+	adv.Warnings = append(adv.Warnings, s.virtualTableFiltersInWhere(text)...)
 	adv.Count = len(adv.Warnings)
 	return adv, nil
 }
@@ -136,6 +138,8 @@ func adviseQueryText(text string) (*QueryAdvice, map[string]string, []source) {
 			Suggestion: "Избегать поиска по вхождению; для поиска по подстроке использовать полнотекстовый поиск или отбор по началу строки.",
 		})
 	}
+
+	adv.Warnings = append(adv.Warnings, itsTextRules(text)...)
 
 	adv.Count = len(adv.Warnings)
 	return adv, aliases, sources
@@ -412,21 +416,19 @@ func extractJoinConditions(text string) []string {
 
 // indexOfWord returns the index of the first whole-word (case-insensitive)
 // occurrence of word in s at or after from, or -1. A whole word is not adjacent
-// to a letter or digit on either side.
+// to a letter or digit on either side. The index is a byte offset in s itself:
+// the text is compared in place rather than upper-cased, because upper-casing
+// can change the byte length of a rune and shift every offset after it.
 func indexOfWord(s, word string, from int) int {
-	up := strings.ToUpper(s)
-	uw := strings.ToUpper(word)
-	for {
-		j := strings.Index(up[from:], uw)
-		if j < 0 {
-			return -1
+	for i := max(from, 0); i+len(word) <= len(s); i++ {
+		if !utf8.RuneStart(s[i]) || !strings.EqualFold(s[i:i+len(word)], word) {
+			continue
 		}
-		pos := from + j
-		if !letterOrDigitAt(up, pos-1) && !letterOrDigitAt(up, pos+len(uw)) {
-			return pos
+		if !letterOrDigitBefore(s, i) && !letterOrDigitAt(s, i+len(word)) {
+			return i
 		}
-		from = pos + len(uw)
 	}
+	return -1
 }
 
 // letterOrDigitAt reports whether the rune starting at byte position pos in s is
@@ -435,11 +437,22 @@ func letterOrDigitAt(s string, pos int) bool {
 	if pos < 0 || pos >= len(s) {
 		return false
 	}
-	r := []rune(s[pos:])
-	if len(r) == 0 {
+	// Decode one rune only: converting the whole tail on every keyword match made
+	// a long query batch quadratic.
+	r, _ := utf8.DecodeRuneInString(s[pos:])
+	return isLetterOrDigit(r)
+}
+
+// letterOrDigitBefore reports whether the rune that ends right before byte
+// position pos is a letter or digit. It decodes backwards: pos-1 is the last
+// byte of that rune, which for Cyrillic is a continuation byte and cannot be
+// decoded on its own.
+func letterOrDigitBefore(s string, pos int) bool {
+	if pos <= 0 || pos > len(s) {
 		return false
 	}
-	return isLetterOrDigit(r[0])
+	r, _ := utf8.DecodeLastRuneInString(s[:pos])
+	return isLetterOrDigit(r)
 }
 
 func isLetterOrDigit(r rune) bool {

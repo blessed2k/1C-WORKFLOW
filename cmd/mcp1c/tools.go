@@ -962,7 +962,7 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "analyze_query",
-		Description: "Reports heavy-query anti-patterns (join subquery, leading-wildcard LIKE, virtual table without params, ...) for a 1C query in live mode. Offline prefer query_advisor: it also checks indexes and suggests concrete rewrites. Pass base=<name> to target one base for this call.",
+		Description: "Reports heavy-query anti-patterns (join subquery, leading-wildcard LIKE, virtual table without params, ...) and the text-only rules of the ITS standards (СУММА(1) as a row count, nested joins, ПОЛНОЕ СОЕДИНЕНИЕ, ИЛИ across fields, ...) for a 1C query in live mode. Offline prefer query_advisor: it also checks indexes and suggests concrete rewrites. Pass base=<name> to target one base for this call.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in analyzeQueryLiveInput) (*mcp.CallToolResult, analyzeQueryOutput, error) {
 		live, name, err := resolveLive(lp, in.Base)
 		if err != nil {
