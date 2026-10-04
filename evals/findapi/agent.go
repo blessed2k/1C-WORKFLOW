@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -181,8 +182,11 @@ func runAgentRun(args []string) error {
 	model := fs.String("model", "claude-opus-5-5", "модель агента")
 	dump := fs.String("dump", firstEnv("ONEC_DUMP", "MCP1C_SPIKE_DUMP"), "каталог выгрузки, называется агенту в просьбе")
 	out := fs.String("out", "", "каталог запусков, вне репозитория (обязателен): его CLAUDE.md не должен попасть агенту")
-	timeout := fs.Duration("timeout", 15*time.Minute, "потолок времени одного запуска")
+	timeout := fs.Duration("timeout", 15*time.Minute, "потолок времени одного хода")
 	limit := fs.Int("limit", 0, "сколько задач запустить за этот вызов; 0: все оставшиеся")
+	prefix := fs.String("prefix", "", "что поставить перед просьбой, например команду скилла: \"/1c-dev:plan \"")
+	followup := fs.String("followup", "", "второй ход в той же сессии, например \"Утверждаю план, делай.\"; пусто: один ход")
+	pluginDir := fs.String("plugin-dir", "", "каталог плагина, подключаемого на время запуска")
 	fs.Parse(args)
 	if *tasksPath == "" || *arm == "" || *cli == "" || *mcpConfig == "" || *out == "" || *dump == "" {
 		return errors.New("agent-run: флаги -tasks, -arm, -claude, -mcp-config, -dump и -out обязательны")
@@ -201,7 +205,10 @@ func runAgentRun(args []string) error {
 			break
 		}
 		started++
-		res, err := agentRunOne(dir, t, *cli, *mcpConfig, *settings, *model, *dump, *timeout)
+		res, err := agentRunOne(dir, t, agentArm{
+			CLI: *cli, MCPConfig: *mcpConfig, Settings: *settings, Model: *model, Dump: *dump,
+			Timeout: *timeout, Prefix: *prefix, Followup: *followup, PluginDir: *pluginDir,
+		})
 		if err != nil {
 			return fmt.Errorf("задача %s: %w", t.ID, err)
 		}
@@ -222,8 +229,67 @@ func agentRunDone(dir string) bool {
 	return json.Unmarshal(raw, &res) == nil && res.Exit == 0 && !res.TimedOut
 }
 
-// agentRunOne готовит каталог задачи заново и запускает в нём CLI.
-func agentRunOne(dir string, t agentTask, cli, mcpConfig, settings, model, dump string, timeout time.Duration) (agentRunResult, error) {
+// agentArm: чем плечо отличается от другого и как зовётся CLI.
+type agentArm struct {
+	CLI, MCPConfig, Settings, Model, Dump string
+	Timeout                               time.Duration
+	// Prefix ставится перед просьбой: так вызывается скилл.
+	Prefix string
+	// Followup: второй ход в той же сессии. Скилл, который кончается планом на
+	// утверждение, кода на первом ходу не пишет; второй ход его утверждает.
+	Followup string
+	// PluginDir: плагин, подключаемый на время запуска (скилл ещё не установлен).
+	PluginDir string
+}
+
+// agentTurns: ходы запуска по порядку.
+func agentTurns(t agentTask, arm agentArm) []string {
+	turns := []string{arm.Prefix + agentPrompt(t, arm.Dump)}
+	if arm.Followup != "" {
+		turns = append(turns, arm.Followup)
+	}
+	return turns
+}
+
+// agentArgs: аргументы CLI для хода номер turn (с нуля) сессии session.
+func agentArgs(prompt string, turn int, session string, arm agentArm) []string {
+	args := []string{"-p", prompt}
+	if turn == 0 {
+		args = append(args, "--session-id", session)
+	} else {
+		args = append(args, "--resume", session)
+	}
+	args = append(args,
+		"--model", arm.Model,
+		"--output-format", "stream-json", "--verbose",
+		"--strict-mcp-config", "--mcp-config", arm.MCPConfig,
+		"--permission-mode", "acceptEdits",
+		"--allowedTools", "Read,Write,Edit,Glob,Grep,mcp__1c-workflowtimur",
+		"--disallowedTools", "Bash,Agent,Task,WebSearch,WebFetch",
+	)
+	if arm.Settings != "" {
+		args = append(args, "--settings", arm.Settings)
+	}
+	if arm.PluginDir != "" {
+		args = append(args, "--plugin-dir", arm.PluginDir)
+	}
+	return args
+}
+
+// newSessionID: случайный идентификатор сессии в виде UUID версии 4.
+func newSessionID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
+// agentRunOne готовит каталог задачи заново и запускает в нём CLI: по одному
+// процессу на ход, журналы ходов пишутся подряд в один файл.
+func agentRunOne(dir string, t agentTask, arm agentArm) (agentRunResult, error) {
 	var res agentRunResult
 	if err := os.RemoveAll(dir); err != nil {
 		return res, err
@@ -244,37 +310,34 @@ func agentRunOne(dir string, t agentTask, cli, mcpConfig, settings, model, dump 
 		return res, err
 	}
 	defer stderr.Close()
+	session, err := newSessionID()
+	if err != nil {
+		return res, err
+	}
 
-	args := []string{
-		"-p", agentPrompt(t, dump),
-		"--model", model,
-		"--output-format", "stream-json", "--verbose",
-		"--strict-mcp-config", "--mcp-config", mcpConfig,
-		"--permission-mode", "acceptEdits",
-		"--allowedTools", "Read,Write,Edit,Glob,Grep,mcp__1c-workflowtimur",
-		"--disallowedTools", "Bash,Agent,Task,WebSearch,WebFetch",
-	}
-	if settings != "" {
-		args = append(args, "--settings", settings)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, cli, args...)
-	cmd.Dir = dir
-	cmd.Env = agentEnv(os.Environ())
-	cmd.Stdout, cmd.Stderr = stdout, stderr
 	begin := time.Now()
-	runErr := cmd.Run()
-	res.Seconds = time.Since(begin).Seconds()
-	res.TimedOut = ctx.Err() != nil
-	var exit *exec.ExitError
-	switch {
-	case runErr == nil:
-	case errors.As(runErr, &exit):
-		res.Exit = exit.ExitCode()
-	default:
-		return res, runErr
+	for turn, prompt := range agentTurns(t, arm) {
+		ctx, cancel := context.WithTimeout(context.Background(), arm.Timeout)
+		cmd := exec.CommandContext(ctx, arm.CLI, agentArgs(prompt, turn, session, arm)...)
+		cmd.Dir = dir
+		cmd.Env = agentEnv(os.Environ())
+		cmd.Stdout, cmd.Stderr = stdout, stderr
+		runErr := cmd.Run()
+		res.TimedOut = ctx.Err() != nil
+		cancel()
+		var exit *exec.ExitError
+		switch {
+		case runErr == nil:
+		case errors.As(runErr, &exit):
+			res.Exit = exit.ExitCode()
+		default:
+			return res, runErr
+		}
+		if res.Exit != 0 || res.TimedOut {
+			break
+		}
 	}
+	res.Seconds = time.Since(begin).Seconds()
 	raw, err := json.Marshal(res)
 	if err != nil {
 		return res, err
@@ -443,6 +506,8 @@ type agentTranscript struct {
 	Failed bool
 	// Finished: в журнале есть итоговая запись.
 	Finished bool
+	// Answers: итоговый текст каждого хода по порядку.
+	Answers []string
 }
 
 // readAgentTranscript разбирает журнал stream-json. Строки, которые не
@@ -455,6 +520,7 @@ func readAgentTranscript(r io.Reader) agentTranscript {
 		var ev struct {
 			Type    string  `json:"type"`
 			IsError bool    `json:"is_error"`
+			Result  string  `json:"result"`
 			Turns   int     `json:"num_turns"`
 			Cost    float64 `json:"total_cost_usd"`
 			Message struct {
@@ -475,7 +541,11 @@ func readAgentTranscript(r io.Reader) agentTranscript {
 				}
 			}
 		case "result":
-			out.Finished, out.Failed, out.Turns, out.Cost = true, ev.IsError, ev.Turns, ev.Cost
+			out.Finished = true
+			out.Failed = out.Failed || ev.IsError
+			out.Turns += ev.Turns
+			out.Cost += ev.Cost
+			out.Answers = append(out.Answers, ev.Result)
 		}
 	}
 	return out
@@ -525,6 +595,15 @@ type agentScore struct {
 	Tools   map[string]int `json:"tools,omitempty"`
 	Turns   int            `json:"turns,omitempty"`
 	Calls   []string       `json:"calls,omitempty"`
+	// Planned: запуск шёл в два хода, первый ход кончился планом.
+	Planned bool `json:"planned,omitempty"`
+	// PlanNamed: план первого хода назвал засчитываемый метод.
+	PlanNamed bool `json:"planNamed,omitempty"`
+}
+
+// namesMethodIn: в тексте назван метод call, без оглядки на скобки и регистр.
+func namesMethodIn(text, call string) bool {
+	return strings.Contains(strings.ToLower(strings.Join(strings.Fields(text), "")), strings.ToLower(call))
 }
 
 // scoreAgentRun: исход одной задачи по каталогу её запуска.
@@ -537,6 +616,12 @@ func scoreAgentRun(dir string, t agentTask, arm string) agentScore {
 	tr := readAgentTranscript(f)
 	f.Close()
 	s.Tools, s.Turns = tr.Tools, tr.Turns
+	if len(tr.Answers) > 1 {
+		s.Planned = true
+		for _, call := range t.Accept {
+			s.PlanNamed = s.PlanNamed || namesMethodIn(tr.Answers[0], call)
+		}
+	}
 	if !agentRunDone(dir) || !tr.Finished || tr.Failed {
 		s.Verdict = agentFailed
 		return s
@@ -591,7 +676,7 @@ func printAgentReport(w io.Writer, tasks []agentTask, arms []string, byArm map[s
 	for _, arm := range arms {
 		verdicts := map[string]int{}
 		sections := map[string][2]int{}
-		usedFind, usedValidate := 0, 0
+		usedFind, usedValidate, planned, planNamed := 0, 0, 0, 0
 		for _, t := range tasks {
 			s := byArm[arm][t.ID]
 			verdicts[s.Verdict]++
@@ -610,11 +695,20 @@ func printAgentReport(w io.Writer, tasks []agentTask, arms []string, byArm map[s
 			if s.Tools["validate_bsl"] > 0 {
 				usedValidate++
 			}
+			if s.Planned {
+				planned++
+			}
+			if s.PlanNamed {
+				planNamed++
+			}
 		}
 		finished := len(tasks) - verdicts[agentFailed] - verdicts[agentMissing]
 		fmt.Fprintf(w, "плечо %s: готовый метод вызван в %d из %d завершённых (bsp %d/%d, other %d/%d); другое %d, пусто %d, сбой %d, нет запуска %d; звал find_api в %d, validate_bsl в %d\n",
 			arm, verdicts[agentAccepted], finished, sections["bsp"][0], sections["bsp"][1], sections["other"][0], sections["other"][1],
 			verdicts[agentOther], verdicts[agentEmpty], verdicts[agentFailed], verdicts[agentMissing], usedFind, usedValidate)
+		if planned > 0 {
+			fmt.Fprintf(w, "  запусков с планом %d, план назвал засчитываемый метод в %d\n", planned, planNamed)
+		}
 	}
 	base, next := byArm[arms[0]], byArm[arms[1]]
 	both, neither, gained, lost, unpaired := 0, 0, 0, 0, 0

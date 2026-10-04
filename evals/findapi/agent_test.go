@@ -173,6 +173,58 @@ func TestReadAgentTranscript(t *testing.T) {
 	}
 }
 
+func TestAgentTurnsAndArgs(t *testing.T) {
+	task := agentTask{ID: "b3", Name: "КтоРаботает", Comment: "Кто работает."}
+	one := agentArm{Model: "м", MCPConfig: "с.json", Dump: "/выгрузка"}
+	if turns := agentTurns(task, one); len(turns) != 1 || turns[0] != agentPrompt(task, "/выгрузка") {
+		t.Fatalf("один ход: %q", turns)
+	}
+	two := one
+	two.Prefix, two.Followup, two.PluginDir, two.Settings = "/плагин:план ", "Утверждаю.", "/плагин", "{}"
+	turns := agentTurns(task, two)
+	if len(turns) != 2 || !strings.HasPrefix(turns[0], "/плагин:план Конфигурация") || turns[1] != "Утверждаю." {
+		t.Fatalf("два хода: %q", turns)
+	}
+	first := strings.Join(agentArgs(turns[0], 0, "сессия", two), " ")
+	second := strings.Join(agentArgs(turns[1], 1, "сессия", two), " ")
+	if !strings.Contains(first, "--session-id сессия") || strings.Contains(first, "--resume") {
+		t.Errorf("первый ход открывает сессию: %s", first)
+	}
+	if !strings.Contains(second, "--resume сессия") || strings.Contains(second, "--session-id") {
+		t.Errorf("второй ход продолжает сессию: %s", second)
+	}
+	for _, want := range []string{"--plugin-dir /плагин", "--settings {}", "--strict-mcp-config --mcp-config с.json", "mcp__1c-workflowtimur"} {
+		if !strings.Contains(second, want) {
+			t.Errorf("во втором ходе нет %q: %s", want, second)
+		}
+	}
+	a, err := newSessionID()
+	b, _ := newSessionID()
+	if err != nil || len(a) != 36 || a == b || a[14] != '4' {
+		t.Fatalf("идентификатор сессии: %q, %q, %v", a, b, err)
+	}
+}
+
+func TestPlanNamed(t *testing.T) {
+	log := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__1c-workflowtimur__find_api"}]}}`,
+		`{"type":"result","is_error":false,"num_turns":4,"result":"| получить | готовое | Пользователи . ТекущийПользователь() |"}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write"}]}}`,
+		`{"type":"result","is_error":false,"num_turns":3,"result":"Готово."}`,
+	}, "\n")
+	got := readAgentTranscript(strings.NewReader(log))
+	if len(got.Answers) != 2 || got.Turns != 7 || got.Failed || !got.Finished {
+		t.Fatalf("два хода разобраны неверно: %+v", got)
+	}
+	if !namesMethodIn(got.Answers[0], "Пользователи.ТекущийПользователь") || namesMethodIn(got.Answers[1], "Пользователи.ТекущийПользователь") {
+		t.Fatal("план назван неверно")
+	}
+	broken := readAgentTranscript(strings.NewReader(`{"type":"result","is_error":true,"num_turns":1}` + "\n" + `{"type":"result","is_error":false,"num_turns":1}`))
+	if !broken.Failed {
+		t.Fatal("сбой первого хода должен делать запуск сбойным")
+	}
+}
+
 func TestSignTest(t *testing.T) {
 	cases := []struct {
 		plus, minus int
