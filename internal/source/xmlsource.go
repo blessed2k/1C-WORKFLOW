@@ -21,16 +21,17 @@ const defaultMaxResults = 100
 type XMLSource struct {
 	root string
 
-	// SearchRoots names other export roots SearchCode covers together with root:
-	// the remaining components of the same project. Asked on each search, so the
-	// caller's manifest is read only when a search actually runs. Nil means the
-	// main export alone.
-	SearchRoots func() []SearchRoot
+	// OtherComponents names the export roots of the remaining components of the
+	// same project, in practice its extensions: code search and the rights
+	// tools cover them together with root. Asked when such a tool runs, so the
+	// caller's manifest is not read on every call. Nil means the main export
+	// alone.
+	OtherComponents func() []ComponentRoot
 }
 
-// SearchRoot is one more export root for SearchCode: a project component next
-// to the main configuration, in practice an extension.
-type SearchRoot struct {
+// ComponentRoot is the export root of one project component next to the main
+// configuration.
+type ComponentRoot struct {
 	Name string
 	Dir  string
 }
@@ -38,6 +39,14 @@ type SearchRoot struct {
 // NewXMLSource returns a source backed by the XML export at root.
 func NewXMLSource(root string) *XMLSource {
 	return &XMLSource{root: root}
+}
+
+// otherComponents returns the roots of the project's remaining components.
+func (s *XMLSource) otherComponents() []ComponentRoot {
+	if s.OtherComponents == nil {
+		return nil
+	}
+	return s.OtherComponents()
 }
 
 // Close implements ConfigSource; the XML source holds no resources.
@@ -260,7 +269,7 @@ func (s *XMLSource) formPath(ownerType, ownerName, formName string) (path, owner
 }
 
 // SearchCode implements ConfigSource by scanning every .bsl module under the root
-// and under SearchRoots. The other roots go first: they hold the project's own
+// and under OtherComponents. The other roots go first: they hold the project's own
 // code, and in a standard configuration vendor modules would fill the limit
 // before an extension is reached.
 func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*SearchResult, error) {
@@ -281,11 +290,7 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 	scope := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(params.Scope), "\\", "/"))
 	total := 0
 
-	var roots []SearchRoot
-	if s.SearchRoots != nil {
-		roots = s.SearchRoots()
-	}
-	roots = append(roots, SearchRoot{Dir: s.root})
+	roots := append(s.otherComponents(), ComponentRoot{Dir: s.root})
 
 	var walkErr error
 	for _, root := range roots {
@@ -312,7 +317,7 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 // searchRoot scans one export root into result. A named root is a component
 // next to the main export: its matches carry the name, and scope sees its
 // modules as <name>/<path>.
-func (s *XMLSource) searchRoot(ctx context.Context, root SearchRoot, scope string, matcher func(string) bool, limit int, countAll bool, result *SearchResult, total *int) error {
+func (s *XMLSource) searchRoot(ctx context.Context, root ComponentRoot, scope string, matcher func(string) bool, limit int, countAll bool, result *SearchResult, total *int) error {
 	return filepath.WalkDir(root.Dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

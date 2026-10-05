@@ -119,7 +119,7 @@ func registerInspect(server *mcp.Server, provide func() source.ConfigSource) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "rights_audit",
-		Description: "Rights on one object: which roles grant what (with RLS conditions), how many grant nothing, which БСП access-group profiles reach it. roles=[...] and/or profile= give the EFFECTIVE rights of that set: roles are ORed, so one role without RLS cancels the others' restrictions. profile= knows SUPPLIED profiles only (built in code); profiles created by users live in the base, query them in live mode. Offline. Use it for 'works as admin, fails as user' and 'RLS limits nothing' before release.",
+		Description: "Rights on one object: which roles grant what (with RLS conditions), how many grant nothing, which БСП access-group profiles reach it. Roles of the active project's extensions count too: a role defined in an extension carries component, a base role an extension adds rights to carries extensions. roles=[...] and/or profile= give the EFFECTIVE rights of that set: roles are ORed, so one role without RLS cancels the others' restrictions. profile= knows SUPPLIED profiles only (built in code); profiles created by users live in the base, query them in live mode. Offline. Use it for 'works as admin, fails as user' and 'RLS limits nothing' before release.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in rightsAuditInput) (*mcp.CallToolResult, rightsAuditOutput, error) {
 		xs, ok := provide().(*source.XMLSource)
 		if !ok {

@@ -86,19 +86,20 @@ func (d *dumpState) set(dir string) app.ActiveProjectState {
 func (d *dumpState) source() source.ConfigSource {
 	if dir := d.get(); dir != "" {
 		src := source.NewXMLSource(dir)
-		src.SearchRoots = d.searchRoots
+		src.OtherComponents = d.otherComponents
 		return src
 	}
 	return nil
 }
 
-// searchRoots names the other components of the active project, so search_code
-// reaches the code of its extensions and not only the main configuration.
-func (d *dumpState) searchRoots() []source.SearchRoot {
+// otherComponents names the other components of the active project, so
+// search_code and rights_audit reach its extensions and not only the main
+// configuration.
+func (d *dumpState) otherComponents() []source.ComponentRoot {
 	dirs := d.projects.OtherComponentDirs()
-	roots := make([]source.SearchRoot, 0, len(dirs))
+	roots := make([]source.ComponentRoot, 0, len(dirs))
 	for _, c := range dirs {
-		roots = append(roots, source.SearchRoot{Name: string(c.ID), Dir: c.Dir})
+		roots = append(roots, source.ComponentRoot{Name: string(c.ID), Dir: c.Dir})
 	}
 	return roots
 }

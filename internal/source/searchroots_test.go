@@ -25,7 +25,7 @@ func searchRootsFixture(t *testing.T) *XMLSource {
 	write(ext, "CommonModules/Расш_Сервис/Ext/Module.bsl", "Процедура Расш_Своя()\n\t// маркер\nКонецПроцедуры\n")
 
 	s := NewXMLSource(base)
-	s.SearchRoots = func() []SearchRoot { return []SearchRoot{{Name: "addon", Dir: ext}} }
+	s.OtherComponents = func() []ComponentRoot { return []ComponentRoot{{Name: "addon", Dir: ext}} }
 	return s
 }
 
