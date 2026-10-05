@@ -333,7 +333,8 @@ func (s *XMLSource) searchRoot(ctx context.Context, root ComponentRoot, scope st
 		rel = filepath.ToSlash(rel)
 		scoped := rel
 		if root.Name != "" {
-			scoped = root.Name + "/" + rel
+			// A label for the scope filter, not a path on disk: always slashes.
+			scoped = strings.Join([]string{root.Name, rel}, "/")
 		}
 		if scope != "" && !strings.Contains(strings.ToLower(scoped), scope) {
 			return nil
