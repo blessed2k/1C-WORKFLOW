@@ -66,7 +66,7 @@ func registerIndexStatusTools(server *mcp.Server, deps indexToolDeps) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "reindex",
-		Description: "Rebuilds the active project's index: mode=incremental (default) takes files changed since the last run, mode=full rebuilds and publishes a new epoch; component limits it to one component. projectRoot (directory with 1c-project.json) registers and activates a project, the only way to bootstrap a workspace. Returns generation, duration, per-component counts, stage timings and dosed diagnostics. Call it after a bulk change this server did not see (git pull, an edit in 1С).",
+		Description: "Rebuilds the active project's index: mode=incremental (default) takes files changed since the last run, mode=full rebuilds and publishes a new epoch; component limits it to one component. projectRoot (directory with 1c-project.json) registers and activates a project, the only way to bootstrap a workspace. 1c-project.json is re-read on every call: a component added to it is indexed without a server restart, a removed or changed one makes the run a full rebuild (warning manifest_reloaded). Returns generation, duration, per-component counts, stage timings and dosed diagnostics. Call it after a bulk change this server did not see (git pull, an edit in 1С).",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    false,
 			IdempotentHint:  false,
