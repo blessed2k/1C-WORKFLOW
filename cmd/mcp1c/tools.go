@@ -85,9 +85,22 @@ func (d *dumpState) set(dir string) app.ActiveProjectState {
 // XMLSource holds only a path and reads on demand, so rebuilding per call is cheap.
 func (d *dumpState) source() source.ConfigSource {
 	if dir := d.get(); dir != "" {
-		return source.NewXMLSource(dir)
+		src := source.NewXMLSource(dir)
+		src.SearchRoots = d.searchRoots
+		return src
 	}
 	return nil
+}
+
+// searchRoots names the other components of the active project, so search_code
+// reaches the code of its extensions and not only the main configuration.
+func (d *dumpState) searchRoots() []source.SearchRoot {
+	dirs := d.projects.OtherComponentDirs()
+	roots := make([]source.SearchRoot, 0, len(dirs))
+	for _, c := range dirs {
+		roots = append(roots, source.SearchRoot{Name: string(c.ID), Dir: c.Dir})
+	}
+	return roots
 }
 
 type bslSyntaxInput struct {
@@ -660,7 +673,7 @@ func registerCoreTools(server *mcp.Server, describe func() (string, string), inf
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_code",
-		Description: "Searches BSL module text (substring or regex) and names the enclosing procedure of each hit. Use it to find where something is implemented; narrow with scope=<path fragment> in a standard configuration, total=true gives the exact count. For metadata usage call find_metadata_usages. Regex is RE2; for Cyrillic letters use \\p{L} (\\w is ASCII-only).",
+		Description: "Searches BSL module text (substring or regex) and names the enclosing procedure of each hit. Use it to find where something is implemented; narrow with scope=<path fragment> in a standard configuration, total=true gives the exact count. Extensions of the active project are searched too and come first: such a match carries component, and scope=<component id> narrows the search to one extension. For metadata usage call find_metadata_usages. Regex is RE2; for Cyrillic letters use \\p{L} (\\w is ASCII-only).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in source.SearchParams) (*mcp.CallToolResult, source.SearchResult, error) {
 		src := provide()
 		if src == nil {

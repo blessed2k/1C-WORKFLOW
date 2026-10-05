@@ -20,6 +20,19 @@ const defaultMaxResults = 100
 // output of DumpConfigToFiles), rooted at the directory holding Configuration.xml.
 type XMLSource struct {
 	root string
+
+	// SearchRoots names other export roots SearchCode covers together with root:
+	// the remaining components of the same project. Asked on each search, so the
+	// caller's manifest is read only when a search actually runs. Nil means the
+	// main export alone.
+	SearchRoots func() []SearchRoot
+}
+
+// SearchRoot is one more export root for SearchCode: a project component next
+// to the main configuration, in practice an extension.
+type SearchRoot struct {
+	Name string
+	Dir  string
 }
 
 // NewXMLSource returns a source backed by the XML export at root.
@@ -246,7 +259,10 @@ func (s *XMLSource) formPath(ownerType, ownerName, formName string) (path, owner
 		ownerType + "." + ownerName, formName, nil
 }
 
-// SearchCode implements ConfigSource by scanning every .bsl module under the root.
+// SearchCode implements ConfigSource by scanning every .bsl module under the root
+// and under SearchRoots. The other roots go first: they hold the project's own
+// code, and in a standard configuration vendor modules would fill the limit
+// before an extension is reached.
 func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*SearchResult, error) {
 	if strings.TrimSpace(params.Query) == "" {
 		return nil, fmt.Errorf("empty search query")
@@ -265,7 +281,39 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 	scope := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(params.Scope), "\\", "/"))
 	total := 0
 
-	walkErr := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
+	var roots []SearchRoot
+	if s.SearchRoots != nil {
+		roots = s.SearchRoots()
+	}
+	roots = append(roots, SearchRoot{Dir: s.root})
+
+	var walkErr error
+	for _, root := range roots {
+		walkErr = s.searchRoot(ctx, root, scope, matcher, limit, params.Total, result, &total)
+		if walkErr != nil {
+			break
+		}
+	}
+	if walkErr != nil && walkErr != errStopWalk {
+		return nil, walkErr
+	}
+	result.Shown = len(result.Matches)
+	if params.Total {
+		result.TotalMatches = total
+		if result.Truncated {
+			result.Note = fmt.Sprintf("показано %d из %d совпадений — сузьте scope или поднимите maxResults", result.Shown, total)
+		}
+	} else if result.Truncated {
+		result.Note = fmt.Sprintf("показаны первые %d совпадений, поиск остановлен на лимите; точное число — total=true, меньше шума — scope=<путь>", result.Shown)
+	}
+	return result, nil
+}
+
+// searchRoot scans one export root into result. A named root is a component
+// next to the main export: its matches carry the name, and scope sees its
+// modules as <name>/<path>.
+func (s *XMLSource) searchRoot(ctx context.Context, root SearchRoot, scope string, matcher func(string) bool, limit int, countAll bool, result *SearchResult, total *int) error {
+	return filepath.WalkDir(root.Dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -276,9 +324,13 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 			return err
 		}
 
-		rel, _ := filepath.Rel(s.root, path)
+		rel, _ := filepath.Rel(root.Dir, path)
 		rel = filepath.ToSlash(rel)
-		if scope != "" && !strings.Contains(strings.ToLower(rel), scope) {
+		scoped := rel
+		if root.Name != "" {
+			scoped = root.Name + "/" + rel
+		}
+		if scope != "" && !strings.Contains(strings.ToLower(scoped), scope) {
 			return nil
 		}
 
@@ -295,15 +347,15 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 				procedure = name
 			}
 			if matcher(line) {
-				total++
+				*total++
 				if len(result.Matches) < limit {
 					result.Matches = append(result.Matches, SearchMatch{
-						File: rel, Line: i + 1, Text: line, Procedure: procedure,
+						File: rel, Line: i + 1, Text: line, Procedure: procedure, Component: root.Name,
 					})
 					continue
 				}
 				result.Truncated = true
-				if !params.Total {
+				if !countAll {
 					// Without total=true the walk stops at the limit, so the
 					// count would be a lie; say so instead of implying a number.
 					return errStopWalk
@@ -312,19 +364,6 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 		}
 		return nil
 	})
-	if walkErr != nil && walkErr != errStopWalk {
-		return nil, walkErr
-	}
-	result.Shown = len(result.Matches)
-	if params.Total {
-		result.TotalMatches = total
-		if result.Truncated {
-			result.Note = fmt.Sprintf("показано %d из %d совпадений — сузьте scope или поднимите maxResults", result.Shown, total)
-		}
-	} else if result.Truncated {
-		result.Note = fmt.Sprintf("показаны первые %d совпадений, поиск остановлен на лимите; точное число — total=true, меньше шума — scope=<путь>", result.Shown)
-	}
-	return result, nil
 }
 
 // routineDecl matches a Процедура/Функция declaration, including an Экспорт
