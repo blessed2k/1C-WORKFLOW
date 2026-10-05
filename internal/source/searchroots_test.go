@@ -86,3 +86,28 @@ func TestSearchLimitSpansRoots(t *testing.T) {
 		t.Errorf("shown=%d truncated=%v total=%d, want 1/true/2", res.Shown, res.Truncated, res.TotalMatches)
 	}
 }
+
+// TestSearchScopeStartingWithComponentSkipsOtherRoots: a scope that starts with
+// a component id is answered from that component alone. Walking a standard
+// configuration for it took ten seconds on a real export and could only add a
+// module whose path happens to contain the id.
+func TestSearchScopeStartingWithComponentSkipsOtherRoots(t *testing.T) {
+	s := searchRootsFixture(t)
+	path := filepath.Join(s.root, "CommonModules", "addon", "Ext", "Module.bsl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("Процедура Тёзка()\n\t// маркер\nКонецПроцедуры\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	for _, scope := range []string{"addon", "Addon/CommonModules"} {
+		res, err := s.SearchCode(context.Background(), SearchParams{Query: "маркер", Scope: scope, Total: true})
+		if err != nil {
+			t.Fatalf("search scope=%s: %v", scope, err)
+		}
+		if res.TotalMatches != 1 || res.Matches[0].Component != "addon" {
+			t.Errorf("scope=%s: %+v, want the extension match only", scope, res.Matches)
+		}
+	}
+}

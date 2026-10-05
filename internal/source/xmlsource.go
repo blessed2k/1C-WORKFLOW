@@ -291,6 +291,15 @@ func (s *XMLSource) SearchCode(ctx context.Context, params SearchParams) (*Searc
 	total := 0
 
 	roots := append(s.otherComponents(), ComponentRoot{Dir: s.root})
+	// A scope that starts with a component id addresses that component alone:
+	// the other roots are not walked at all.
+	for _, root := range roots {
+		name := strings.ToLower(root.Name)
+		if name != "" && (scope == name || strings.HasPrefix(scope, name+"/")) {
+			roots = []ComponentRoot{root}
+			break
+		}
+	}
 
 	var walkErr error
 	for _, root := range roots {
