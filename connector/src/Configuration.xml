@@ -61,6 +61,7 @@
 		</Properties>
 		<ChildObjects>
 			<Language>Русский</Language>
+			<CommonModule>MCP_Запросы</CommonModule>
 			<HTTPService>MCP_Сервис</HTTPService>
 		</ChildObjects>
 	</Configuration>

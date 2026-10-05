@@ -78,6 +78,7 @@ func parseFlags() (options, bool) {
 	flag.StringVar(&opts.projectsRoot, "projects-root", envOr("MCP_1C_PROJECTS_ROOT", ""),
 		"workspace root: the project registry of the indexed tools (without it they are not registered) and the root list_projects scans")
 	registerCacheFlags(flag.CommandLine, &opts)
+	registerLiveFlags(flag.CommandLine, &opts)
 	registerGraphFlags(flag.CommandLine, &opts)
 	registerToolsFlag(flag.CommandLine, &opts)
 	registerSyntaxIndexFlag(flag.CommandLine, &opts)

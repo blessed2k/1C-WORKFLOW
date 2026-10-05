@@ -32,6 +32,11 @@ type options struct {
 	cacheTTL        time.Duration // export cache: idle TTL; zero disables expiry
 	cacheLimitBytes int64         // export cache: memory ceiling; zero disables eviction
 
+	// queryTimeout is how long the connector lets a live query run before it
+	// interrupts it in the base; zero sends no limit. Process-wide, handed to
+	// internal/source in one call when the server is built.
+	queryTimeout time.Duration
+
 	// Object-graph tunables. Thresholds never drop an edge: going
 	// over one multiplies the edge confidence, so an attribution chain stays
 	// visible with a lower score instead of vanishing silently.
@@ -251,6 +256,18 @@ func registerCacheFlags(fs *flag.FlagSet, o *options) {
 		"idle TTL of the export cache (e.g. 10m); 0 disables expiry")
 	fs.Int64Var(&o.cacheLimitBytes, "cache-limit", envInt64Or("MCP_1C_CACHE_LIMIT", defaultCacheLimitBytes),
 		"memory ceiling of the export cache, in bytes; 0 disables eviction")
+}
+
+// defaultQueryTimeout is the limit of one live query. A query written by a
+// language model can join a register with every document table of the base; the
+// HTTP timeout of the client only stops the waiting, not the query.
+const defaultQueryTimeout = 30 * time.Second
+
+// registerLiveFlags binds --query-timeout into o with the same flag-then-env
+// pattern as the cache tunables. parseFlags calls it over flag.CommandLine.
+func registerLiveFlags(fs *flag.FlagSet, o *options) {
+	fs.DurationVar(&o.queryTimeout, "query-timeout", envDurationOr("MCP_1C_QUERY_TIMEOUT", defaultQueryTimeout),
+		"how long a live query may run before the connector interrupts it (e.g. 30s); 0 sends no limit")
 }
 
 // envDurationOr reads a duration from the environment, falling back to the

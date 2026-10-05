@@ -364,12 +364,19 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 	if params.Limit > 0 {
 		body["limit"] = params.Limit
 	}
+	if seconds := queryTimeoutSeconds(); seconds > 0 {
+		body["timeout"] = seconds
+	}
+	if params.Refs {
+		body["refs"] = true
+	}
 
 	var w struct {
-		Columns   []string `json:"columns"`
-		Rows      [][]any  `json:"rows"`
-		Total     int      `json:"total"`
-		Truncated bool     `json:"truncated"`
+		Columns    []string `json:"columns"`
+		Rows       [][]any  `json:"rows"`
+		Total      int      `json:"total"`
+		Truncated  bool     `json:"truncated"`
+		DurationMS int      `json:"duration_ms"`
 	}
 	if err := s.post(ctx, "/query", body, &w); err != nil {
 		return nil, err
@@ -385,7 +392,7 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 		}
 		rows = append(rows, m)
 	}
-	return &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated}, nil
+	return &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated, DurationMS: w.DurationMS}, nil
 }
 
 // ValidateQuery implements LiveSource via POST /validate-query.

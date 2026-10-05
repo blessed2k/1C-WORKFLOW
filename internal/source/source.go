@@ -273,8 +273,9 @@ type AdviceItem struct {
 // QueryParams configures a live query execution.
 type QueryParams struct {
 	Text   string         `json:"text" jsonschema:"1C query text; must be a SELECT (ВЫБРАТЬ) query"`
-	Params map[string]any `json:"params,omitempty" jsonschema:"query parameters by name"`
+	Params map[string]any `json:"params,omitempty" jsonschema:"query parameters by name. A date is a string 2026-09-01 or 2026-09-01T00:00:00; a reference is the object a refs=true query returned: {type, ref}; an enum value is {type, value}; a list for В (&Список) is an array of these"`
 	Limit  int            `json:"limit,omitempty" jsonschema:"max rows to return (default 100)"`
+	Refs   bool           `json:"refs,omitempty" jsonschema:"true: a reference in a row comes as {presentation, type, ref} (an enum value as {presentation, type, value}) instead of its presentation, so it can be passed back in params; filter the next query by the reference, not by number or name"`
 }
 
 // QueryResult holds the rows returned by a query.
@@ -283,6 +284,9 @@ type QueryResult struct {
 	Rows      []map[string]any `json:"rows"`
 	Count     int              `json:"count"`
 	Truncated bool             `json:"truncated,omitempty" jsonschema:"true if the row limit was hit"`
+	// DurationMS is how long the query ran in the base, as measured by the connector;
+	// zero when the connector is older and does not report it.
+	DurationMS int `json:"durationMs,omitempty" jsonschema:"how long the query ran in the base, milliseconds"`
 }
 
 // ValidateResult reports whether a query compiles.

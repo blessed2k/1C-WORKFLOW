@@ -339,6 +339,8 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	// parseFlags and handed over here. Without this call the cache keeps its
 	// off-by-default behaviour — no expiry, no ceiling — whatever the flags say.
 	source.ConfigureCache(opts.cacheTTL, opts.cacheLimitBytes)
+	// The limit of a live query is process-wide for the same reason.
+	source.ConfigureLive(opts.queryTimeout)
 
 	// The four attribution thresholds are process-wide too, and they live one
 	// layer below: the indexing pipeline reads them from index.Config, which the
@@ -837,7 +839,7 @@ type analyzeQueryOutput struct {
 func registerLiveTools(server *mcp.Server, lp liveProvider) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "execute_query",
-		Description: "Runs a read-only 1C query (SELECT / ВЫБРАТЬ only) against the live base and returns rows, plus the base the rows came from. Use it to check real data; build the query text with get_query_schema first. Non-SELECT queries are rejected. Pass base=<name> to target one base for this call without switching the active one.",
+		Description: "Runs a read-only 1C query (SELECT / ВЫБРАТЬ only) against the live base and returns rows, plus the base the rows came from. Use it to check real data; build the query text with get_query_schema first. Non-SELECT queries are rejected. A query that runs longer than the limit of the server (30 s by default) is interrupted in the base and comes back as query_timeout: narrow the filter instead of repeating it. To follow one object through several queries, ask for refs=true and pass the returned reference back in params: a filter by reference is fast, a filter through a dot on a composite field (Регистратор.Номер, Объект.Дата) joins every table of the type. Pass base=<name> to target one base for this call without switching the active one.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, queryOutput, error) {
 		live, name, err := resolveLive(lp, in.Base)
 		if err != nil {

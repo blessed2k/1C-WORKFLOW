@@ -30,12 +30,19 @@ def текст(путь):
     return путь.read_text(encoding="utf-8-sig") if путь.exists() else ""
 
 
+def описания_модулей(src):
+    """XML-описания общих модулей: их пишет генератор, поэтому у нового модуля описания ещё нет."""
+    return [src / f"CommonModules/{PREFIX}{имя}.xml" for имя, _ in COMMON_MODULES]
+
+
 def ожидаемые_файлы(src):
     return [
         src / "Configuration.xml",
         src / "Languages/Русский.xml",
         src / f"HTTPServices/{SERVICE_NAME}.xml",
         src / f"HTTPServices/{SERVICE_NAME}/Ext/Module.bsl",
+    ] + описания_модулей(src) + [
+        src / f"CommonModules/{PREFIX}{имя}/Ext/Module.bsl" for имя, _ in COMMON_MODULES
     ]
 
 
@@ -74,6 +81,10 @@ def прошлое_состояние(src):
             имя = найти(r"<Name>([^<]+)</Name>", тело)
             состояние["uuid"][f"template:{имя}"] = uuid_шаблона
             состояние["uuid"][f"method:{имя}"] = найти(r'<Method uuid="([^"]+)"', тело)
+    for имя, _ in COMMON_MODULES:
+        модуль = текст(src / f"CommonModules/{PREFIX}{имя}.xml")
+        if модуль:
+            состояние["uuid"][f"module:{имя}"] = найти(r'<CommonModule uuid="([^"]+)"', модуль)
     return состояние
 
 
@@ -126,7 +137,13 @@ def проверить_состояние(состояние, разрешить
 
     претензии = []
 
-    отсутствуют = [файл.name for файл in ожидаемые_файлы(SRC) if not файл.exists()]
+    # Описание общего модуля генератор пишет сам: его отсутствие означает новый модуль, как
+    # отсутствие шаблона означает новый эндпоинт. Текст модуля обязан лежать в src.
+    генерируемые = set(описания_модулей(SRC))
+    отсутствуют = [
+        str(файл.relative_to(SRC)) for файл in ожидаемые_файлы(SRC)
+        if not файл.exists() and файл not in генерируемые
+    ]
     if отсутствуют:
         претензии.append("в src нет файлов: " + ", ".join(отсутствуют))
 
@@ -256,6 +273,14 @@ ENDPOINTS = [
     ("predefined", "/predefined/{type}/{name}", "GET", "ПредопределенныеGET"),
 ]
 
+# Общие модули расширения: (имя без префикса, синоним). Серверные по стандарту 1С: флажки
+# «Сервер», «Внешнее соединение» и «Клиент (обычное приложение)», без вызова сервера.
+# Текст модуля лежит в src/CommonModules/<префикс><имя>/Ext/Module.bsl и правится там же.
+# «Запросы» нужен ради фонового задания: оно вызывает только экспортные методы общих модулей.
+COMMON_MODULES = [
+    ("Запросы", "Запросы MCP"),
+]
+
 
 разбор = argparse.ArgumentParser(description=__doc__)
 разбор.add_argument("--from-dump", help="каталог XML-выгрузки конфигурации, откуда взять версию формата")
@@ -318,7 +343,9 @@ def synonym(text, indent):
 
 def write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8-sig")
+    # newline задан явно: на Windows текстовый режим иначе превратит LF в CRLF, и пересборка
+    # перепишет каждый файл целиком.
+    path.write_text(text, encoding="utf-8-sig", newline="\n")
     print("записан", path)
 
 
@@ -330,6 +357,7 @@ def configuration_xml():
         f"\t\t\t</xr:ContainedObject>"
         for индекс, class_id in enumerate(CONTAINED_CLASS_IDS)
     )
+    modules = "".join(f"\t\t\t<CommonModule>{PREFIX}{имя}</CommonModule>\n" for имя, _ in COMMON_MODULES)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <MetaDataObject {NS_SHORT} version="{VER}">
 \t<Configuration uuid="{uid('configuration')}">
@@ -361,7 +389,7 @@ def configuration_xml():
 \t\t</Properties>
 \t\t<ChildObjects>
 \t\t\t<Language>Русский</Language>
-\t\t\t<HTTPService>{SERVICE_NAME}</HTTPService>
+{modules}\t\t\t<HTTPService>{SERVICE_NAME}</HTTPService>
 \t\t</ChildObjects>
 \t</Configuration>
 </MetaDataObject>"""
@@ -430,12 +458,38 @@ def http_service_xml():
 </MetaDataObject>"""
 
 
+def common_module_xml(имя, синоним):
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject {NS_FULL} version="{VER}">
+\t<CommonModule uuid="{uid(f'module:{имя}')}">
+\t\t<Properties>
+\t\t\t<Name>{PREFIX}{имя}</Name>
+{synonym(синоним, 3)}
+\t\t\t<Comment/>
+\t\t\t<Global>false</Global>
+\t\t\t<ClientManagedApplication>false</ClientManagedApplication>
+\t\t\t<Server>true</Server>
+\t\t\t<ExternalConnection>true</ExternalConnection>
+\t\t\t<ClientOrdinaryApplication>true</ClientOrdinaryApplication>
+\t\t\t<ServerCall>false</ServerCall>
+\t\t\t<Privileged>false</Privileged>
+\t\t\t<ReturnValuesReuse>DontUse</ReturnValuesReuse>
+\t\t</Properties>
+\t</CommonModule>
+</MetaDataObject>"""
+
+
 write(SRC / "Configuration.xml", configuration_xml())
 write(SRC / "Languages/Русский.xml", language_xml())
 write(SRC / f"HTTPServices/{SERVICE_NAME}.xml", http_service_xml())
+for имя, синоним in COMMON_MODULES:
+    write(SRC / f"CommonModules/{PREFIX}{имя}.xml", common_module_xml(имя, синоним))
 
-# Модуль сервиса живёт в src и правится там же: скрипт его не генерирует.
-if not (SRC / f"HTTPServices/{SERVICE_NAME}/Ext/Module.bsl").exists():
-    raise SystemExit(f"нет модуля сервиса src/HTTPServices/{SERVICE_NAME}/Ext/Module.bsl")
+# Модули живут в src и правятся там же: скрипт их не генерирует.
+модули = [SRC / f"HTTPServices/{SERVICE_NAME}/Ext/Module.bsl"]
+модули += [SRC / f"CommonModules/{PREFIX}{имя}/Ext/Module.bsl" for имя, _ in COMMON_MODULES]
+for модуль in модули:
+    if not модуль.exists():
+        raise SystemExit(f"нет модуля {модуль.relative_to(ROOT)}")
 
 print(f"UUID: переиспользовано {ПЕРЕИСПОЛЬЗОВАНО}, создано новых {СОЗДАНО}")
