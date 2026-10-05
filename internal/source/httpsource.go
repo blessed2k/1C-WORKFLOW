@@ -145,11 +145,23 @@ func (s *HTTPSource) ConfigurationInfo(ctx context.Context) (*ConfigurationInfo,
 		Vendor          string `json:"vendor"`
 		PlatformVersion string `json:"platform_version"`
 		Mode            string `json:"mode"`
+		Connector       *struct {
+			Version  string   `json:"version"`
+			Features []string `json:"features"`
+		} `json:"connector"`
+		Extensions []struct {
+			Name     string `json:"name"`
+			Synonym  string `json:"synonym"`
+			Version  string `json:"version"`
+			Active   bool   `json:"active"`
+			SafeMode any    `json:"safe_mode"`
+		} `json:"extensions"`
+		ExtensionsError string `json:"extensions_error"`
 	}
 	if err := s.get(ctx, "/configuration", &w); err != nil {
 		return nil, err
 	}
-	return &ConfigurationInfo{
+	info := &ConfigurationInfo{
 		Name:            w.Name,
 		Synonym:         w.Synonym,
 		Version:         w.Version,
@@ -157,7 +169,17 @@ func (s *HTTPSource) ConfigurationInfo(ctx context.Context) (*ConfigurationInfo,
 		PlatformVersion: w.PlatformVersion,
 		Mode:            w.Mode,
 		ObjectCounts:    map[string]int{},
-	}, nil
+		ExtensionsError: w.ExtensionsError,
+	}
+	if w.Connector != nil {
+		info.Connector = &ConnectorInfo{Version: w.Connector.Version, Features: w.Connector.Features}
+	}
+	for _, e := range w.Extensions {
+		info.Extensions = append(info.Extensions, ExtensionInfo{
+			Name: e.Name, Synonym: e.Synonym, Version: e.Version, Active: e.Active, SafeMode: e.SafeMode,
+		})
+	}
+	return info, nil
 }
 
 // ruCollectionToType maps the Russian collection keys returned by /metadata to
@@ -438,36 +460,106 @@ func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*Even
 	if params.Limit > 0 {
 		body["limit"] = params.Limit
 	}
+	if seconds := queryTimeoutSeconds(); seconds > 0 {
+		body["timeout"] = seconds
+	}
+	// Filters a connector learned together with reporting what it applied. An older
+	// connector drops them silently, so each one sent is checked against the answer.
+	var extended []string
+	add := func(key string, value any, set bool) {
+		if set {
+			body[key] = value
+			extended = append(extended, key)
+		}
+	}
+	add("events", params.Events, len(params.Events) > 0)
+	add("metadata", params.Metadata, len(params.Metadata) > 0)
+	add("sessions", params.Sessions, len(params.Sessions) > 0)
+	add("applications", params.Applications, len(params.Applications) > 0)
+	add("computer", params.Computer, params.Computer != "")
+	add("data", params.Data, len(params.Data) > 0)
+	add("data_presentation", params.DataPresentation, params.DataPresentation != "")
+	add("comment", params.Comment, params.Comment != "")
+	add("transaction_status", params.TransactionStatus, params.TransactionStatus != "")
+	add("transaction", params.Transaction, params.Transaction != "")
+	add("order", params.Order, params.Order != "")
+	add("offset", params.Offset, params.Offset > 0)
+	if params.MaxComment > 0 {
+		body["max_comment"] = params.MaxComment
+	}
 
 	var w struct {
 		Events []struct {
-			Date     string `json:"date"`
-			Level    string `json:"level"`
-			Event    string `json:"event"`
-			User     string `json:"user"`
-			Comment  string `json:"comment"`
-			Metadata string `json:"metadata"`
+			Date              string `json:"date"`
+			Level             string `json:"level"`
+			Event             string `json:"event"`
+			EventID           string `json:"event_id"`
+			User              string `json:"user"`
+			Computer          string `json:"computer"`
+			Application       string `json:"application"`
+			ApplicationID     string `json:"application_id"`
+			Session           int    `json:"session"`
+			Connection        int    `json:"connection"`
+			Comment           string `json:"comment"`
+			Metadata          string `json:"metadata"`
+			MetadataID        string `json:"metadata_id"`
+			Data              any    `json:"data"`
+			DataPresentation  string `json:"data_presentation"`
+			TransactionStatus string `json:"transaction_status"`
+			Transaction       string `json:"transaction"`
 		} `json:"events"`
-		Total     int  `json:"total"`
-		Truncated bool `json:"truncated"`
+		Total     int      `json:"total"`
+		Truncated bool     `json:"truncated"`
+		Applied   []string `json:"applied"`
 	}
 	if err := s.post(ctx, "/eventlog", body, &w); err != nil {
 		return nil, err
+	}
+	if ignored := missingFrom(extended, w.Applied); len(ignored) > 0 {
+		return nil, fmt.Errorf("the connector of this base ignored the event log filters %s: it is older than these filters, "+
+			"and its answer is the whole window, not the filtered one; install the current connector extension",
+			strings.Join(ignored, ", "))
 	}
 
 	entries := make([]EventLogEntry, len(w.Events))
 	for i, e := range w.Events {
 		entries[i] = EventLogEntry{
-			Date:     e.Date,
-			Level:    e.Level,
-			User:     e.User,
-			Event:    e.Event,
-			Comment:  e.Comment,
-			Metadata: e.Metadata,
+			Date:              e.Date,
+			Level:             e.Level,
+			User:              e.User,
+			Event:             e.Event,
+			Comment:           e.Comment,
+			Metadata:          e.Metadata,
+			EventID:           e.EventID,
+			Computer:          e.Computer,
+			Application:       e.Application,
+			ApplicationID:     e.ApplicationID,
+			Session:           e.Session,
+			Connection:        e.Connection,
+			MetadataID:        e.MetadataID,
+			Data:              e.Data,
+			DataPresentation:  e.DataPresentation,
+			TransactionStatus: e.TransactionStatus,
+			Transaction:       e.Transaction,
 		}
 	}
 	// Обрезку определяет коннектор: он знает и свой потолок, и то, была ли следующая запись.
 	return &EventLogResult{Entries: entries, Count: w.Total, Truncated: w.Truncated}, nil
+}
+
+// missingFrom returns the elements of want that are absent from have, in order.
+func missingFrom(want, have []string) []string {
+	present := make(map[string]bool, len(have))
+	for _, h := range have {
+		present[h] = true
+	}
+	var missing []string
+	for _, w := range want {
+		if !present[w] {
+			missing = append(missing, w)
+		}
+	}
+	return missing
 }
 
 // Subsystem implements LiveSource via GET /subsystem/{name}.

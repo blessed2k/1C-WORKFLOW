@@ -869,7 +869,7 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_event_log",
-		Description: "Reads the registration log of the live base, filtered by date range, level (Error/Warning/Information/Note) and user, and names the base it read. Use it to investigate an error that actually happened in the base. Pass base=<name> to target one base for this call.",
+		Description: "Reads the registration log of the live base and names the base it read. Use it to investigate what actually happened in the base: an error, who changed a document, what a session did. Filter on the server side instead of reading the whole window: date range, level (Error/Warning/Information/Note), user, events, metadata, sessions, applications, data (a reference from execute_query refs=true), transaction. An entry carries eventId, metadataId, applicationId and session, so the next call can filter by them. order=asc reads the first entries of the window, order=desc the last ones newest first, offset pages through. Pass base=<name> to target one base for this call.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in eventLogInput) (*mcp.CallToolResult, eventLogOutput, error) {
 		live, name, err := resolveLive(lp, in.Base)
 		if err != nil {

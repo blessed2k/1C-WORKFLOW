@@ -59,6 +59,41 @@ type ConfigurationInfo struct {
 	ExtensionPurpose string         `json:"extensionPurpose,omitempty" jsonschema:"extension purpose when isExtension"`
 	NamePrefix       string         `json:"namePrefix,omitempty" jsonschema:"object name prefix for an extension"`
 	ObjectCounts     map[string]int `json:"objectCounts" jsonschema:"number of objects per metadata type"`
+
+	// Live mode only. Connector is nil when the connector of the base is older than the
+	// one that describes itself.
+	Connector       *ConnectorInfo  `json:"connector,omitempty" jsonschema:"version and features of the connector extension installed in this base (live mode)"`
+	Extensions      []ExtensionInfo `json:"extensions,omitempty" jsonschema:"configuration extensions installed in the base (live mode)"`
+	ExtensionsError string          `json:"extensionsError,omitempty" jsonschema:"why the list of extensions is not available to the connector user"`
+}
+
+// ConnectorInfo is what the connector extension of a live base says about itself.
+// Bases are upgraded one by one, so the versions differ from base to base.
+type ConnectorInfo struct {
+	Version  string   `json:"version"`
+	Features []string `json:"features,omitempty"`
+}
+
+// Has reports whether the connector declares the feature.
+func (c *ConnectorInfo) Has(feature string) bool {
+	if c == nil {
+		return false
+	}
+	for _, f := range c.Features {
+		if f == feature {
+			return true
+		}
+	}
+	return false
+}
+
+// ExtensionInfo is one configuration extension installed in a live base.
+type ExtensionInfo struct {
+	Name     string `json:"name"`
+	Synonym  string `json:"synonym,omitempty"`
+	Version  string `json:"version,omitempty"`
+	Active   bool   `json:"active"`
+	SafeMode any    `json:"safeMode,omitempty" jsonschema:"true, false or the name of a security profile"`
 }
 
 // MetadataTree lists configuration objects grouped by their metadata type.
@@ -301,7 +336,23 @@ type EventLogParams struct {
 	EndDate   string `json:"endDate,omitempty" jsonschema:"upper bound, ISO 8601"`
 	Level     string `json:"level,omitempty" jsonschema:"Error, Warning, Information or Note"`
 	User      string `json:"user,omitempty" jsonschema:"infobase user name"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"max entries (default 100)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"max entries (default 100, at most 500)"`
+
+	// The filters below need a connector that reports the filters it applied; with an
+	// older one the call fails instead of returning the whole window.
+	Events            []string       `json:"events,omitempty" jsonschema:"event names as the log stores them: eventId of an entry (_$Data$_.New, _$Data$_.Post, _$Session$_.Start) or the name of an applied event"`
+	Metadata          []string       `json:"metadata,omitempty" jsonschema:"full names of metadata objects, e.g. Документ.РеализацияТоваровУслуг"`
+	Sessions          []int          `json:"sessions,omitempty" jsonschema:"session numbers"`
+	Applications      []string       `json:"applications,omitempty" jsonschema:"application ids as applicationId of an entry: 1CV8C, BackgroundJob, HTTPServiceConnection"`
+	Computer          string         `json:"computer,omitempty"`
+	Data              map[string]any `json:"data,omitempty" jsonschema:"the object the entry is about, as a reference {type, ref} returned by execute_query with refs=true"`
+	DataPresentation  string         `json:"dataPresentation,omitempty" jsonschema:"exact presentation of the data, as dataPresentation of an entry"`
+	Comment           string         `json:"comment,omitempty" jsonschema:"exact comment text"`
+	TransactionStatus string         `json:"transactionStatus,omitempty" jsonschema:"Committed, RolledBack, Unfinished or NotApplicable"`
+	Transaction       string         `json:"transaction,omitempty" jsonschema:"transaction id, as transaction of an entry"`
+	Order             string         `json:"order,omitempty" jsonschema:"desc: the last entries of the window, newest first. asc: the first entries of the window, oldest first; works when at most 5000 entries match. Omitted: the last entries, oldest first"`
+	Offset            int            `json:"offset,omitempty" jsonschema:"entries to skip in the chosen order, for paging"`
+	MaxComment        int            `json:"maxComment,omitempty" jsonschema:"cut each comment to this many characters (default 4000; an error comment carries a whole call stack)"`
 }
 
 // EventLogResult holds registration-log entries.
@@ -319,6 +370,19 @@ type EventLogEntry struct {
 	Event    string `json:"event,omitempty"`
 	Comment  string `json:"comment,omitempty"`
 	Metadata string `json:"metadata,omitempty"`
+
+	// Filled by a connector that reads the full set of columns; empty with an older one.
+	EventID           string `json:"eventId,omitempty" jsonschema:"system name of the event, usable in the events filter"`
+	Computer          string `json:"computer,omitempty"`
+	Application       string `json:"application,omitempty"`
+	ApplicationID     string `json:"applicationId,omitempty" jsonschema:"usable in the applications filter"`
+	Session           int    `json:"session,omitempty"`
+	Connection        int    `json:"connection,omitempty"`
+	MetadataID        string `json:"metadataId,omitempty" jsonschema:"full name of the metadata object, usable in the metadata filter"`
+	Data              any    `json:"data,omitempty" jsonschema:"the object the entry is about: a reference {presentation, type, ref} or a presentation"`
+	DataPresentation  string `json:"dataPresentation,omitempty"`
+	TransactionStatus string `json:"transactionStatus,omitempty"`
+	Transaction       string `json:"transaction,omitempty"`
 }
 
 // SubsystemInfo describes a subsystem's composition.
