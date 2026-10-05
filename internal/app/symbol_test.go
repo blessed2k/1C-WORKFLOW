@@ -70,9 +70,17 @@ func newBSLFixtureProject(t *testing.T, id domain.ProjectID) (*Projects, *openPr
 // TTL свежести для тестов снимка, snapshot_test.go).
 func newBSLFixtureProjectCfg(t *testing.T, id domain.ProjectID, cfg index.Config) (*Projects, *openProject) {
 	t.Helper()
+	return newFilesFixtureProject(t, id, bslFixtureFiles(), cfg)
+}
+
+// newFilesFixtureProject: проект с одним компонентом cfg из переданного набора
+// файлов (путь относительно корня компонента -> содержимое), активный и
+// проиндексированный полностью.
+func newFilesFixtureProject(t *testing.T, id domain.ProjectID, files map[string]string, cfg index.Config) (*Projects, *openProject) {
+	t.Helper()
 	workspaceRoot := t.TempDir()
 	projectRoot := t.TempDir()
-	for rel, content := range bslFixtureFiles() {
+	for rel, content := range files {
 		writeFile(t, filepath.Join(projectRoot, "cfg", filepath.FromSlash(rel)), content)
 	}
 	writeFile(t, filepath.Join(projectRoot, "cfg", "Configuration.xml"), конфигурацияXML("Тест"))

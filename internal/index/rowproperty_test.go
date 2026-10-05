@@ -63,6 +63,13 @@ func TestIncrementEqualsCleanRebuildRows(t *testing.T) {
 		// XML регистра, справочника и роли), указывающие файлы нетронуты.
 		checkIncrementRows(t, 30, allPointerEdits)
 	})
+	t.Run("области и описания", func(t *testing.T) {
+		// Путь областей и первая строка описания символа (issue #15): метод
+		// переезжает во вложенную область и меняет описание, рядом появляется
+		// новый метод. Колонки symbol.region и symbol.doc_first_line у
+		// инкремента обязаны совпасть с чистой пересборкой.
+		checkIncrementRows(t, 30, regionDocEdits)
+	})
 	t.Run("переименование", func(t *testing.T) {
 		// Символ общего модуля переименован: узел с прежней identity не
 		// вернулся, указатель остаётся пустым, ссылка unresolved, а её файл
@@ -504,6 +511,45 @@ var renameEdits = incrementScenario{
 `)
 	},
 	mustHave: []string{"name_norm=помощь|resolution=unresolved"},
+}
+
+var regionDocEdits = incrementScenario{
+	seed: map[string]string{
+		"CommonModules/Сервис/Ext/Module.bsl": `#Область ПрограммныйИнтерфейс
+
+// Возвращает первое значение.
+Функция Первый() Экспорт
+	Возврат 1;
+КонецФункции
+
+#КонецОбласти
+`,
+	},
+	edit: func(write func(rel, content string), remove func(rel string)) {
+		write("CommonModules/Сервис/Ext/Module.bsl", `#Область ПрограммныйИнтерфейс
+
+#Область Данные
+
+// Возвращает первое значение из кэша.
+Функция Первый() Экспорт
+	Возврат 1;
+КонецФункции
+
+#КонецОбласти
+
+// Возвращает второе значение.
+Функция Второй() Экспорт
+	Возврат 2;
+КонецФункции
+
+#КонецОбласти
+`)
+	},
+	mustHave: []string{
+		"region=ПрограммныйИнтерфейс/Данные",
+		"doc_first_line=Возвращает первое значение из кэша.",
+		"doc_first_line=Возвращает второе значение.",
+	},
 }
 
 // incrementScenario: исходные файлы сверх базовой фикстуры и правки перед

@@ -146,6 +146,16 @@ var контрактыИнструментов = []контрактИнстру�
 		выходПоля:         []string{"adopted", "extension", "interceptors", "own", "prefix", "purpose"},
 	},
 	{
+		имя:    "find_api",
+		режимы: режимОффлайн | режимLive,
+		// query необязателен: без него инструмент отдаёт карту библиотеки или
+		// весь интерфейс модуля.
+		входОбязательные:  []string{},
+		входПоля:          map[string]string{"query": "string", "module": "string", "limit": "integer", "returns": "string", "accepts": "string"},
+		выходОбязательные: []string{"generation", "stale", "items"},
+		выходПоля:         []string{"generation", "stale", "warnings", "items", "totalCount", "nextCursor"},
+	},
+	{
 		имя:               "find_dependency_paths",
 		режимы:            режимОффлайн,
 		входОбязательные:  []string{"fromType", "fromName", "toType", "toName"},
@@ -418,7 +428,7 @@ var контрактыИнструментов = []контрактИнстру�
 		входОбязательные:  []string{},
 		входПоля:          map[string]string{},
 		выходОбязательные: []string{"name", "version", "mode", "source", "client", "memory"},
-		выходПоля:         []string{"client", "memory", "mode", "name", "source", "version"},
+		выходПоля:         []string{"client", "coreMethods", "coreNote", "memory", "mode", "name", "source", "version"},
 	},
 	{
 		имя:               "set_base",
@@ -448,9 +458,9 @@ var контрактыИнструментов = []контрактИнстру�
 		имя:               "validate_bsl",
 		режимы:            режимОффлайн,
 		входОбязательные:  []string{"code"},
-		входПоля:          map[string]string{"code": "string"},
+		входПоля:          map[string]string{"code": "string", "module": "string"},
 		выходОбязательные: []string{"count", "findings", "checked"},
-		выходПоля:         []string{"checked", "count", "findings"},
+		выходПоля:         []string{"checked", "count", "findings", "readyMethods", "readyMethodsNote"},
 	},
 	{
 		имя:               "validate_query",

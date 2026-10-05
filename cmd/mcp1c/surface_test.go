@@ -15,7 +15,7 @@ import (
 // opened. Pinned here literally, not taken from the registry, so that a tool
 // moving between the layers shows up as a deliberate edit of this list.
 var индексныеИнструменты = []string{
-	"find_impact", "find_queries_using", "find_references", "find_register_writes",
+	"find_api", "find_impact", "find_queries_using", "find_references", "find_register_writes",
 	"find_symbol", "get_context_for_task", "get_form_handlers", "get_module_structure",
 	"get_object", "get_symbol", "index_status", "object_graph", "reindex", "trace_call_graph",
 }

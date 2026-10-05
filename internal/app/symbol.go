@@ -61,6 +61,9 @@ type ParameterItem struct {
 // (усечённое, с resource link на полное) + признак расхождения с диском.
 type SymbolDetail struct {
 	SymbolItem
+	// Doc: комментарий над объявлением целиком: назначение, параметры,
+	// возвращаемое значение. В тело символа он не входит.
+	Doc              string          `json:"doc,omitempty"`
 	Parameters       []ParameterItem `json:"parameters,omitempty"`
 	Body             string          `json:"body,omitempty"`
 	BodyTruncated    bool            `json:"bodyTruncated,omitempty"`
@@ -72,11 +75,10 @@ type SymbolDetail struct {
 // переменные и счётчики БЕЗ текста модуля (§21: «модуль целиком не
 // возвращается никогда»).
 //
-// Regions честно пуст: symbol.region в store сегодня не заполняется публикацией
-// (internal/index/publish.go не передаёт Region в store.Symbol) — упрощение
-// пайплайна индексации, не этого сервиса. Response несёт явный warning
-// "regions_not_indexed", а не молчаливо пустой список, выданный за «регионов
-// нет» (правило проекта: заметно меньше сделанного — сказать явно, не молчать).
+// Regions: области модуля, в которых лежит хотя бы один символ, путём от
+// внешней к внутренней ("ПрограммныйИнтерфейс/Данные"), в порядке появления
+// символов. Область без символов в список не попадает: путь хранится у
+// символа (symbol.region), отдельной таблицы областей в индексе нет.
 type ModuleStructureItem struct {
 	Module        string             `json:"module"`
 	Component     domain.ComponentID `json:"component"`
@@ -309,6 +311,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 	type txResult struct {
 		row           store.SymbolRow
 		params        []store.ParameterRow
+		doc           string
 		gen           domain.Generation
 		body          string
 		bodyTruncated bool
@@ -366,6 +369,9 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 			return out, perr
 		}
 		out.params = params
+		if out.doc, perr = tx.SymbolDoc(row.ID); perr != nil {
+			return out, perr
+		}
 
 		sf, sfOK, sferr := tx.SourceFileByID(row.OriginFileID)
 		if sferr != nil {
@@ -416,6 +422,7 @@ func (s *SymbolService) GetSymbol(ctx context.Context, in GetSymbolInput) (Respo
 
 	item := SymbolDetail{
 		SymbolItem:       symbolItemFromRow(res.row),
+		Doc:              res.doc,
 		BodyResourceURI:  symbolResourceURI(op.Entry.ID, res.row.UID, res.gen),
 		StaleAgainstDisk: stale,
 	}
@@ -555,6 +562,7 @@ func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStru
 	if res.modOK {
 		item.Kind = res.mod.Kind
 	}
+	seenRegion := map[string]bool{}
 	for _, r := range res.symbols {
 		si := symbolItemFromRow(r)
 		si.Intercepts = interceptItems(byTarget[r.NameNorm])
@@ -563,15 +571,14 @@ func (s *SymbolService) GetModuleStructure(ctx context.Context, in GetModuleStru
 		} else {
 			item.Symbols = append(item.Symbols, si)
 		}
+		if r.Region != "" && !seenRegion[r.Region] {
+			seenRegion[r.Region] = true
+			item.Regions = append(item.Regions, r.Region)
+		}
 	}
 	item.SymbolCount, item.VariableCount = len(item.Symbols), len(item.Variables)
 
 	resp := Response[ModuleStructureItem]{Generation: res.gen, Items: []ModuleStructureItem{item}, TotalCount: 1, Warnings: res.warn}
-	resp.Warnings = append(resp.Warnings, Warning{
-		Code:    "regions_not_indexed",
-		Message: "регионы модуля не хранятся индексом (публикация индекса не заполняет symbol.region: осознанное упрощение пайплайна)",
-		Hint:    "поле regions в ответе всегда пусто; для точного региона метода читайте doc/architecture-index.md §14 либо сам исходник",
-	})
 	return withSnapshot(resp, snap), nil
 }
 

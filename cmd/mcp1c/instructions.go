@@ -97,9 +97,10 @@ var instructionSections = []instrSection{
 	{head: "WRITE CODE, call while writing: recall of the platform is often stale.", lines: []instrLine{
 		{tools: []string{"get_query_schema"}, format: "%s: before a query: exact fields, virtual tables, parameters."},
 		{tools: []string{"bsl_syntax"}, format: "%s: a platform method/type you are about to call."},
+		{tools: []string{"find_api"}, format: "%s: before a helper of your own: a ready БСП/configuration method."},
 	}},
 	{head: "VERIFY WHAT WAS WRITTEN, on the finished draft, before applying it.", lines: []instrLine{
-		{tools: []string{"validate_bsl"}, format: "%s: module or procedure: missing metadata, wrong argument counts."},
+		{tools: []string{"validate_bsl"}, format: "%s: module or procedure: missing metadata, wrong argument counts, possible ready methods for your procedures."},
 		{tools: []string{"form_impact"}, format: "%s + draftCode: form code: draft checked against the real sources."},
 		{tools: []string{"query_advisor"}, format: "%s: written query: anti-patterns, unindexed filters."},
 		{tools: []string{"validate_query", "analyze_query"}, format: "%s: compile-check, heavy-query check."},

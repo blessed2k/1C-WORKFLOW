@@ -214,7 +214,11 @@ var (
 		col("rowid", func(r *ftsRow) any { return r.id }),
 		col("name", func(r *ftsRow) any { return r.s.NameDisplay }),
 		col("signature", func(r *ftsRow) any { return r.s.Signature }),
-		col("doc", func(r *ftsRow) any { return r.s.DocFirstLine }),
+		// Описание в полнотекстовый индекс не кладётся, хотя symbol.doc_first_line
+		// заполнен (issue #15): FTS кормит якоря get_context_for_task, и до
+		// оценки на evals совпадение по слову описания давало бы якорь там,
+		// где инструмент сегодня честно говорит «якоря нет».
+		col("doc", func(r *ftsRow) any { return "" }),
 	}}
 	diagnosticSpec = batchSpec[Diagnostic]{"diagnostic", []batchCol[Diagnostic]{
 		col("file_id", func(d *Diagnostic) any { return nullID(d.FileID) }),

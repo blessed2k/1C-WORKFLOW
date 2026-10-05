@@ -1,0 +1,31 @@
+{
+  "built": "2026-10-03",
+  "seed": 1,
+  "judges": 2,
+  "funnel": {
+    "tasks": 519,
+    "sameName": 2,
+    "noAnswer": 0,
+    "unclear": 77,
+    "namedMethod": 0,
+    "notJudged": 0,
+    "partial": 161,
+    "rejected": 20,
+    "direct": 259,
+    "paraphrases": 239,
+    "paraphrasesNotJudged": 0,
+    "pairs": 498
+  },
+  "sections": {
+    "bsp": 331,
+    "bsp/dev": 154,
+    "bsp/direct": 169,
+    "bsp/paraphrase": 162,
+    "bsp/test": 177,
+    "other": 167,
+    "other/dev": 83,
+    "other/direct": 90,
+    "other/paraphrase": 77,
+    "other/test": 84
+  }
+}

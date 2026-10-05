@@ -13,7 +13,7 @@ live HTTP-коннектор по требованию на каждый выз�
 
 | Команда | Что делает |
 |---|---|
-| `go build ./...` | Собрать всё (включая `cmd/syntaxgen`, `evals/runner`) |
+| `go build ./...` | Собрать всё (включая `cmd/syntaxgen`, `cmd/apicards`, `evals/runner`, `evals/findapi`) |
 | `go vet ./...` | Статический анализ, вывод пуст |
 | `go test ./...` | Юнит- и fixture-тесты, без реальной выгрузки и без индекса синтаксиса платформы |
 | `go test -count=1 ./...` | То же без кэша; самый долгий пакет `cmd/mcp1c` ~25 с |
@@ -53,6 +53,7 @@ live HTTP-коннектор по требованию на каждый выз�
 ## Структура
 
 - `cmd/mcp1c` — точка входа MCP, регистрация всех инструментов (легаси + индексных), настройки процесса, блок памяти `server_info`
+- `cmd/apicards`: генератор карточек задач для `find_api` (пачки для языковой модели и сборка набора); наборы в репозиторий не входят
 - `cmd/syntaxgen` — генератор индекса синтаксиса платформы (`internal/syntax`) из `.hbk` установленной платформы; индекс в репозиторий не входит
 - `internal/domain` — сущности и инварианты индекса, ноль зависимостей кроме stdlib
 - `internal/store`: SQLite, схема (38 таблиц), эпохи, WAL, reader pool, единственный writer
@@ -66,9 +67,9 @@ live HTTP-коннектор по требованию на каждый выз�
 - `internal/arch` — гард на граф импортов (обычные `go test`, не отдельный линтер)
 - `internal/{source,onec,standards,syntax,validate}`: легаси-слой инструментов, без индекса, по запросу читает XML/live-коннектор; кэш разобранных коллекций живёт здесь (`internal/source/cache.go`); новый код не импортирует этот слой, кроме `internal/syntax`
 - `connector` — исходники BSL-расширения `МCPКоннектор` (live-режим), отдельный деплой от Go-кода
-- `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`)
-- `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server)
-- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-039), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества)
+- `evals`: задачи и раннер оценки качества `get_context_for_task` (`docs/evaluation-report.md`); `evals/findapi`: эталон и счётчик качества `find_api` (`docs/find-api-eval.md`)
+- `tools` — вспомогательные python-скрипты вне сборки: `measure_cache_rss.py` (замер памяти), `bsl_ls_report.py` (компактный отчёт bsl-language-server), `hooks/bsl_ready_methods.py` (хук Claude Code: ходовые методы БСП на первом обращении к `.bsl` и напоминание проверить записанный BSL на готовые методы)
+- `docs`: `architecture-index.md` и `architecture-graph.md` (архитектура), `adr/` (ADR-002...ADR-039), `tools-index.md`, `benchmarks.md` (замеры), `install.md`, `evaluation-report.md` (оценка качества), `find-api-eval.md` (эталон `find_api`)
 
 ## Ключевые файлы
 
@@ -83,7 +84,17 @@ live HTTP-коннектор по требованию на каждый выз�
 - `cmd/mcp1c/surface.go`: `toolSurface`, набор объявленных сервером инструментов, снимается при `initialize` (`instructionsMiddleware`) и служит единственным источником для instructions и подсказок следующего шага (`nextStepsFor`, `suggestedNextTools` у `get_context_for_task`); сбой `tools/list` даёт полный текст instructions без фильтра и запись в stderr; хендлер находит свой набор через `surfaceOf(server)`
 - `cmd/mcp1c/surface_test.go`: табличный тест состава (режим x профиль x реестр: нет, открыт, сломан), списки `индексныеИнструменты` и `исключеныВCore` закреплены литералами
 - `cmd/mcp1c/indexreg.go` — реестр индексных инструментов (не редактировать)
-- `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph}.go` — регистрация индексных инструментов, по файлу на группу
+- `cmd/mcp1c/idx_{symbol,meta,impact,context,status,objectgraph,api}.go` — регистрация индексных инструментов, по файлу на группу
+- `internal/app/api.go`, `apiindex.go`, `apirank.go`: `find_api` (issue #15). Методы программного интерфейса берутся одним запросом `store.ExportedMethodsInRegions` по пути областей символа; секция `bsp` определяется составом подсистемы `СтандартныеПодсистемы` (любой объект состава: общий модуль или владелец модуля менеджера), который читается из объявлений подсистем в блобах индекса (`meta.ParseSubsystemContent`, `workspace.DumpChildSubsystemPath`), пока индекс не хранит рёбра состава. Поиск идёт по обратному индексу слов в памяти (`apiIndex`, `apiindex.go`): слова имени, модуля, первой строки и остального комментария (`symbol.doc`) разбираются один раз на поколение индекса (`apiIndexCache` в `APIService`, по одному на проект), вызов стоит миллисекунды; первый вызов после переиндексации строит индекс слов заново. Слова сравнивает `apiSameWord` (`apirank.go`: общее начало плюс остатки из русских суффиксов и окончаний). Ранжирование (`apiIndex.search`): охват = сумма «редкость слова на вес поля» (`apiFieldCover`), редкость у слова своя для имени, модуля и первой строки и своя для остального комментария; затем доля слов имени, покрытых запросом; затем вес мест. Ответ: `limit` полных описаний и `apiMoreCount` следующих методов коротким списком (`bspMore`, `otherMore`); устаревшие уходят в хвост уже после среза `limit`. **Правила ранжирования меняются только с прогоном эталона `evals/findapi`** (подбор по половине `dev`); `TestRealDumpFindAPI` это страховка на 40 ручных запросах, а не оценка
+- `internal/app/apicards.go`, `cmd/apicards`: карточки задач для `find_api`. Карточка (`APICard`: выражение вызова, формулировки задачи, «вместо какого кода») пишется языковой моделью по сигнатуре и комментарию метода; `cmd/apicards tasks` режет каталог методов на пачки для модели, `assemble` собирает набор (JSONL с заголовком `APICardsHeader`). Сервер читает все `*.jsonl` каталога `app.DefaultAPICardsDir()` (`--api-cards`, `MCP_1C_API_CARDS`, `none` отключает; каталог задаётся процессу один раз через `app.ConfigureAPICards`, нулевые `options` значат «без карточек», так живут тесты) при постройке индекса слов: поле `apiFieldCard`, вес 0,7. Привязка по выражению вызова; битый файл даёт предупреждение `api_cards_unreadable`, поиск идёт без карточек. Наборы и рабочий каталог генератора (`cmd/apicards/work*`, содержит комментарии методов конфигурации) в git не идут
+- `internal/app/api.go`, режимы `find_api` без запроса: без аргументов карта библиотеки (`apiIndex.libraryMap`: подсистемы из `apiLibraryPart` с синонимом и их модули), с `module` весь интерфейс модуля (`apiIndex.byOwner`, потолок `apiModuleListLimit`), с `module` и `query` поиск внутри модуля; неизвестный модуль: `NotFoundError` с похожими именами (`ownersLike`)
+- `internal/app/standalone.go`: `OpenStandalone` открывает проект в отдельном рабочем каталоге индекса (не у живого сервера) для программ вне MCP: `evals/findapi`, `cmd/apicards`
+- `internal/app/apidraft.go`: обратная проверка черновика, `APIService.ReadyMethods`: для процедур и функций, объявленных в тексте (`draftMethods`; обработчики событий, команд, оповещений и перехватчики расширений отсеивает `draftIsHandler` по первому слову имени целиком, параметрам и аннотациям), называет возможные готовые методы поиском по словам имени и первой строки комментария; методы модуля из входа `Module` не называются. Правило отбора (`apiDraftAcceptsLibrary`, `apiDraftAcceptsOther`, глубина `apiDraftScanDepth` по общему ранжированию) подобрано замером: `docs/find-api-eval.md`, раздел «Обратная проверка черновика»; порога, отделяющего повтор от случайного совпадения слов, нет, это подсказка, и **правило меняется только с прогоном `go run ./evals/findapi drafts`** (черновики `data/ut_demo.drafts.jsonl`, шум на служебных функциях выгрузки). `ReadyForTask` там же: готовые методы по тексту задачи (не меньше двух слов в сильных полях). Потребители: `validate_bsl` (`cmd/mcp1c/validate.go`, поля `readyMethods` и `readyMethodsNote`, вход `module`, интерфейс `readyMethodsFinder`), `get_context_for_task` (`attachReadyMethods` в `cmd/mcp1c/idx_context.go`: блок `readyMethods` вне бюджета пакинга, не собирается для intent `rights` и `exchange`, тип `retrieve.ReadyMethod`) и хук `tools/hooks/bsl_ready_methods.py`, который после записи `.bsl` напоминает агенту вызвать `validate_bsl` (списки обработчиков в хуке повторяют серверные, проверка: `python3 tools/hooks/bsl_ready_methods_test.py`). Индекс слов один на проект: кэш лежит в `Projects.apiIndexes`, сервисы его делят
+- `internal/app/apitypes.go`: типы из комментария метода (`apiDocTypes`: разделы «Параметры» и «Возвращаемое значение» по стандарту оформления; `apiTypesMatch` сравнивает тип как часть выражения). Разбираются при постройке индекса слов (у процедуры тип результата не заполняется); `find_api` отдаёт тип результата (`returns`) и отбирает по входам `returns`, `accepts`; долю разбора печатает `go run ./evals/findapi types`. Число вызовов из других модулей и пример вызова (`calls`, `example`) считаются лениво, только у показанных методов: `store.ExternalCallCount` и `store.ExternalCallSite` (одно условие «другой модуль» у обоих) плюс текст модуля из blob (`apiExamples`, `apiCallStatement` в `api.go`); сбой чтения текста даёт предупреждение `api_example_unavailable`, поиск не роняет. **В ранжирование число вызовов не входит сознательно**: эталон отобран по наличию вызовов, и такой сигнал на нём честно не измерить (`docs/tools-index.md`, ограничения `find_api`)
+- `internal/app/apicore.go`: ходовые методы библиотеки, `APIService.CoreMethods`: до `apiCoreLimit` методов БСП, отранжированных по числу прикладных объектов, которые их зовут (`store.CallerFilesOf`; вызывающий файл относится к объекту и к библиотеке по каталогу из пути, `apiIndex.callerObject`: модуль объекта и его формы это один объект, переопределяемый модуль библиотеки считается прикладным; вызовы из самой библиотеки, устаревшие методы и обработчики событий не считаются). Считается лениво и лежит в `apiIndex`; при смене поколения индекса переносится из прошлого, пока число методов программного интерфейса прежнее (`coreStale`). Потребители: `find_api` без аргументов (поле `core`), `get_context_for_task` (поле `coreMethods`, `attachReadyMethods`) и `server_info` (поле `coreMethods`; `cmd/mcp1c/corewarm.go`: `coreWarmer` считает список в фоне с запуска сервера, `server_info` берёт только готовое через `CoreMethodsIfReady`, не ждёт и каждым вызовом запускает фоновое обновление: иначе список, посчитанный до `reindex`, застревал бы; пока списка нет, `coreNote` говорит «считается» или причину сбоя; паника расчёта гасится; `surfaceCloser` останавливает расчёт до закрытия проектов). **Цена: сервер в каждой сессии открывает активный проект и строит индекс слов в фоне**, раньше это было лениво. Тот же `coreWarmer` пишет снимок списка в `<UserCacheDir>/mcp1c/core/<хэш корня проекта>.json` для хука `tools/hooks/bsl_ready_methods.py` (хук отдельный процесс и сервер спросить не может); каталог задаёт `options.coreSnapshot` (флаг `--core-snapshot`, `none` отключает; нулевые `options` снимок не пишут, так живут тесты). `server_info` и хук нужны потому, что в журналах автора из 17 сессий с сервером `get_context_for_task` встретился в 5, а `server_info` в 15: выборка мала и с одной машины, это наблюдение, а не оценка. Здесь число вызовов на месте, в отличие от ранжирования поиска: оно решает, что класть агенту перед глазами, а не кто выше в выдаче. Замер: `go run ./evals/findapi core`
+- `internal/app/apicatalog.go`: `APIService.Catalog`, все методы программного интерфейса двумя секциями без запроса (общий с `FindAPI` отбор `readAPIMethods`); потребитель: оценка `evals/findapi`
+- `evals/findapi`: эталон «задача словами → готовый метод» из реальных вызовов (`docs/find-api-eval.md`). Набор `data/ut_demo.jsonl` (498 пар, половины `dev`/`test`, каждая пара принята двумя проверяющими моделями), база `data/ut_demo.baseline.json` (без карточек задач) и `data/ut_demo.cards.baseline.json` (с карточками, флаг `-cards`; без флага прогон карточек не читает). **Любое изменение ранжирования `find_api` меряется прогоном `go run ./evals/findapi score -project <ut_demo> -data ... -baseline ...`**: падение на глубине 10, 20 или 50 валит прогон; выдачу на один запрос печатает подкоманда `query`; правила настраиваются на половине `dev`, качество называется по `test`. Рабочий каталог генератора `evals/findapi/work` содержит код конфигурации и в git не идёт
+- `internal/index/symboldoc.go`: `regionPath` и `docComment` наполняют `symbol.region` (путь областей через `domain.RegionPathSeparator`), `symbol.doc_first_line` и `symbol.doc` (полный комментарий: по нему ищет `find_api`, его отдаёт `get_symbol` полем `doc`); в `fts_symbols.doc` описание сознательно не кладётся (`internal/store/batch.go`)
 - `internal/source/cache.go` — `ConfigureCache(ttl, limitBytes)`, `CacheSnapshot() CacheStats`, `cached[T]`, `estimateSize`, `dirStamp`, сам `dumpCache` со сбросом по TTL и вытеснением
 - `internal/syntax/lazy.go`: `NewLazy(path) *Index`, `(*Index).Err() error`; `index.go`: `LoadFile`, `Parse`, `DefaultPath`, `EnvPath`, `ErrNotFound`, `Search`, `Count`, `GlobalMethod`, `ParamCounts`; `owner.go` — `Lookup` (owner, `Тип.Член`, компактные члены `Member`, `TypeInfo`), `MemberLimit`
 - `internal/syntax/syntaxtest`: `Fixture`/`FixtureFile` (синтетический корпус `internal/syntax/syntaxtest/testdata/corpus.json`, написан руками) и `RealOrSkip` (настоящий индекс для real-dump тестов)
@@ -143,14 +154,18 @@ live HTTP-коннектор по требованию на каждый выз�
 
 Направление зависимостей: `cmd/mcp1c → internal/app → domain`; `app → store, resolve, index,
 retrieve, workspace`; `app, retrieve → effective → store, resolve, parse/bsl`; `store, resolve,
-parse/* → domain`. Проверяется тестом
+parse/* → domain`. `app → parse/meta, parse/bsl` только у `find_api` (`internal/app/api.go`):
+разбор состава подсистемы из блоба и имена видов модулей. Проверяется тестом
 (`internal/arch`), не только соглашением.
 
 Поток вызова индексного инструмента: MCP-запрос → `cmd/mcp1c/idx_*.go` резолвит активный
 проект через `app.Projects` → зовёт свой `internal/app.XxxService` → тот открывает одну
 read-транзакцию через `app.ReadSnapshot[T]` (она же ставит `stale` и `stale_index` по
 `index.Service.CachedFreshness`, ADR-036) и читает уже опубликованные факты.
-Единственное исключение — `get_context_for_task`: `cmd/mcp1c/idx_context.go` зовёт
+Блоки готовых методов `get_context_for_task` дописываются отдельными чтениями после
+`retrieve.Run` (`app.APIService.CoreMethods` и `ReadyForTask`, у каждого своя транзакция и
+своё поколение). Единственное исключение —
+`get_context_for_task`: `cmd/mcp1c/idx_context.go` зовёт
 `internal/retrieve.Run` напрямую (`Run` сам делает freshness-precheck через
 `index.Service.EnsureFresh`, затем `store.Read`, затем `retrieve.Build`) — `internal/retrieve`
 единственный пакет, кроме `internal/app`, которому разрешено трогать `store`/`index` из `cmd/mcp1c`.
@@ -169,7 +184,9 @@ read-транзакцию через `app.ReadSnapshot[T]` (она же став
 
 Легаси-слой (`internal/source` и соседи) — отдельный путь без индекса: `cmd/mcp1c/tools.go`
 дергает его напрямую по каждому вызову (перечитывает XML/live-коннектор), не проходит через
-`internal/app`/`store`. Новый код может опираться только на `internal/syntax` из этого слоя —
+`internal/app`/`store`. Исключение: `validate_bsl` стал гибридом, поле `readyMethods` он
+берёт из индекса через `app.APIService.ReadyMethods` (интерфейс `readyMethodsFinder`); без
+индексного проекта остальная проверка работает как прежде. Новый код может опираться только на `internal/syntax` из этого слоя —
 единственное разрешённое исключение (`internal/arch.CheckLegacyIsolation`).
 
 **Effective-вид и перехватчики.** Факт перехвата строит `resolve.DeriveIntercepts`: цель —
@@ -324,6 +341,8 @@ tunables процесса:
   инструментов; `core` не регистрирует `coreExcludedTools` (`cmd/mcp1c/tools.go`)
 - `MCP_1C_SYNTAX_INDEX` (`--syntax-index`) — файл индекса синтаксиса платформы; пусто —
   `syntax.DefaultPath()`
+- `MCP_1C_API_CARDS` (`--api-cards`): каталог карточек задач `find_api`; пусто:
+  `app.DefaultAPICardsDir()`, `none` отключает
 
 Тестовые (читаются только в `_test.go`, не в production-коде):
 
@@ -362,6 +381,10 @@ guard по корпусу, сервер без файла индекса син�
 `--projects-root` на пустом `t.TempDir()`, иначе индексных инструментов нет. Новое
 необязательное поле в ответе тест не роняет; смена обязательности или типа — роняет.
 Новый необязательный вход (`includeAllDiagnostics` у `index_status`/`reindex`) их не красит.
+Осознанное исключение из «контракт менять нельзя»: у `find_api` вход `query` стал
+необязательным (режимы карты библиотеки и интерфейса модуля), объявление в контрактном
+тесте поправлено вместе с кодом и названо в CHANGELOG. Ослабить обязательность входа
+можно; ужесточить или сменить тип нельзя.
 
 **Гард на раскладку — и его настоящая граница.** Путь фикстуры проверяется
 `workspace.IsDumpConformantPath` в ДВУХ точках входа: `fileHelper`
@@ -501,7 +524,11 @@ guard по корпусу, сервер без файла индекса син�
   версии ненадёжным, когда выход парсера не менялся (схема 3, ADR-037: инкремент до неё обрывал
   указатели нетронутых файлов на пересозданные узлы; схема 4, ADR-038: сносил каскадом их права
   ролей, рёбра и бейджи графа; схема 6, issue #14: оставлял `module.owner_object_id` на
-  удалённом объекте). `ParserVersion` ради этого не поднимать.
+  удалённом объекте; схема 7, issue #15: индексация не заполняла `symbol.region` и
+  `symbol.doc_first_line`). `ParserVersion` ради этого не поднимать. Шаг с DDL (схема 8:
+  колонка `symbol.doc`, полный комментарий метода) требует ещё и обратного хода в
+  `internal/store/storetest` (`DowngradeToSchema7Statements`): тесты миграции получают базу
+  прежней версии откатом свежей, и без него `ALTER TABLE` падает на существующей колонке.
   Переключение бинарника `main` (схема 2) и схемы 3 на одном `--projects-root` каждый раз
   стоит полной пересборки: схема 3 требует её у эпохи версии 2, а `main` на эпохе версии 3
   заводит новую пустую эпоху.

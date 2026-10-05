@@ -62,6 +62,11 @@ type migration struct {
 // при живом модуле оставлял module.owner_object_id на удалённом узле. По базе
 // такой указатель не отличить: id узла без AUTOINCREMENT мог достаться новому
 // объекту, и указатель стал бы не висячим, а чужим.
+//
+// Шаг до 7 без DDL (issue #15): колонки symbol.region и symbol.doc_first_line
+// объявлены с первой версии, но индексация их не заполняла. Наполнить их
+// может только разбор модулей, выход парсера при этом прежний, поэтому
+// пересборку требует шаг схемы, а не ParserVersion.
 var migrations = []migration{{
 	to:               2,
 	needsFullRebuild: true,
@@ -83,6 +88,15 @@ var migrations = []migration{{
 }, {
 	to:               6,
 	needsFullRebuild: true,
+}, {
+	to:               7,
+	needsFullRebuild: true,
+}, {
+	// Шаг до 8: полный комментарий метода (symbol.doc). Колонку создаёт DDL,
+	// наполнить её может только разбор модулей.
+	to:               8,
+	needsFullRebuild: true,
+	statements:       []string{`ALTER TABLE symbol ADD COLUMN doc TEXT`},
 }}
 
 // errSchemaFromFuture — БД собрана более новой версией пакета. По разделу 15

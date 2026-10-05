@@ -285,7 +285,34 @@ type Result struct {
 	ExcludedHighScoring []ExcludedItem    `json:"excludedHighScoring,omitempty"`
 	Warnings            []Warning         `json:"warnings,omitempty"`
 	SuggestedNextTools  []string          `json:"suggestedNextTools,omitempty"`
-	Generation          domain.Generation `json:"generation"`
+	// ReadyMethods: готовые методы программного интерфейса, близкие задаче
+	// по словам. Заполняет не движок, а вызывающий (cmd/mcp1c, через
+	// app.APIService.ReadyForTask): движок про программный интерфейс не
+	// знает, а поле живёт здесь потому, что Result и есть ответ инструмента.
+	// В бюджет пакинга блок не входит, потолок у него свой.
+	ReadyMethods []ReadyMethod `json:"readyMethods,omitempty"`
+	// CoreMethods: ходовые методы библиотеки стандартных подсистем в этой
+	// конфигурации: чем прикладной код пользуется чаще всего. Заполняет
+	// вызывающий (cmd/mcp1c, через app.APIService.CoreMethods), как и
+	// ReadyMethods; в бюджет пакинга блок не входит.
+	CoreMethods []CoreModule      `json:"coreMethods,omitempty"`
+	Generation  domain.Generation `json:"generation"`
+}
+
+// CoreModule: модуль библиотеки и его ходовые методы, только имена.
+type CoreModule struct {
+	Module  string   `json:"module"`
+	Methods []string `json:"methods"`
+}
+
+// ReadyMethod: готовый метод одной строкой: вызов и назначение. Section:
+// "bsp" (библиотека стандартных подсистем) или "other" (сама конфигурация).
+// Сигнатуру и параметры отдаёт get_symbol по UID.
+type ReadyMethod struct {
+	Section string `json:"section"`
+	Call    string `json:"call"`
+	Summary string `json:"summary,omitempty"`
+	UID     string `json:"uid"`
 }
 
 // normalizeBudgetChars — §24 шаг 1: budget = normalizeBudgetChars(...), один

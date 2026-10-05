@@ -33,6 +33,28 @@ func TestDumpModuleKindFileNames(t *testing.T) {
 	}
 }
 
+// TestDumpChildSubsystemPath — путь вложенной подсистемы. Значения взяты из
+// раскладки платформы (так лежат подсистемы БСП в выгрузке типовой), а не из
+// кода под тестом: читатель состава подсистемы и его фикстура строят путь
+// одной функцией, и ошибка в ней иначе была бы согласована сама с собой.
+func TestDumpChildSubsystemPath(t *testing.T) {
+	cases := []struct {
+		parent, child, want string
+	}{
+		{"Subsystems/СтандартныеПодсистемы.xml", "БазоваяФункциональность",
+			"Subsystems/СтандартныеПодсистемы/Subsystems/БазоваяФункциональность.xml"},
+		{"Subsystems/А/Subsystems/Б.xml", "В", "Subsystems/А/Subsystems/Б/Subsystems/В.xml"},
+	}
+	for _, c := range cases {
+		if got := DumpChildSubsystemPath(c.parent, c.child); got != c.want {
+			t.Errorf("DumpChildSubsystemPath(%q, %q) = %q, want %q", c.parent, c.child, got, c.want)
+		}
+	}
+	if got, want := DumpDeclarationPath("Subsystem", "СтандартныеПодсистемы"), cases[0].parent; got != want {
+		t.Errorf("объявление подсистемы верхнего уровня = %q, want %q", got, want)
+	}
+}
+
 // TestEveryCollectionIsConformant — построение и проверка формы обязаны знать
 // один и тот же список. Иначе правило расходится само с собой: путь построен,
 // а проверка формы его не признаёт — и гард выдаёт автору сида ложную тревогу.
