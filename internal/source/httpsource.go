@@ -64,11 +64,51 @@ func (s *HTTPSource) post(ctx context.Context, path string, body, out any) error
 	return s.do(req, out)
 }
 
+// ConnectorError is a failure reported by the connector: the HTTP status it meant,
+// a machine-readable code (empty for connectors older than the error envelope) and the
+// text, which for a failed query is the text of the 1C exception.
+type ConnectorError struct {
+	Path    string
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *ConnectorError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("connector %s: HTTP %d (%s): %s", e.Path, e.Status, e.Code, e.Message)
+	}
+	return fmt.Sprintf("connector %s: HTTP %d: %s", e.Path, e.Status, e.Message)
+}
+
+// errorEnvelopeHeader asks the connector to report a failure as HTTP 200 with an
+// {"error": {...}} body. A web server in front of 1C (IIS) replaces the body of a
+// 4xx/5xx answer with its own page, so the text of the 1C exception was lost on the way.
+// A connector that does not know the header keeps answering with a status code.
+const errorEnvelopeHeader = "X-MCP-Errors"
+
+// errorEnvelope returns the error carried by a connector answer, or nil when the
+// answer is an ordinary result.
+func errorEnvelope(path string, data []byte) *ConnectorError {
+	var w struct {
+		Error *struct {
+			Status  int    `json:"status"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(data, &w); err != nil || w.Error == nil {
+		return nil
+	}
+	return &ConnectorError{Path: path, Status: w.Error.Status, Code: w.Error.Code, Message: w.Error.Message}
+}
+
 func (s *HTTPSource) do(req *http.Request, out any) error {
 	if s.user != "" {
 		req.SetBasicAuth(s.user, s.pass)
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set(errorEnvelopeHeader, "envelope")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -81,7 +121,10 @@ func (s *HTTPSource) do(req *http.Request, out any) error {
 		return fmt.Errorf("read %s response: %w", req.URL.Path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("connector %s: HTTP %d: %s", req.URL.Path, resp.StatusCode, strings.TrimSpace(string(data)))
+		return &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode, Message: strings.TrimSpace(string(data))}
+	}
+	if failure := errorEnvelope(req.URL.Path, data); failure != nil {
+		return failure
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
