@@ -107,6 +107,47 @@ func (p *Projects) ActiveState() ActiveProjectState {
 	return p.snapshotLocked()
 }
 
+// ComponentDir: каталог одного компонента проекта.
+type ComponentDir struct {
+	ID  domain.ComponentID
+	Dir string
+}
+
+// OtherComponentDirs: компоненты активного проекта, кроме самой активной
+// выгрузки, в порядке манифеста. По ним raw-поиск кода видит расширения. Пусто,
+// когда выгрузка проекту не принадлежит или манифест не читается. Манифест
+// читается с диска на каждый вызов, как при привязке выгрузки: правка состава
+// видна без перезапуска.
+func (p *Projects) OtherComponentDirs() []ComponentDir {
+	p.activeMu.Lock()
+	p.ensureDecidedLocked()
+	id, dump, foreign := p.active.project, p.active.dumpDir, p.active.foreignDump
+	p.activeMu.Unlock()
+	if p.registry == nil || id == "" || dump == "" || foreign {
+		return nil
+	}
+	entry, ok := p.registry.Project(id)
+	if !ok {
+		return nil
+	}
+	l := p.layoutOf(entry, nil)
+	if l.err != nil {
+		return nil
+	}
+	canon, err := canonicalRoot(dump)
+	if err != nil {
+		canon = dump
+	}
+	var out []ComponentDir
+	for i, dir := range l.dirs {
+		if equalRootPath(dir, canon) {
+			continue
+		}
+		out = append(out, ComponentDir{ID: l.ids[i], Dir: dir})
+	}
+	return out
+}
+
 // activeProjectID отдаёт индексный проект процесса и каталог выгрузки одним
 // чтением, чтобы Active объяснял отказ по той же паре, что видит server_info.
 func (p *Projects) activeProjectID() (domain.ProjectID, string, string) {
@@ -159,8 +200,10 @@ func (p *Projects) ensureDecidedLocked() {
 
 // entryLayout: корень проекта и каталоги его компонентов в порядке манифеста.
 type entryLayout struct {
-	root      string
+	root string
+	// dirs и ids идут парой: каталог компонента и его id.
 	dirs      []string
+	ids       []domain.ComponentID
 	configDir string
 	err       error // манифест обычной записи не прочитался
 }
@@ -181,7 +224,7 @@ func (l entryLayout) rawDir() string {
 // есть выгрузка, это единственный случай, когда в счёт идёт Root записи.
 func (p *Projects) layoutOf(entry workspace.ProjectEntry, manifest *workspace.Manifest) entryLayout {
 	if entry.Temporary {
-		return entryLayout{root: entry.Root, dirs: []string{entry.Root}, configDir: entry.Root}
+		return entryLayout{root: entry.Root, dirs: []string{entry.Root}, ids: []domain.ComponentID{""}, configDir: entry.Root}
 	}
 	var m workspace.Manifest
 	if manifest != nil {
@@ -199,6 +242,7 @@ func (p *Projects) layoutOf(entry workspace.ProjectEntry, manifest *workspace.Ma
 	}
 	for _, c := range m.Components {
 		l.dirs = append(l.dirs, c.AbsRoot)
+		l.ids = append(l.ids, c.ID)
 	}
 	if c, ok := m.Configuration(); ok {
 		l.configDir = c.AbsRoot

@@ -180,7 +180,7 @@ type SearchParams struct {
 	Regex      bool   `json:"regex,omitempty" jsonschema:"treat query as a regular expression"`
 	IgnoreCase bool   `json:"ignoreCase,omitempty" jsonschema:"case-insensitive search"`
 	MaxResults int    `json:"maxResults,omitempty" jsonschema:"default 100"`
-	Scope      string `json:"scope,omitempty" jsonschema:"only modules whose path contains this, e.g. CommonModules"`
+	Scope      string `json:"scope,omitempty" jsonschema:"only modules whose path contains this, e.g. CommonModules; a module of an extension is addressed as <component>/<path>, and a scope starting with the component id searches that extension alone"`
 	Total      bool   `json:"total,omitempty" jsonschema:"count every match past the limit (slower)"`
 }
 
@@ -198,8 +198,11 @@ type SearchResult struct {
 // SearchMatch is a single matching line in a module.
 type SearchMatch struct {
 	File string `json:"file" jsonschema:"module path relative to the export root"`
-	Line int    `json:"line"`
-	Text string `json:"text"`
+	// Component is set for a hit outside the main export: the id of the project
+	// component (an extension) whose root File is relative to.
+	Component string `json:"component,omitempty" jsonschema:"project component (extension) the module belongs to; absent for the main configuration"`
+	Line      int    `json:"line"`
+	Text      string `json:"text"`
 	// Procedure is the enclosing Процедура/Функция. A file:line pair says where
 	// a hit is; the procedure name says what it is part of, which is what the
 	// caller needs before deciding to open the module.

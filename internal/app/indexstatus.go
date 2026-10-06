@@ -283,6 +283,12 @@ func (s *IndexStatusService) Reindex(ctx context.Context, in ReindexInput) (Resp
 	if err != nil {
 		return Response[ReindexResultItem]{}, err
 	}
+	// Манифест мог измениться с открытия проекта: reindex — место, где его
+	// правка применяется без перезапуска сервера.
+	op, change, err := s.projects.reloadManifest(op)
+	if err != nil {
+		return Response[ReindexResultItem]{}, err
+	}
 
 	modeIn := in.Mode
 	if strings.TrimSpace(modeIn) == "" && defaultMode != "" {
@@ -300,6 +306,15 @@ func (s *IndexStatusService) Reindex(ctx context.Context, in ReindexInput) (Resp
 			return Response[ReindexResultItem]{}, ComponentNotRegisteredError(comp, componentIDs(op.Manifest)).
 				WithProject(op.Entry.ID)
 		}
+	}
+
+	var warnings []Warning
+	if !change.empty() {
+		forcedFull := change.needsFull() && (mode != index.ModeFull || comp != "")
+		if change.needsFull() {
+			mode, comp = index.ModeFull, ""
+		}
+		warnings = append(warnings, change.warning(forcedFull))
 	}
 
 	result, err := op.Service.Reindex(ctx, mode, comp)
@@ -343,6 +358,7 @@ func (s *IndexStatusService) Reindex(ctx context.Context, in ReindexInput) (Resp
 
 	return Response[ReindexResultItem]{
 		Generation: result.Generation,
+		Warnings:   warnings,
 		Items:      []ReindexResultItem{item},
 		TotalCount: 1,
 	}, nil

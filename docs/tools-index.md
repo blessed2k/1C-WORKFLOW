@@ -946,6 +946,11 @@ walBytes, diagnostics[], candidates[] (workspace.Candidate — компонен�
 components[] (component, filesChanged, filesRemoved, symbols,
 diagnostics[]), diagnostics[]`.
 
+`reindex` перечитывает `1c-project.json` на каждый вызов: компонент, добавленный в
+манифест, индексируется без перезапуска сервера. Убранный или изменённый компонент
+переводит прогон в полную пересборку по всем компонентам (инкремент его факты не
+снимает). Об изменении состава говорит предупреждение `manifest_reloaded`.
+
 **Коды ошибок**: `no_active_project`, `not_found` (`project` не совпадает с
 активным — `index_status`), `component_not_registered` (`reindex` с
 неизвестным `component`).
