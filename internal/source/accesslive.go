@@ -2,7 +2,9 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 )
@@ -85,6 +87,8 @@ type UserAccess struct {
 type AccessSettings struct {
 	AccessManagement bool `json:"accessManagement" jsonschema:"ИспользоватьУправлениеДоступом"`
 	RecordLevel      bool `json:"recordLevel" jsonschema:"ОграничиватьДоступНаУровнеЗаписей"`
+	// Note говорит, что часть переключателей прочитать не удалось и почему.
+	Note string `json:"note,omitempty"`
 }
 
 // AccessProfileReport — ответ инструмента access_profiles.
@@ -159,6 +163,12 @@ func accessSettings(ctx context.Context, run queryRunner) (AccessSettings, error
 	Константы.ОграничиватьДоступНаУровнеЗаписей КАК ПоЗаписям
 ИЗ
 	Константы КАК Константы`})
+	if queryRejected(err) {
+		// Константы ИспользоватьУправлениеДоступом нет во многих конфигурациях (в «Бухгалтерии
+		// предприятия» тоже), а запрос с несуществующей константой падает целиком. Без неё
+		// инструмент отвечал ошибкой в каждой такой базе.
+		return recordLevelOnly(ctx, run)
+	}
 	if err != nil {
 		return AccessSettings{}, fmt.Errorf("настройки подсистемы прав: %w", err)
 	}
@@ -172,10 +182,41 @@ func accessSettings(ctx context.Context, run queryRunner) (AccessSettings, error
 	}, nil
 }
 
+// recordLevelOnly читает единственный переключатель, который есть в любой конфигурации с
+// подсистемой управления доступом.
+func recordLevelOnly(ctx context.Context, run queryRunner) (AccessSettings, error) {
+	res, err := run.ExecuteQuery(ctx, QueryParams{Text: `ВЫБРАТЬ
+	Константы.ОграничиватьДоступНаУровнеЗаписей КАК ПоЗаписям
+ИЗ
+	Константы КАК Константы`})
+	if err != nil {
+		return AccessSettings{}, fmt.Errorf("настройки подсистемы прав: %w", err)
+	}
+	settings := AccessSettings{Note: "константы ИспользоватьУправлениеДоступом в конфигурации нет, accessManagement не прочитан"}
+	if len(res.Rows) > 0 {
+		settings.RecordLevel = asBool(res.Rows[0]["ПоЗаписям"])
+	}
+	return settings, nil
+}
+
+// queryRejected сообщает, что базу спросили, а она отвергла сам текст запроса: коннектор
+// ответил query_failed либо, если он старше конверта ошибок, кодом 400. Недоступная база и
+// прерванный по времени запрос сюда не относятся.
+func queryRejected(err error) bool {
+	var failure *ConnectorError
+	if !errors.As(err, &failure) {
+		return false
+	}
+	if failure.Code != "" {
+		return failure.Code == "query_failed"
+	}
+	return failure.Status == http.StatusBadRequest
+}
+
 func profileList(ctx context.Context, run queryRunner) ([]LiveAccessProfile, error) {
 	res, err := run.ExecuteQuery(ctx, QueryParams{Limit: 500, Text: `ВЫБРАТЬ
 	Профиль.Наименование КАК Профиль,
-	Профиль.Комментарий КАК Комментарий,
+	ВЫРАЗИТЬ(Профиль.Комментарий КАК СТРОКА(1000)) КАК Комментарий,
 	Профиль.ПоставляемыйПрофильИзменен КАК Изменен,
 	Профиль.ИдентификаторПоставляемыхДанных КАК Поставляемый,
 	КОЛИЧЕСТВО(ТЧРоли.Роль) КАК ЧислоРолей
@@ -187,7 +228,7 @@ func profileList(ctx context.Context, run queryRunner) ([]LiveAccessProfile, err
 	НЕ Профиль.ПометкаУдаления
 СГРУППИРОВАТЬ ПО
 	Профиль.Наименование,
-	Профиль.Комментарий,
+	ВЫРАЗИТЬ(Профиль.Комментарий КАК СТРОКА(1000)),
 	Профиль.ПоставляемыйПрофильИзменен,
 	Профиль.ИдентификаторПоставляемыхДанных
 УПОРЯДОЧИТЬ ПО

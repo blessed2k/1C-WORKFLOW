@@ -106,6 +106,60 @@ func TestNewServerConfiguresExportCache(t *testing.T) {
 	}
 }
 
+// resolveLiveFlags binds the live-mode tunables to a private FlagSet the way the
+// entrypoint does over flag.CommandLine.
+func resolveLiveFlags(t *testing.T, args ...string) options {
+	t.Helper()
+	var o options
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	registerLiveFlags(fs, &o)
+	if err := fs.Parse(args); err != nil {
+		t.Fatalf("parse %v: %v", args, err)
+	}
+	return o
+}
+
+// TestQueryTimeoutResolution: 30 seconds unless told otherwise, the flag beats the
+// environment, a typo in the environment falls back to the default, and an explicit
+// zero switches the limit off.
+func TestQueryTimeoutResolution(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		args []string
+		want time.Duration
+	}{
+		{name: "default", want: 30 * time.Second},
+		{name: "from env", env: "45s", want: 45 * time.Second},
+		{name: "flag over env", env: "45s", args: []string{"--query-timeout=2m"}, want: 2 * time.Minute},
+		{name: "unparsable env", env: "half a minute", want: 30 * time.Second},
+		{name: "explicit zero disables", args: []string{"--query-timeout=0"}, want: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv("MCP_1C_QUERY_TIMEOUT", tc.env)
+			}
+			if got := resolveLiveFlags(t, tc.args...).queryTimeout; got != tc.want {
+				t.Errorf("queryTimeout = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNewServerConfiguresQueryTimeout: the flag is useless unless the server hands
+// the value to internal/source, where the connector client reads it.
+func TestNewServerConfiguresQueryTimeout(t *testing.T) {
+	before := source.LiveQueryTimeout()
+	t.Cleanup(func() { source.ConfigureLive(before) })
+
+	newServer(options{queryTimeout: 12 * time.Second})
+
+	if got := source.LiveQueryTimeout(); got != 12*time.Second {
+		t.Errorf("live query timeout = %v, want 12s", got)
+	}
+}
+
 // resolveGraphFlags binds the object-graph tunables to a private FlagSet the
 // way the entrypoint does over flag.CommandLine.
 func resolveGraphFlags(t *testing.T, args ...string) options {

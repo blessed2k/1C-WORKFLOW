@@ -64,11 +64,51 @@ func (s *HTTPSource) post(ctx context.Context, path string, body, out any) error
 	return s.do(req, out)
 }
 
+// ConnectorError is a failure reported by the connector: the HTTP status it meant,
+// a machine-readable code (empty for connectors older than the error envelope) and the
+// text, which for a failed query is the text of the 1C exception.
+type ConnectorError struct {
+	Path    string
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *ConnectorError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("connector %s: HTTP %d (%s): %s", e.Path, e.Status, e.Code, e.Message)
+	}
+	return fmt.Sprintf("connector %s: HTTP %d: %s", e.Path, e.Status, e.Message)
+}
+
+// errorEnvelopeHeader asks the connector to report a failure as HTTP 200 with an
+// {"error": {...}} body. A web server in front of 1C (IIS) replaces the body of a
+// 4xx/5xx answer with its own page, so the text of the 1C exception was lost on the way.
+// A connector that does not know the header keeps answering with a status code.
+const errorEnvelopeHeader = "X-MCP-Errors"
+
+// errorEnvelope returns the error carried by a connector answer, or nil when the
+// answer is an ordinary result.
+func errorEnvelope(path string, data []byte) *ConnectorError {
+	var w struct {
+		Error *struct {
+			Status  int    `json:"status"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(data, &w); err != nil || w.Error == nil {
+		return nil
+	}
+	return &ConnectorError{Path: path, Status: w.Error.Status, Code: w.Error.Code, Message: w.Error.Message}
+}
+
 func (s *HTTPSource) do(req *http.Request, out any) error {
 	if s.user != "" {
 		req.SetBasicAuth(s.user, s.pass)
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set(errorEnvelopeHeader, "envelope")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -81,7 +121,10 @@ func (s *HTTPSource) do(req *http.Request, out any) error {
 		return fmt.Errorf("read %s response: %w", req.URL.Path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("connector %s: HTTP %d: %s", req.URL.Path, resp.StatusCode, strings.TrimSpace(string(data)))
+		return &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode, Message: strings.TrimSpace(string(data))}
+	}
+	if failure := errorEnvelope(req.URL.Path, data); failure != nil {
+		return failure
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
@@ -102,11 +145,23 @@ func (s *HTTPSource) ConfigurationInfo(ctx context.Context) (*ConfigurationInfo,
 		Vendor          string `json:"vendor"`
 		PlatformVersion string `json:"platform_version"`
 		Mode            string `json:"mode"`
+		Connector       *struct {
+			Version  string   `json:"version"`
+			Features []string `json:"features"`
+		} `json:"connector"`
+		Extensions []struct {
+			Name     string `json:"name"`
+			Synonym  string `json:"synonym"`
+			Version  string `json:"version"`
+			Active   bool   `json:"active"`
+			SafeMode any    `json:"safe_mode"`
+		} `json:"extensions"`
+		ExtensionsError string `json:"extensions_error"`
 	}
 	if err := s.get(ctx, "/configuration", &w); err != nil {
 		return nil, err
 	}
-	return &ConfigurationInfo{
+	info := &ConfigurationInfo{
 		Name:            w.Name,
 		Synonym:         w.Synonym,
 		Version:         w.Version,
@@ -114,7 +169,17 @@ func (s *HTTPSource) ConfigurationInfo(ctx context.Context) (*ConfigurationInfo,
 		PlatformVersion: w.PlatformVersion,
 		Mode:            w.Mode,
 		ObjectCounts:    map[string]int{},
-	}, nil
+		ExtensionsError: w.ExtensionsError,
+	}
+	if w.Connector != nil {
+		info.Connector = &ConnectorInfo{Version: w.Connector.Version, Features: w.Connector.Features}
+	}
+	for _, e := range w.Extensions {
+		info.Extensions = append(info.Extensions, ExtensionInfo{
+			Name: e.Name, Synonym: e.Synonym, Version: e.Version, Active: e.Active, SafeMode: e.SafeMode,
+		})
+	}
+	return info, nil
 }
 
 // ruCollectionToType maps the Russian collection keys returned by /metadata to
@@ -321,12 +386,19 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 	if params.Limit > 0 {
 		body["limit"] = params.Limit
 	}
+	if seconds := queryTimeoutSeconds(); seconds > 0 {
+		body["timeout"] = seconds
+	}
+	if params.Refs {
+		body["refs"] = true
+	}
 
 	var w struct {
-		Columns   []string `json:"columns"`
-		Rows      [][]any  `json:"rows"`
-		Total     int      `json:"total"`
-		Truncated bool     `json:"truncated"`
+		Columns    []string `json:"columns"`
+		Rows       [][]any  `json:"rows"`
+		Total      int      `json:"total"`
+		Truncated  bool     `json:"truncated"`
+		DurationMS int      `json:"duration_ms"`
 	}
 	if err := s.post(ctx, "/query", body, &w); err != nil {
 		return nil, err
@@ -342,7 +414,7 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 		}
 		rows = append(rows, m)
 	}
-	return &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated}, nil
+	return &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated, DurationMS: w.DurationMS}, nil
 }
 
 // ValidateQuery implements LiveSource via POST /validate-query.
@@ -388,36 +460,106 @@ func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*Even
 	if params.Limit > 0 {
 		body["limit"] = params.Limit
 	}
+	if seconds := queryTimeoutSeconds(); seconds > 0 {
+		body["timeout"] = seconds
+	}
+	// Filters a connector learned together with reporting what it applied. An older
+	// connector drops them silently, so each one sent is checked against the answer.
+	var extended []string
+	add := func(key string, value any, set bool) {
+		if set {
+			body[key] = value
+			extended = append(extended, key)
+		}
+	}
+	add("events", params.Events, len(params.Events) > 0)
+	add("metadata", params.Metadata, len(params.Metadata) > 0)
+	add("sessions", params.Sessions, len(params.Sessions) > 0)
+	add("applications", params.Applications, len(params.Applications) > 0)
+	add("computer", params.Computer, params.Computer != "")
+	add("data", params.Data, len(params.Data) > 0)
+	add("data_presentation", params.DataPresentation, params.DataPresentation != "")
+	add("comment", params.Comment, params.Comment != "")
+	add("transaction_status", params.TransactionStatus, params.TransactionStatus != "")
+	add("transaction", params.Transaction, params.Transaction != "")
+	add("order", params.Order, params.Order != "")
+	add("offset", params.Offset, params.Offset > 0)
+	if params.MaxComment > 0 {
+		body["max_comment"] = params.MaxComment
+	}
 
 	var w struct {
 		Events []struct {
-			Date     string `json:"date"`
-			Level    string `json:"level"`
-			Event    string `json:"event"`
-			User     string `json:"user"`
-			Comment  string `json:"comment"`
-			Metadata string `json:"metadata"`
+			Date              string `json:"date"`
+			Level             string `json:"level"`
+			Event             string `json:"event"`
+			EventID           string `json:"event_id"`
+			User              string `json:"user"`
+			Computer          string `json:"computer"`
+			Application       string `json:"application"`
+			ApplicationID     string `json:"application_id"`
+			Session           int    `json:"session"`
+			Connection        int    `json:"connection"`
+			Comment           string `json:"comment"`
+			Metadata          string `json:"metadata"`
+			MetadataID        string `json:"metadata_id"`
+			Data              any    `json:"data"`
+			DataPresentation  string `json:"data_presentation"`
+			TransactionStatus string `json:"transaction_status"`
+			Transaction       string `json:"transaction"`
 		} `json:"events"`
-		Total     int  `json:"total"`
-		Truncated bool `json:"truncated"`
+		Total     int      `json:"total"`
+		Truncated bool     `json:"truncated"`
+		Applied   []string `json:"applied"`
 	}
 	if err := s.post(ctx, "/eventlog", body, &w); err != nil {
 		return nil, err
+	}
+	if ignored := missingFrom(extended, w.Applied); len(ignored) > 0 {
+		return nil, fmt.Errorf("the connector of this base ignored the event log filters %s: it is older than these filters, "+
+			"and its answer is the whole window, not the filtered one; install the current connector extension",
+			strings.Join(ignored, ", "))
 	}
 
 	entries := make([]EventLogEntry, len(w.Events))
 	for i, e := range w.Events {
 		entries[i] = EventLogEntry{
-			Date:     e.Date,
-			Level:    e.Level,
-			User:     e.User,
-			Event:    e.Event,
-			Comment:  e.Comment,
-			Metadata: e.Metadata,
+			Date:              e.Date,
+			Level:             e.Level,
+			User:              e.User,
+			Event:             e.Event,
+			Comment:           e.Comment,
+			Metadata:          e.Metadata,
+			EventID:           e.EventID,
+			Computer:          e.Computer,
+			Application:       e.Application,
+			ApplicationID:     e.ApplicationID,
+			Session:           e.Session,
+			Connection:        e.Connection,
+			MetadataID:        e.MetadataID,
+			Data:              e.Data,
+			DataPresentation:  e.DataPresentation,
+			TransactionStatus: e.TransactionStatus,
+			Transaction:       e.Transaction,
 		}
 	}
 	// Обрезку определяет коннектор: он знает и свой потолок, и то, была ли следующая запись.
 	return &EventLogResult{Entries: entries, Count: w.Total, Truncated: w.Truncated}, nil
+}
+
+// missingFrom returns the elements of want that are absent from have, in order.
+func missingFrom(want, have []string) []string {
+	present := make(map[string]bool, len(have))
+	for _, h := range have {
+		present[h] = true
+	}
+	var missing []string
+	for _, w := range want {
+		if !present[w] {
+			missing = append(missing, w)
+		}
+	}
+	return missing
 }
 
 // Subsystem implements LiveSource via GET /subsystem/{name}.
