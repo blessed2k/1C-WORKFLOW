@@ -414,7 +414,12 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 		}
 		rows = append(rows, m)
 	}
-	return &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated, DurationMS: w.DurationMS}, nil
+	res := &QueryResult{Columns: w.Columns, Rows: rows, Count: w.Total, Truncated: w.Truncated, DurationMS: w.DurationMS}
+	if res.Truncated {
+		res.Note = fmt.Sprintf("Показаны первые %d строк, строк в результате больше. Итог, количество и вывод «больше ничего нет» "+
+			"по этой части делать нельзя: посчитайте в самом запросе (КОЛИЧЕСТВО, СУММА), добавьте отбор или поднимите limit.", len(rows))
+	}
+	return res, nil
 }
 
 // ValidateQuery implements LiveSource via POST /validate-query.
@@ -544,7 +549,18 @@ func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*Even
 		}
 	}
 	// Обрезку определяет коннектор: он знает и свой потолок, и то, была ли следующая запись.
-	return &EventLogResult{Entries: entries, Count: w.Total, Truncated: w.Truncated}, nil
+	res := &EventLogResult{Entries: entries, Count: w.Total, Truncated: w.Truncated}
+	if res.Truncated {
+		shown := "последние"
+		if strings.EqualFold(params.Order, "asc") {
+			shown = "первые"
+		}
+		res.Note = fmt.Sprintf("Показаны %s %d записей окна, под отбор попадает больше: это не весь период. "+
+			"Вывод о том, чего в журнале нет или чем всё закончилось, по этой части делать нельзя. "+
+			"Сузьте окно по времени, добавьте отбор (level, events, user, sessions) или читайте дальше через offset.",
+			shown, len(entries))
+	}
+	return res, nil
 }
 
 // missingFrom returns the elements of want that are absent from have, in order.

@@ -325,6 +325,9 @@ type QueryResult struct {
 	// DurationMS is how long the query ran in the base, as measured by the connector;
 	// zero when the connector is older and does not report it.
 	DurationMS int `json:"durationMs,omitempty" jsonschema:"how long the query ran in the base, milliseconds"`
+	// Note is set when the result is cut: what part is shown and what must not be
+	// concluded from it.
+	Note string `json:"note,omitempty" jsonschema:"present when the result is cut by the row limit"`
 }
 
 // ValidateResult reports whether a query compiles.
@@ -363,6 +366,9 @@ type EventLogResult struct {
 	Entries   []EventLogEntry `json:"entries"`
 	Count     int             `json:"count"`
 	Truncated bool            `json:"truncated,omitempty"`
+	// Note is set when the window is cut: which end of it is shown and what must
+	// not be concluded from that part.
+	Note string `json:"note,omitempty" jsonschema:"present when the window is cut by the entry limit"`
 }
 
 // EventLogEntry is one registration-log record.
