@@ -5,6 +5,8 @@
 
 ## [Не выпущено]
 
+## [0.3.0]
+
 ### Добавлено
 
 - `get_event_log` и `execute_query`: поле ответа `note`, когда ответ обрезан по пределу. В нём сказано,
@@ -207,5 +209,6 @@
   возвращает поле `type` с числом членов и конструкторами. Прежние вызовы отвечают как раньше.
 - `mcp1c graph`: локальная веб-карта объектного графа.
 
+[0.3.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.3.0
 [0.2.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.2.0
 [0.1.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.1.0
