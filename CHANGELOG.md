@@ -5,6 +5,17 @@
 
 ## [Не выпущено]
 
+### Добавлено
+
+- Профиль `--tools=write` (`MCP_1C_TOOLS=write`): отдельный сервер записи в тестовую базу через
+  расширение `MCPЗапись` (HTTP-сервис `mcp-write`, описание обмена в `connector/README.md`,
+  раздел «Запись»). Восемь инструментов: `create_object`, `update_object`, `post_document`,
+  `unpost_document`, `set_deletion_mark`, `set_constant`, `write_register_record`,
+  `delete_register_record`, у каждого вход `base` и `dry_run`; плюс `server_info`, `list_bases`,
+  `set_base`. Читающих инструментов в этом профиле нет, а записывающих нет в `full` и `core`:
+  сервер записи запускается со своим файлом баз, где только тестовые базы. Клиент
+  `source.WriteClient` шлёт заголовок `X-MCP-Errors: envelope`, как к коннектору.
+
 ## [0.3.0]
 
 ### Добавлено

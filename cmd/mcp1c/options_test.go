@@ -262,6 +262,8 @@ func TestToolsProfileResolution(t *testing.T) {
 		{name: "flag", args: []string{"--tools=core"}, want: profileCore},
 		{name: "flag case", args: []string{"--tools=CORE"}, want: profileCore},
 		{name: "env", env: "core", want: profileCore},
+		{name: "flag write", args: []string{"--tools=write"}, want: profileWrite},
+		{name: "env write", env: "write", want: profileWrite},
 		{name: "flag over env", env: "core", args: []string{"--tools=full"}, want: profileFull},
 		{name: "bad env", env: "minimal", want: profileFull},
 		{name: "bad flag", env: "core", args: []string{"--tools=everything"}, want: profileFull},

@@ -349,6 +349,12 @@ func newServer(opts options) *mcp.Server {
 func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 	impl := &mcp.Implementation{Name: serverName, Version: version}
 
+	// The write profile is a server of its own: no dump, no index, no read tools
+	// (write.go).
+	if opts.toolsProfile.orDefault() == profileWrite {
+		return newWriteServer(opts, impl)
+	}
+
 	// The export cache is process-wide, and so are its tunables: resolved once in
 	// parseFlags and handed over here. Without this call the cache keeps its
 	// off-by-default behaviour — no expiry, no ceiling — whatever the flags say.
@@ -406,21 +412,7 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 
 	// Live mode: a single --base and/or a --bases file (multi-base, switchable).
 	if opts.baseURL != "" || opts.basesFile != "" {
-		ls := newLiveState()
-		if opts.basesFile != "" {
-			if err := ls.loadFile(opts.basesFile); err != nil {
-				fmt.Fprintf(os.Stderr, "%s: %v\n", serverName, err)
-			}
-		}
-		if opts.baseURL != "" {
-			ls.add(baseConfig{Name: "default", URL: opts.baseURL, User: opts.user, Password: opts.password})
-			ls.setBase("default")
-		} else if ls.count() == 1 {
-			// One base means no ambiguity. With several, start with none selected:
-			// defaulting to the first entry is what made a reconnect answer from
-			// an unrelated base while looking perfectly healthy.
-			ls.setBase(ls.firstName())
-		}
+		ls := liveStateFromOptions(opts)
 		server := mcp.NewServer(impl, &mcp.ServerOptions{
 			CompletionHandler: completionHandler(ls.source),
 		})
@@ -555,13 +547,19 @@ type serverInfoState struct {
 	core *coreWarmer
 }
 
-// registerCoreTools wires server_info, bsl_syntax and the ConfigSource tools.
-// provide returns the active source for each call (nil when none is configured).
-func registerCoreTools(server *mcp.Server, describe func() (string, string), info *serverInfoState, provide func() source.ConfigSource, idx syntaxCorpus) {
+// registerServerInfo wires server_info; the write profile has it without the
+// rest of registerCoreTools.
+func registerServerInfo(server *mcp.Server, describe func() (string, string), info *serverInfoState) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "server_info",
 		Description: "Server version, active data source (offline dump, live base or none), active project (which indexed project the indexed tools read and whether it matches the dump), tool profile and coreMethods: the БСП methods the applied code of this configuration calls most, to check before writing a helper of your own. Call it when a tool reports no source or no active project.",
 	}, serverInfoHandler(describe, info))
+}
+
+// registerCoreTools wires server_info, bsl_syntax and the ConfigSource tools.
+// provide returns the active source for each call (nil when none is configured).
+func registerCoreTools(server *mcp.Server, describe func() (string, string), info *serverInfoState, provide func() source.ConfigSource, idx syntaxCorpus) {
+	registerServerInfo(server, describe, info)
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "bsl_syntax",

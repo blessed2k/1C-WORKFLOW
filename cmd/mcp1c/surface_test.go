@@ -171,7 +171,7 @@ func TestToolSurfaceIndexedListComplete(t *testing.T) {
 
 // TestServerInfoReportsProfile: server_info names the active tool profile.
 func TestServerInfoReportsProfile(t *testing.T) {
-	for _, профиль := range []toolsProfile{"", profileFull, profileCore} {
+	for _, профиль := range []toolsProfile{"", profileFull, profileCore, profileWrite} {
 		opts := options{toolsProfile: профиль}
 		res, err := сессияКлиента(t, opts).CallTool(context.Background(),
 			&mcp.CallToolParams{Name: "server_info", Arguments: map[string]any{}})

@@ -337,8 +337,10 @@ tunables процесса:
   инструменты не регистрируются вовсе
 - `MCP_1C_CACHE_TTL` (`--cache-ttl`, duration) — idle-TTL кэша выгрузки; `0` выключает истечение
 - `MCP_1C_CACHE_LIMIT` (`--cache-limit`, байты) — потолок памяти кэша; `0` выключает вытеснение
-- `MCP_1C_TOOLS` (`--tools`, `full`|`core`, по умолчанию `full`): профиль поверхности
-  инструментов; `core` не регистрирует `coreExcludedTools` (`cmd/mcp1c/tools.go`)
+- `MCP_1C_TOOLS` (`--tools`, `full`|`core`|`write`, по умолчанию `full`): профиль поверхности
+  инструментов; `core` не регистрирует `coreExcludedTools` (`cmd/mcp1c/tools.go`); `write` это
+  отдельный сервер только с инструментами записи в тестовую базу (`cmd/mcp1c/write.go`,
+  `newWriteServer`), без индекса и читающих инструментов, URL баз ведут на `/hs/mcp-write`
 - `MCP_1C_SYNTAX_INDEX` (`--syntax-index`) — файл индекса синтаксиса платформы; пусто —
   `syntax.DefaultPath()`
 - `MCP_1C_API_CARDS` (`--api-cards`): каталог карточек задач `find_api`; пусто:

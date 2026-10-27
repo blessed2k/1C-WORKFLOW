@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -205,8 +206,13 @@ func TestServerInstructionsFitClientLimit(t *testing.T) {
 			t.Error("instructions contain an em dash")
 		}
 	}
+	// The write profile and the read profiles never share a server, so the
+	// fullest read text and the write text are checked apart.
 	t.Run("all-tools", func(t *testing.T) {
-		check(t, buildInstructions(func(string) bool { return true }))
+		check(t, buildInstructions(func(name string) bool { return !slices.Contains(writeToolNames, name) }))
+	})
+	t.Run("write-tools", func(t *testing.T) {
+		check(t, buildInstructions(func(name string) bool { return slices.Contains(writeToolNames, name) }))
 	})
 	for _, v := range instructionVariants() {
 		t.Run(v.name, func(t *testing.T) {

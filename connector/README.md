@@ -123,6 +123,43 @@ Go-клиент разбирает конверт в `HTTPSource.do` и отда
 - Нигде не используется `Выполнить()`/`Вычислить()` над пользовательским вводом.
 - SELECT-guard продублирован на стороне Go-клиента (`ensureSelect`).
 
+## Запись: расширение MCPЗапись (`mcp-write`)
+
+Этот коннектор только читает. Запись в **тестовую** базу делает отдельное расширение
+`MCPЗапись` с HTTP-сервисом `MCPЗ_Сервис` (корневой URL `mcp-write`). Его исходники живут не
+здесь, а в репозитории расширений базы (`src/MCPЗапись`); в прод оно не ставится. Go-клиент:
+`internal/source/writeclient.go` (`WriteClient`), инструменты: профиль `--tools=write`
+(`cmd/mcp1c/write.go`). Сервер с этим профилем запускается отдельно от читающего, со своим файлом
+баз (`--bases`), где URL ведут на `/hs/mcp-write` и перечислены только тестовые базы.
+
+| Метод | Тело | Инструмент |
+|---|---|---|
+| `GET /info` | — | (проверка подключения: `name`, `version`, `safe_mode`) |
+| `POST /create` | `type, ref, attributes, tabular_sections, mode, dry_run` | `create_object` |
+| `POST /update` | то же | `update_object` |
+| `POST /post`, `POST /unpost` | `type, ref, dry_run` | `post_document`, `unpost_document` |
+| `POST /deletion-mark` | `type, ref, value, dry_run` | `set_deletion_mark` |
+| `POST /constant` | `name, value, dry_run` | `set_constant` |
+| `POST /register-write` | `type, period, dimensions, resources, attributes, dry_run` | `write_register_record` |
+| `POST /register-delete` | `type, period, dimensions, dry_run` | `delete_register_record` |
+
+- Значения как в параметрах `/query`: дата `2026-10-27` или `2026-10-27T10:00:00`, ссылка
+  `{type, ref}`, значение перечисления `{type, value}`, `null` даёт пустое значение. Значение,
+  которое платформа исказила бы при записи (длинная строка, лишние знаки числа), даёт ошибку.
+- `ref` у create задаёт агент: повтор create с тем же `ref` возвращает существующий объект
+  (`created=false`) и ничего не меняет.
+- Одно действие идёт одной транзакцией. `dry_run=true` записывает и отменяет транзакцию; у
+  документа в ответе `movements`: записи всех его регистров, прочитанные до отмены.
+- Ответ: `type, ref, created, ok, written, dry_run`, у объекта `presentation, deletion_mark` и
+  `number, date, posted` либо `code`; у константы `value, previous_value`; у регистра `record`,
+  `replaced` или `deleted`. Проверка заполнения (`messages`) и отказ записи (`write_error`) это
+  `ok=false`, а не ошибка: данные не записаны, агент их исправляет.
+- Ошибка входных данных уходит конвертом, как у этого коннектора: 400 (`bad_request`),
+  404 (`not_found`: объекта нет), 409 (`locked`: объект открыт пользователем), 500
+  (`internal_error`, подробности в журнале регистрации, событие `MCPЗапись.Ошибка`).
+- Права не обходятся: привилегированного режима нет, запись идёт правами пользователя
+  публикации. Регистр, подчинённый регистратору, не пишется: его пишет проведение документа.
+
 ## Как собрать `.cfe` и опубликовать
 
 1. **Создать расширение.** Версию формата выгрузки бери из свежей выгрузки той конфигурации,
