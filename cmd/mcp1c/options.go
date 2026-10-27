@@ -133,12 +133,14 @@ func warnMissingSyntaxIndex(path string) {
 
 // toolsProfile is the tool-surface profile: full registers every tool of the
 // mode, core leaves out the rarely used ones (coreExcludedTools) to spend
-// less of the client's context on tool definitions.
+// less of the client's context on tool definitions, write is a separate server
+// with only the write tools of a test base (write.go).
 type toolsProfile string
 
 const (
-	profileFull toolsProfile = "full"
-	profileCore toolsProfile = "core"
+	profileFull  toolsProfile = "full"
+	profileCore  toolsProfile = "core"
+	profileWrite toolsProfile = "write"
 	// defaultToolsProfile keeps the behaviour the server had before profiles.
 	defaultToolsProfile = profileFull
 )
@@ -150,6 +152,8 @@ func parseToolsProfile(raw string) (toolsProfile, bool) {
 		return profileFull, true
 	case profileCore:
 		return profileCore, true
+	case profileWrite:
+		return profileWrite, true
 	}
 	return "", false
 }
@@ -175,7 +179,7 @@ func (p *toolsProfile) String() string {
 func (p *toolsProfile) Set(raw string) error {
 	v, ok := parseToolsProfile(raw)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "%s: профиль инструментов %q неизвестен (допустимо full или core), используется %s\n",
+		fmt.Fprintf(os.Stderr, "%s: профиль инструментов %q неизвестен (допустимо full, core или write), используется %s\n",
 			serverName, raw, defaultToolsProfile)
 		v = defaultToolsProfile
 	}
@@ -187,7 +191,7 @@ func (p *toolsProfile) Set(raw string) error {
 func registerToolsFlag(fs *flag.FlagSet, o *options) {
 	o.toolsProfile = envToolsProfileOr("MCP_1C_TOOLS", defaultToolsProfile)
 	fs.Var(&o.toolsProfile, "tools",
-		"tool profile: full (every tool of the mode) or core (without the rarely used ones)")
+		"tool profile: full (every tool of the mode), core (without the rarely used ones) or write (only the write tools of a test base, a separate server)")
 }
 
 // envToolsProfileOr reads a profile from the environment, falling back to the

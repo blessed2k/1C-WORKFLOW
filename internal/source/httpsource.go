@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -103,6 +104,30 @@ func errorEnvelope(path string, data []byte) *ConnectorError {
 	return &ConnectorError{Path: path, Status: w.Error.Status, Code: w.Error.Code, Message: w.Error.Message}
 }
 
+// maxErrorBodyRunes caps the text of a failed answer that goes into an error.
+const maxErrorBodyRunes = 500
+
+var htmlTitle = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+
+// errorBodyText is the message of a non-200 answer. The connector sends plain
+// text, which stays as is; a web server in front of 1C (IIS on 404, 401, 500)
+// sends a whole HTML page, which would bury the one useful line under markup,
+// so only its title is kept. Anything longer than maxErrorBodyRunes is cut.
+func errorBodyText(contentType string, data []byte) string {
+	text := strings.TrimSpace(string(data))
+	if strings.Contains(strings.ToLower(contentType), "html") || strings.HasPrefix(text, "<") {
+		if m := htmlTitle.FindStringSubmatch(text); m != nil && strings.TrimSpace(m[1]) != "" {
+			text = strings.Join(strings.Fields(m[1]), " ") + " (страница веб-сервера, разметка опущена)"
+		} else {
+			text = "страница веб-сервера без текста ошибки (разметка опущена)"
+		}
+	}
+	if r := []rune(text); len(r) > maxErrorBodyRunes {
+		text = string(r[:maxErrorBodyRunes]) + "…"
+	}
+	return text
+}
+
 func (s *HTTPSource) do(req *http.Request, out any) error {
 	if s.user != "" {
 		req.SetBasicAuth(s.user, s.pass)
@@ -121,7 +146,8 @@ func (s *HTTPSource) do(req *http.Request, out any) error {
 		return fmt.Errorf("read %s response: %w", req.URL.Path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode, Message: strings.TrimSpace(string(data))}
+		return &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode,
+			Message: errorBodyText(resp.Header.Get("Content-Type"), data)}
 	}
 	if failure := errorEnvelope(req.URL.Path, data); failure != nil {
 		return failure

@@ -105,6 +105,47 @@ func (l *liveState) names() []string {
 	return out
 }
 
+// liveStateFromOptions builds the registry from --bases and --base. With one
+// base it is selected; with several none is, for the reason count explains.
+func liveStateFromOptions(opts options) *liveState {
+	ls := newLiveState()
+	if opts.basesFile != "" {
+		if err := ls.loadFile(opts.basesFile); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", serverName, err)
+		}
+	}
+	if opts.baseURL != "" {
+		ls.add(baseConfig{Name: "default", URL: opts.baseURL, User: opts.user, Password: opts.password})
+		ls.setBase("default")
+	} else if ls.count() == 1 {
+		// One base means no ambiguity. With several, start with none selected:
+		// defaulting to the first entry is what made a reconnect answer from
+		// an unrelated base while looking perfectly healthy.
+		ls.setBase(ls.firstName())
+	}
+	return ls
+}
+
+// writeServicePath ends the URL of every base the write profile accepts.
+const writeServicePath = "/hs/mcp-write"
+
+// writeFor returns a write client for the named base of the write profile. A
+// base whose URL does not point at the mcp-write service is refused: the write
+// server is meant to get its own bases file, and a read file handed to it by
+// mistake (MCP_1C_BASES set for every server) must not turn into writes.
+func (l *liveState) writeFor(name string) (*source.WriteClient, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	b, ok := l.bases[name]
+	if !ok {
+		return nil, fmt.Errorf("base %q is not configured; configured bases: %s", name, strings.Join(l.names0(), ", "))
+	}
+	if !strings.HasSuffix(strings.TrimRight(b.URL, "/"), writeServicePath) {
+		return nil, fmt.Errorf("base %q: URL %s does not end with %s; the write profile only writes through the MCPЗапись service", name, b.URL, writeServicePath)
+	}
+	return source.NewWriteClient(b.URL, b.User, b.Password), nil
+}
+
 // liveFor returns a one-shot LiveSource for the named base without touching the
 // active selection, so a call can name its own target instead of relying on
 // server state that a reconnect may have reset.
