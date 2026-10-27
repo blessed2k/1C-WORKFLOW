@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,47 @@ func TestWriteClientDo(t *testing.T) {
 	}
 	if gotBody["type"] != "Справочник.Контрагенты" || !out.OK || out.Ref != "r1" {
 		t.Errorf("body %v, answer %+v", gotBody, out)
+	}
+}
+
+// TestErrorBodyText: a web-server page keeps only its title, plain text from
+// the connector stays as is, and a long body is cut.
+func TestErrorBodyText(t *testing.T) {
+	page := "<!DOCTYPE html>\r\n<html><head><title>IIS 10.0 Detailed Error -\r\n 404.0 - Not Found</title>" +
+		"<style>body{}</style></head><body>" + strings.Repeat("<div>x</div>", 200) + "</body></html>"
+	long := strings.Repeat("я", maxErrorBodyRunes+10)
+	for _, tc := range []struct {
+		name, contentType, body, want string
+	}{
+		{"iis page", "text/html", page, "IIS 10.0 Detailed Error - 404.0 - Not Found (страница веб-сервера, разметка опущена)"},
+		{"html without content type", "", page, "IIS 10.0 Detailed Error - 404.0 - Not Found (страница веб-сервера, разметка опущена)"},
+		{"html without title", "text/html; charset=utf-8", "<html><body>oops</body></html>", "страница веб-сервера без текста ошибки (разметка опущена)"},
+		{"connector text", "text/plain; charset=utf-8", "  Запрос должен начинаться с ВЫБРАТЬ  ", "Запрос должен начинаться с ВЫБРАТЬ"},
+		{"long text", "text/plain", long, strings.Repeat("я", maxErrorBodyRunes) + "…"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := errorBodyText(tc.contentType, []byte(tc.body)); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWriteClientWebServerPage: an IIS page in place of the service answer
+// becomes a ConnectorError with the status and the page title only.
+func TestWriteClientWebServerPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("<html><head><title>404 - File or directory not found.</title></head><body><h2>long page</h2></body></html>"))
+	}))
+	defer srv.Close()
+
+	err := NewWriteClient(srv.URL, "", "").Do(context.Background(), WritePathCreate, map[string]any{}, nil)
+	var ce *ConnectorError
+	if !errors.As(err, &ce) || ce.Status != http.StatusNotFound ||
+		ce.Message != "404 - File or directory not found. (страница веб-сервера, разметка опущена)" {
+		t.Fatalf("err = %v", err)
 	}
 }
 

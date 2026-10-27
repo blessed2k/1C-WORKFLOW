@@ -76,7 +76,7 @@ type objectWriteInput struct {
 	Attributes      map[string]any              `json:"attributes,omitempty" jsonschema:"attribute values by name: a date as 2026-10-27 or 2026-10-27T10:00:00, a reference as {type, ref}, an enum value as {type, value}, null for an empty value"`
 	TabularSections map[string][]map[string]any `json:"tabular_sections,omitempty" jsonschema:"tabular sections by name, each an array of rows (field values as in attributes); a section that is sent replaces all its rows"`
 	Mode            string                      `json:"mode,omitempty" jsonschema:"write or post (documents only); for update of a posted document omit it: it is reposted, as from its form"`
-	DryRun          bool                        `json:"dry_run,omitempty" jsonschema:"write and roll back: the answer shows the result and, for a document, its movements, nothing stays in the base"`
+	DryRun          bool                        `json:"dry_run,omitempty" jsonschema:"write and roll back: the answer shows the result and, for a document, its movements, nothing stays in the base; number and code in it are provisional, the real write may get others"`
 }
 
 func (in objectWriteInput) target() string { return in.Base }
@@ -118,7 +118,7 @@ func (in deletionMarkInput) body() any {
 type constantInput struct {
 	Base   string `json:"base,omitempty" jsonschema:"test base to write to (see list_bases); omit for the active one"`
 	Name   string `json:"name" jsonschema:"constant name: ЗаголовокСистемы or Константа.ЗаголовокСистемы"`
-	Value  any    `json:"value" jsonschema:"new value, written as an attribute value (date, {type, ref}, {type, value}); null clears the constant"`
+	Value  any    `json:"value" jsonschema:"new value, written as an attribute value (date, {type, ref}, {type, value}); to clear a string constant send an empty string, JSON null gives the empty value of the type (never send the text null)"`
 	DryRun bool   `json:"dry_run,omitempty" jsonschema:"write and roll back"`
 }
 
@@ -219,7 +219,7 @@ var writeToolNames = []string{
 
 // registerWriteTools wires the write actions of the MCPЗапись extension.
 func registerWriteTools(server *mcp.Server, wp writeProvider) {
-	const dryRunHint = " Call it with dry_run=true first, then without it. Pass base=<name> to target one base for this call."
+	const dryRunHint = " Call it with dry_run=true first, then without it; a number or code in a dry_run answer is provisional, take the one from the real write. Pass base=<name> to target one base for this call."
 	addWriteTool[objectWriteInput](server, wp, "create_object",
 		"Creates a catalog item or a document in a TEST base, as a user would from its form: filling defaults, fill check, write (mode=post also posts a document). Fill-check messages and a refused write come back as ok=false with messages/write_error, nothing is written then; fix the data and repeat."+dryRunHint,
 		source.WritePathCreate)
@@ -236,7 +236,7 @@ func registerWriteTools(server *mcp.Server, wp writeProvider) {
 		"Sets (value=true) or clears (value=false) the deletion mark of a catalog item or document in a TEST base; marking a posted document cancels its posting, as in its form. Nothing is deleted physically."+dryRunHint,
 		source.WritePathDeletionMark)
 	addWriteTool[constantInput](server, wp, "set_constant",
-		"Writes the value of a constant in a TEST base; the answer has the previous value."+dryRunHint,
+		"Writes the value of a constant in a TEST base; the answer has the previous value. To clear a string constant send value \"\" (an empty string), not the text null."+dryRunHint,
 		source.WritePathConstant)
 	addWriteTool[registerWriteInput](server, wp, "write_register_record",
 		"Writes one record of an independent information register in a TEST base, keyed by period and dimensions; a record with the same key is replaced whole. Registers written by document posting are refused: post the document instead."+dryRunHint,
