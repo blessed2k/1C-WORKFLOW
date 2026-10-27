@@ -61,34 +61,12 @@ func resolveWrite(wp writeProvider, base string) (*source.WriteClient, string, e
 }
 
 // writeInput is one write tool's input: the target base and the JSON body sent
-// to the extension (the input without base).
+// to the extension. The body is the input itself without base: the json tags of
+// the input are the contract of the extension, and omitempty there leaves an
+// optional field to the extension's default.
 type writeInput interface {
 	target() string
-	body() map[string]any
-}
-
-// putNonEmpty adds a JSON field only when it carries something, so that the
-// extension applies its own default for an omitted one.
-func putNonEmpty(body map[string]any, key string, value any) {
-	switch v := value.(type) {
-	case string:
-		if v == "" {
-			return
-		}
-	case map[string]any:
-		if len(v) == 0 {
-			return
-		}
-	case map[string][]map[string]any:
-		if len(v) == 0 {
-			return
-		}
-	case bool:
-		if !v {
-			return
-		}
-	}
-	body[key] = value
+	body() any
 }
 
 type objectWriteInput struct {
@@ -103,13 +81,9 @@ type objectWriteInput struct {
 
 func (in objectWriteInput) target() string { return in.Base }
 
-func (in objectWriteInput) body() map[string]any {
-	b := map[string]any{"type": in.Type, "ref": in.Ref}
-	putNonEmpty(b, "attributes", in.Attributes)
-	putNonEmpty(b, "tabular_sections", in.TabularSections)
-	putNonEmpty(b, "mode", in.Mode)
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in objectWriteInput) body() any {
+	in.Base = ""
+	return in
 }
 
 type documentStateInput struct {
@@ -121,10 +95,9 @@ type documentStateInput struct {
 
 func (in documentStateInput) target() string { return in.Base }
 
-func (in documentStateInput) body() map[string]any {
-	b := map[string]any{"type": in.Type, "ref": in.Ref}
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in documentStateInput) body() any {
+	in.Base = ""
+	return in
 }
 
 type deletionMarkInput struct {
@@ -137,10 +110,9 @@ type deletionMarkInput struct {
 
 func (in deletionMarkInput) target() string { return in.Base }
 
-func (in deletionMarkInput) body() map[string]any {
-	b := map[string]any{"type": in.Type, "ref": in.Ref, "value": in.Value}
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in deletionMarkInput) body() any {
+	in.Base = ""
+	return in
 }
 
 type constantInput struct {
@@ -152,10 +124,9 @@ type constantInput struct {
 
 func (in constantInput) target() string { return in.Base }
 
-func (in constantInput) body() map[string]any {
-	b := map[string]any{"name": in.Name, "value": in.Value}
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in constantInput) body() any {
+	in.Base = ""
+	return in
 }
 
 type registerWriteInput struct {
@@ -170,14 +141,9 @@ type registerWriteInput struct {
 
 func (in registerWriteInput) target() string { return in.Base }
 
-func (in registerWriteInput) body() map[string]any {
-	b := map[string]any{"type": in.Type}
-	putNonEmpty(b, "period", in.Period)
-	putNonEmpty(b, "dimensions", in.Dimensions)
-	putNonEmpty(b, "resources", in.Resources)
-	putNonEmpty(b, "attributes", in.Attributes)
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in registerWriteInput) body() any {
+	in.Base = ""
+	return in
 }
 
 type registerDeleteInput struct {
@@ -190,12 +156,9 @@ type registerDeleteInput struct {
 
 func (in registerDeleteInput) target() string { return in.Base }
 
-func (in registerDeleteInput) body() map[string]any {
-	b := map[string]any{"type": in.Type}
-	putNonEmpty(b, "period", in.Period)
-	putNonEmpty(b, "dimensions", in.Dimensions)
-	putNonEmpty(b, "dry_run", in.DryRun)
-	return b
+func (in registerDeleteInput) body() any {
+	in.Base = ""
+	return in
 }
 
 // writeMessage is one fill-check or write message of the extension.

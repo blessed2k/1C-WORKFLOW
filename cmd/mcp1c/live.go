@@ -126,14 +126,22 @@ func liveStateFromOptions(opts options) *liveState {
 	return ls
 }
 
-// writeFor returns a write client for the named base of the write profile
-// (its URL points at the mcp-write service).
+// writeServicePath ends the URL of every base the write profile accepts.
+const writeServicePath = "/hs/mcp-write"
+
+// writeFor returns a write client for the named base of the write profile. A
+// base whose URL does not point at the mcp-write service is refused: the write
+// server is meant to get its own bases file, and a read file handed to it by
+// mistake (MCP_1C_BASES set for every server) must not turn into writes.
 func (l *liveState) writeFor(name string) (*source.WriteClient, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	b, ok := l.bases[name]
 	if !ok {
 		return nil, fmt.Errorf("base %q is not configured; configured bases: %s", name, strings.Join(l.names0(), ", "))
+	}
+	if !strings.HasSuffix(strings.TrimRight(b.URL, "/"), writeServicePath) {
+		return nil, fmt.Errorf("base %q: URL %s does not end with %s; the write profile only writes through the MCPЗапись service", name, b.URL, writeServicePath)
 	}
 	return source.NewWriteClient(b.URL, b.User, b.Password), nil
 }

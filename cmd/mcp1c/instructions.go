@@ -112,7 +112,8 @@ var instructionSections = []instrSection{
 	// Only the write profile has these tools, and it has nothing else: the line
 	// never shares the text with the read sections above.
 	{head: "WRITE DATA, test base only:", inline: true, lines: []instrLine{
-		{tools: writeToolNames, format: "%s: dry_run=true first; ref is a UUID you generate, reuse it on a retry"},
+		{tools: writeToolNames, format: "%s: dry_run=true first"},
+		{tools: []string{"create_object"}, format: "%s: ref is a UUID you generate, reuse it on a retry"},
 	}},
 }
 

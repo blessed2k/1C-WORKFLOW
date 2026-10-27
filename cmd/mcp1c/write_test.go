@@ -81,6 +81,10 @@ type fakeWriteService struct {
 	answer  map[string]any
 }
 
+// fakeWriteRoot is the published root of the fake service, as in a real
+// bases file of the write profile.
+const fakeWriteRoot = "/base/hs/mcp-write"
+
 func newFakeWriteService(t *testing.T) (*fakeWriteService, *httptest.Server) {
 	t.Helper()
 	f := &fakeWriteService{answer: map[string]any{}}
@@ -89,11 +93,12 @@ func newFakeWriteService(t *testing.T) (*fakeWriteService, *httptest.Server) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		user, _, _ := r.BasicAuth()
 		f.mu.Lock()
-		f.paths = append(f.paths, r.URL.Path)
+		path := strings.TrimPrefix(r.URL.Path, fakeWriteRoot)
+		f.paths = append(f.paths, path)
 		f.bodies = append(f.bodies, body)
 		f.headers = append(f.headers, r.Header.Clone())
 		f.users = append(f.users, user)
-		answer := f.answer[r.URL.Path]
+		answer := f.answer[path]
 		f.mu.Unlock()
 		if answer == nil {
 			answer = map[string]any{"ok": true, "written": true, "dry_run": false}
@@ -114,6 +119,12 @@ func (f *fakeWriteService) last(t *testing.T) (string, map[string]any, http.Head
 	}
 	i := len(f.paths) - 1
 	return f.paths[i], f.bodies[i], f.headers[i], f.users[i]
+}
+
+func (f *fakeWriteService) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.paths)
 }
 
 func writeOptions(baseURL string) options {
@@ -241,7 +252,7 @@ func схемаЗаписи(t *testing.T, схема any) (map[string]bool, map[
 // input minus base as the body, basic auth and the error envelope header.
 func TestWriteToolsPostBodyToTheirAction(t *testing.T) {
 	f, srv := newFakeWriteService(t)
-	cs := сессияКлиента(t, writeOptions(srv.URL))
+	cs := сессияКлиента(t, writeOptions(srv.URL+fakeWriteRoot))
 	ref := "6f1c3e9a-1111-4222-8333-944455556666"
 	for _, tc := range []struct {
 		tool string
@@ -313,7 +324,7 @@ func TestWriteToolPassesTheAnswerThrough(t *testing.T) {
 		"type": "Справочник.Контрагенты", "ref": "r2", "created": true, "ok": false, "written": false,
 		"dry_run": false, "messages": []any{map[string]any{"text": "Не заполнено наименование", "field": "Наименование"}},
 	}
-	cs := сессияКлиента(t, writeOptions(srv.URL))
+	cs := сессияКлиента(t, writeOptions(srv.URL+fakeWriteRoot))
 
 	res, out := callWrite(t, cs, "post_document", map[string]any{"type": "Документ.Заказ", "ref": "r1", "dry_run": true})
 	if res.IsError || out.Posted == nil || !*out.Posted || len(out.Movements["РегистрНакопления.Товары"]) != 1 {
@@ -334,7 +345,7 @@ func TestWriteToolReportsTheEnvelope(t *testing.T) {
 	f, srv := newFakeWriteService(t)
 	f.answer["/update"] = map[string]any{"error": map[string]any{
 		"status": 404, "code": "not_found", "message": "Объект Документ.Заказ со ссылкой r3 не найден."}}
-	cs := сессияКлиента(t, writeOptions(srv.URL))
+	cs := сессияКлиента(t, writeOptions(srv.URL+fakeWriteRoot))
 	res, _ := callWrite(t, cs, "update_object", map[string]any{"type": "Документ.Заказ", "ref": "r3"})
 	if !res.IsError {
 		t.Fatal("an envelope error must be a tool error")
@@ -354,7 +365,7 @@ func TestWriteToolBaseResolution(t *testing.T) {
 	fa, srvA := newFakeWriteService(t)
 	fb, srvB := newFakeWriteService(t)
 	file := filepath.Join(t.TempDir(), "bases.json")
-	list, _ := json.Marshal([]baseConfig{{Name: "тест-а", URL: srvA.URL}, {Name: "тест-б", URL: srvB.URL}})
+	list, _ := json.Marshal([]baseConfig{{Name: "тест-а", URL: srvA.URL + fakeWriteRoot}, {Name: "тест-б", URL: srvB.URL + fakeWriteRoot}})
 	if err := os.WriteFile(file, list, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +378,7 @@ func TestWriteToolBaseResolution(t *testing.T) {
 	}
 
 	res, out := callWrite(t, cs, "post_document", map[string]any{"type": "Документ.Заказ", "ref": "r", "base": "тест-б"})
-	if res.IsError || out.Base != "тест-б" || len(fb.paths) != 1 || len(fa.paths) != 0 {
+	if res.IsError || out.Base != "тест-б" || fb.count() != 1 || fa.count() != 0 {
 		t.Fatalf("base=тест-б: %s %+v", contentText(res), out)
 	}
 
@@ -376,13 +387,30 @@ func TestWriteToolBaseResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	res, out = callWrite(t, cs, "post_document", args)
-	if res.IsError || out.Base != "тест-а" || len(fa.paths) != 1 {
+	if res.IsError || out.Base != "тест-а" || fa.count() != 1 {
 		t.Fatalf("active тест-а: %s %+v", contentText(res), out)
 	}
 
 	res, _ = callWrite(t, cs, "post_document", map[string]any{"type": "Документ.Заказ", "ref": "r", "base": "прод"})
 	if !res.IsError || !strings.Contains(contentText(res), "прод") {
 		t.Fatalf("unknown base: %s", contentText(res))
+	}
+}
+
+// TestWriteProfileRefusesReadServiceURL: a base whose URL is not the mcp-write
+// service (a read bases file handed to the write server by mistake) is refused
+// before any request is sent.
+func TestWriteProfileRefusesReadServiceURL(t *testing.T) {
+	f, srv := newFakeWriteService(t)
+	for _, url := range []string{srv.URL + "/base/hs/mcp-1c", srv.URL} {
+		cs := сессияКлиента(t, writeOptions(url))
+		res, _ := callWrite(t, cs, "post_document", map[string]any{"type": "Документ.Заказ", "ref": "r"})
+		if !res.IsError || !strings.Contains(contentText(res), "/hs/mcp-write") {
+			t.Errorf("%s: want a refusal naming /hs/mcp-write, got %s", url, contentText(res))
+		}
+	}
+	if f.count() != 0 {
+		t.Errorf("the service was called %d times", f.count())
 	}
 }
 

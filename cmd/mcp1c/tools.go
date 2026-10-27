@@ -993,12 +993,12 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 type serverInfoOutput struct {
 	Name    string             `json:"name" jsonschema:"server name"`
 	Version string             `json:"version" jsonschema:"server version"`
-	Mode    string             `json:"mode" jsonschema:"active data source: offline, live or none"`
+	Mode    string             `json:"mode" jsonschema:"active data source: offline, live, write or none"`
 	Source  string             `json:"source" jsonschema:"data source location (dump dir or base URL, password redacted)"`
 	Client  clientInfoOutput   `json:"client" jsonschema:"the connected client and the optional capabilities it declared"`
 	Memory  memoryOutput       `json:"memory" jsonschema:"what this process holds: RSS, uptime and the export cache"`
 	Project *projectInfoOutput `json:"project,omitempty" jsonschema:"the process's active project: the indexed project and the dump the raw tools read"`
-	Profile string             `json:"profile,omitempty" jsonschema:"tool profile: full or core (--tools)"`
+	Profile string             `json:"profile,omitempty" jsonschema:"tool profile: full, core or write (--tools)"`
 	// CoreMethods is here because this is the tool an agent actually calls at
 	// the start of a session; see corewarm.go.
 	CoreMethods []app.APICoreModule `json:"coreMethods,omitempty" jsonschema:"the БСП methods the applied code of the active project calls most (names by module): before writing a helper check whether one of them already does it; signatures via get_symbol or find_api with module"`
