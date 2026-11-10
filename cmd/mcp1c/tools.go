@@ -423,11 +423,13 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 		registerResources(server, ls.source)
 		registerStandardsResources(server)
 		registerLiveTools(server, ls)
+		files := &fileStore{}
+		registerAttachedFile(server, ls, files)
 		registerCheckSync(server, ls.live)
 		registerBaseSwitching(server, ls)
 		finishSurface(server, surface, indexDeps, indexAvailable, profile)
 		core.warm()
-		return server, surfaceCloser{server: server, core: core, next: indexDeps.closer()}
+		return server, surfaceCloser{server: server, core: core, files: files, next: indexDeps.closer()}
 	}
 
 	// Offline / none: the dump directory is switchable via set_dump. A --dump at
@@ -480,12 +482,18 @@ type surfaceCloser struct {
 	// core is stopped before the projects close: its background computation
 	// reads the index.
 	core *coreWarmer
-	next io.Closer
+	// files holds what get_attached_file downloaded (live mode only); the
+	// directory goes with the server.
+	files *fileStore
+	next  io.Closer
 }
 
 func (c surfaceCloser) Close() error {
 	surfaces.Delete(c.server)
 	c.core.stop()
+	if err := c.files.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: удаление скачанных файлов: %v\n", serverName, err)
+	}
 	return c.next.Close()
 }
 
