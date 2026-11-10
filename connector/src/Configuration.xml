@@ -51,7 +51,7 @@
 			</UsePurposes>
 			<ScriptVariant>Russian</ScriptVariant>
 			<Vendor />
-			<Version>0.4.0.0</Version>
+			<Version>0.5.0.0</Version>
 			<DefaultLanguage>Language.Русский</DefaultLanguage>
 			<BriefInformation />
 			<DetailedInformation />
@@ -61,6 +61,7 @@
 		</Properties>
 		<ChildObjects>
 			<Language>Русский</Language>
+			<Role>MCP_ИспользованиеКоннектора</Role>
 			<CommonModule>MCP_Запросы</CommonModule>
 			<CommonModule>MCP_Журнал</CommonModule>
 			<CommonModule>MCP_Файлы</CommonModule>
