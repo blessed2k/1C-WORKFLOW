@@ -247,6 +247,35 @@
 					</Method>
 				</ChildObjects>
 			</URLTemplate>
+			<URLTemplate uuid="774572d8-a98e-44b6-9cac-ea680af86a50">
+				<Properties>
+					<Name>file</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>file</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/file/{type}/{ref}</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="d9d14651-27d4-46ee-956d-2172f36a50a2">
+						<Properties>
+							<Name>get</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>ФайлGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
 		</ChildObjects>
 	</HTTPService>
 </MetaDataObject>
