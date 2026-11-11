@@ -323,6 +323,7 @@ column says whether the tool is part of `--tools=core`.
 | `validate_query`, `analyze_query` | check a query without running it; find heavy constructs |
 | `get_event_log` | event log filtered by dates, level and user |
 | `get_predefined`, `get_subsystem` | predefined items; subsystem composition |
+| `get_attached_file` | download an attached file (PDF, scan) to a temporary file kept for the session; needs connector 0.4.0.0 |
 | `data_health` | whether a register or catalog is actually maintained: row count, first and last record, growth |
 | `access_profiles`, `access_diagnose` | access group profiles as data; where a user's access chain breaks |
 | `check_sync` | compare the infobase with an XML export before a load or dump |
