@@ -5,6 +5,8 @@
 
 ## [Не выпущено]
 
+## [0.4.0]
+
 ### Добавлено
 
 - Live-режим: инструмент `get_attached_file` скачивает присоединённый файл документа или элемента
@@ -247,6 +249,7 @@
   возвращает поле `type` с числом членов и конструкторами. Прежние вызовы отвечают как раньше.
 - `mcp1c graph`: локальная веб-карта объектного графа.
 
+[0.4.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.4.0
 [0.3.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.3.0
 [0.2.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.2.0
 [0.1.0]: https://github.com/blessed2k/1C-WORKFLOW/releases/tag/v0.1.0
