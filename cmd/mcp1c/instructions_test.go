@@ -13,7 +13,7 @@ import (
 // not name them.
 var liveOnlyTools = []string{
 	"set_base", "list_bases", "execute_query", "validate_query", "analyze_query",
-	"get_event_log", "get_predefined", "check_sync",
+	"get_event_log", "get_predefined", "check_sync", "get_attached_file",
 }
 
 // offlineOnlyTools are routed only by an offline server.

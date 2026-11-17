@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -128,26 +129,37 @@ func errorBodyText(contentType string, data []byte) string {
 	return text
 }
 
-func (s *HTTPSource) do(req *http.Request, out any) error {
+// send is the transport every connector call shares: it authenticates the request,
+// asks for the error envelope and reads at most limit bytes of the answer. A non-200
+// answer comes back as a *ConnectorError together with the read body.
+func (s *HTTPSource) send(req *http.Request, limit int64) (*http.Response, []byte, error) {
 	if s.user != "" {
 		req.SetBasicAuth(s.user, s.pass)
 	}
-	req.Header.Set("Accept", "application/json")
 	req.Header.Set(errorEnvelopeHeader, "envelope")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("connector request %s: %w", req.URL.Path, err)
+		return nil, nil, fmt.Errorf("connector request %s: %w", req.URL.Path, err)
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 	if err != nil {
-		return fmt.Errorf("read %s response: %w", req.URL.Path, err)
+		return nil, nil, fmt.Errorf("read %s response: %w", req.URL.Path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode,
+		return resp, data, &ConnectorError{Path: req.URL.Path, Status: resp.StatusCode,
 			Message: errorBodyText(resp.Header.Get("Content-Type"), data)}
+	}
+	return resp, data, nil
+}
+
+func (s *HTTPSource) do(req *http.Request, out any) error {
+	req.Header.Set("Accept", "application/json")
+	_, data, err := s.send(req, maxResponseBytes)
+	if err != nil {
+		return err
 	}
 	if failure := errorEnvelope(req.URL.Path, data); failure != nil {
 		return failure
@@ -631,6 +643,105 @@ func (s *HTTPSource) Predefined(ctx context.Context, objectType, name string) (*
 		return nil, err
 	}
 	return &PredefinedList{Items: w.Items, Count: w.Total, Truncated: w.Truncated}, nil
+}
+
+// featureFileDownload is the connector feature that serves GET /file.
+const featureFileDownload = "file_download"
+
+// maxAttachedFileBytes caps a file read through GET /file. The connector refuses a
+// file over 20 MiB by its stored size; the margin covers a size attribute that is
+// out of step with the data.
+const maxAttachedFileBytes = 32 << 20
+
+// AttachedFile is the content of an attached file of the base (an item of a БСП
+// attached-file catalog) read through GET /file.
+type AttachedFile struct {
+	// Name is the file name with extension as the base stores it; empty when the
+	// connector did not send one.
+	Name        string
+	ContentType string
+	Data        []byte
+}
+
+// AttachedFile reads an attached file via GET /file/{type}/{ref}. objectType is the
+// full name of the attached-file catalog (Справочник.Файлы,
+// Справочник.СчетНаОплатуПоставщикаПрисоединенныеФайлы) and ref the reference UUID,
+// both as execute_query with refs=true returns them. The answer is the file itself,
+// not JSON, so it does not go through do; a failure still comes as the error envelope.
+func (s *HTTPSource) AttachedFile(ctx context.Context, objectType, ref string) (*AttachedFile, error) {
+	if objectType == "" || ref == "" {
+		return nil, fmt.Errorf("нужны type и ref файла")
+	}
+	path := "/file/" + url.PathEscape(objectType) + "/" + url.PathEscape(ref)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.base+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, data, err := s.send(req, maxAttachedFileBytes+1)
+	if err != nil {
+		// A connector without the endpoint has no handler to answer with an envelope:
+		// 1C or the web server answers 404 for the unknown address.
+		var failure *ConnectorError
+		if errors.As(err, &failure) && failure.Status == http.StatusNotFound {
+			return nil, s.withoutFileDownload(ctx, failure)
+		}
+		return nil, err
+	}
+	contentType := resp.Header.Get("Content-Type")
+	// The connector answers an error as JSON; a file is never sent as application/json.
+	if strings.HasPrefix(strings.ToLower(contentType), "application/json") {
+		if failure := errorEnvelope(req.URL.Path, data); failure != nil {
+			return nil, failure
+		}
+	}
+	if len(data) > maxAttachedFileBytes {
+		return nil, fmt.Errorf("connector %s: файл больше %d МБ, читать его целиком нельзя", req.URL.Path, maxAttachedFileBytes>>20)
+	}
+	return &AttachedFile{
+		Name:        attachmentFileName(resp.Header.Get("Content-Disposition")),
+		ContentType: contentType,
+		Data:        data,
+	}, nil
+}
+
+// withoutFileDownload tells a connector that has no GET /file from a missing file:
+// it asks /configuration and, when the feature is absent, says the connector needs an
+// upgrade. Any other outcome keeps the original 404.
+func (s *HTTPSource) withoutFileDownload(ctx context.Context, failure *ConnectorError) error {
+	info, err := s.ConfigurationInfo(ctx)
+	if err != nil || info.Connector.Has(featureFileDownload) {
+		return failure
+	}
+	version := "без номера версии"
+	if info.Connector != nil && info.Connector.Version != "" {
+		version = info.Connector.Version
+	}
+	return fmt.Errorf("коннектор этой базы (%s) не умеет отдавать файлы: нужен MCPКоннектор 0.4.0.0 или новее с признаком %s (%w)",
+		version, featureFileDownload, failure)
+}
+
+// extFileName picks the filename* parameter (RFC 5987) out of a header that mime
+// refused to parse; the connector puts it last.
+var extFileName = regexp.MustCompile(`(?i)filename\*\s*=\s*UTF-8''(.+)$`)
+
+// attachmentFileName is the file name from a Content-Disposition header. The
+// connector sends the real name in filename* (RFC 5987, the name is usually
+// Cyrillic) and an ASCII stand-in in filename; mime prefers the decoded filename*.
+// 1C may leave characters such as ( ) ' unencoded, which mime rejects as a token;
+// then filename* is decoded by hand, so a name like «Счет (1).pdf» keeps its extension.
+func attachmentFileName(header string) string {
+	if header == "" {
+		return ""
+	}
+	if _, params, err := mime.ParseMediaType(header); err == nil {
+		return params["filename"]
+	}
+	if m := extFileName.FindStringSubmatch(strings.TrimSpace(header)); m != nil {
+		if name, err := url.PathUnescape(strings.TrimSpace(m[1])); err == nil {
+			return name
+		}
+	}
+	return ""
 }
 
 // AnalyzeQuery implements LiveSource. The heavy-query rules are pure text

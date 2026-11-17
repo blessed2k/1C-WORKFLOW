@@ -35,13 +35,21 @@ def описания_модулей(src):
     return [src / f"CommonModules/{PREFIX}{имя}.xml" for имя, _ in COMMON_MODULES]
 
 
+def файлы_роли(src):
+    """Описания ролей и их права: эти файлы пишет генератор, у новой роли их ещё нет."""
+    файлы = []
+    for имя, _, _, _ in ROLES:
+        файлы += [src / f"Roles/{PREFIX}{имя}.xml", src / f"Roles/{PREFIX}{имя}/Ext/Rights.xml"]
+    return файлы
+
+
 def ожидаемые_файлы(src):
     return [
         src / "Configuration.xml",
         src / "Languages/Русский.xml",
         src / f"HTTPServices/{SERVICE_NAME}.xml",
         src / f"HTTPServices/{SERVICE_NAME}/Ext/Module.bsl",
-    ] + описания_модулей(src) + [
+    ] + описания_модулей(src) + файлы_роли(src) + [
         src / f"CommonModules/{PREFIX}{имя}/Ext/Module.bsl" for имя, _ in COMMON_MODULES
     ]
 
@@ -63,7 +71,7 @@ def каталог_пуст(src):
 
 def прошлое_состояние(src):
     """UUID и версия расширения из уже собранного src: пересборка не должна их менять."""
-    состояние = {"uuid": {}, "version": "", "format": "", "собран": not каталог_пуст(src)}
+    состояние = {"uuid": {}, "version": "", "format": "", "собран": not каталог_пуст(src), "состав": set()}
     конфигурация = текст(src / "Configuration.xml")
     if конфигурация:
         состояние["format"] = найти(r'version="(2\.\d+)"', конфигурация)
@@ -71,6 +79,9 @@ def прошлое_состояние(src):
         состояние["uuid"]["configuration"] = найти(r'<Configuration uuid="([^"]+)"', конфигурация)
         for индекс, найдено in enumerate(re.findall(r"<xr:ObjectId>([^<]+)</xr:ObjectId>", конфигурация)):
             состояние["uuid"][f"contained:{индекс}"] = найдено
+        # Состав расширения: по нему видно, что роль или модуль уже были, и пропажа их описания
+        # означает повреждённый src, а не новый объект.
+        состояние["состав"] = set(re.findall(r"<(?:Role|CommonModule)>([^<]+)</(?:Role|CommonModule)>", конфигурация))
     язык = текст(src / "Languages/Русский.xml")
     if язык:
         состояние["uuid"]["language"] = найти(r'<Language uuid="([^"]+)"', язык)
@@ -85,6 +96,10 @@ def прошлое_состояние(src):
         модуль = текст(src / f"CommonModules/{PREFIX}{имя}.xml")
         if модуль:
             состояние["uuid"][f"module:{имя}"] = найти(r'<CommonModule uuid="([^"]+)"', модуль)
+    for имя, _, _, _ in ROLES:
+        роль = текст(src / f"Roles/{PREFIX}{имя}.xml")
+        if роль:
+            состояние["uuid"][f"role:{имя}"] = найти(r'<Role uuid="([^"]+)"', роль)
     return состояние
 
 
@@ -112,6 +127,12 @@ def последствия(потеряны, лишние, состояние):
     методы = sorted(ключ.split(":", 1)[1] for ключ in потеряны if ключ.startswith("method:"))
     if методы:
         итог.append("новые uuid получат методы шаблонов: " + ", ".join(методы))
+    модули = sorted(ключ.split(":", 1)[1] for ключ in потеряны if ключ.startswith("module:"))
+    if модули:
+        итог.append("новые uuid получат общие модули: " + ", ".join(модули))
+    роли = sorted(PREFIX + ключ.split(":", 1)[1] for ключ in потеряны if ключ.startswith("role:"))
+    if роли:
+        итог.append("новые uuid получат роли: " + ", ".join(роли))
     if итог:
         итог.append("объект с новым uuid платформа считает другим объектом,"
                     " прежний в расширении не сохранится")
@@ -137,9 +158,9 @@ def проверить_состояние(состояние, разрешить
 
     претензии = []
 
-    # Описание общего модуля генератор пишет сам: его отсутствие означает новый модуль, как
-    # отсутствие шаблона означает новый эндпоинт. Текст модуля обязан лежать в src.
-    генерируемые = set(описания_модулей(SRC))
+    # Описание общего модуля и файлы роли генератор пишет сам: их отсутствие означает новый
+    # объект, как отсутствие шаблона означает новый эндпоинт. Текст модуля обязан лежать в src.
+    генерируемые = set(описания_модулей(SRC)) | set(файлы_роли(SRC))
     отсутствуют = [
         str(файл.relative_to(SRC)) for файл in ожидаемые_файлы(SRC)
         if not файл.exists() and файл not in генерируемые
@@ -165,6 +186,11 @@ def проверить_состояние(состояние, разрешить
     обязательные += [f"contained:{индекс}" for индекс in range(len(CONTAINED_CLASS_IDS))]
     обязательные += [f"template:{имя}" for имя, _, _, _ in ENDPOINTS]
     обязательные += [f"method:{имя}" for имя, _, _, _ in ENDPOINTS]
+    # Роль и общий модуль, которые уже числятся в составе расширения, обязаны иметь свой UUID:
+    # без описания генератор выписал бы новый, и в базе это был бы другой объект. Нового
+    # объекта в составе ещё нет, ему UUID выдаётся законно.
+    обязательные += [f"role:{имя}" for имя, _, _, _ in ROLES if f"{PREFIX}{имя}" in состояние["состав"]]
+    обязательные += [f"module:{имя}" for имя, _ in COMMON_MODULES if f"{PREFIX}{имя}" in состояние["состав"]]
     потеряны = [ключ for ключ in обязательные if not состояние["uuid"].get(ключ)]
     if потеряны:
         претензии.append("не найдены UUID: " + ", ".join(потеряны))
@@ -271,17 +297,54 @@ ENDPOINTS = [
     ("eventlog", "/eventlog", "POST", "ЖурналPOST"),
     ("subsystem", "/subsystem/{name}", "GET", "ПодсистемаGET"),
     ("predefined", "/predefined/{type}/{name}", "GET", "ПредопределенныеGET"),
+    ("file", "/file/{type}/{ref}", "GET", "ФайлGET"),
 ]
 
 # Общие модули расширения: (имя без префикса, синоним). Серверные по стандарту 1С: флажки
 # «Сервер», «Внешнее соединение» и «Клиент (обычное приложение)», без вызова сервера.
 # Текст модуля лежит в src/CommonModules/<префикс><имя>/Ext/Module.bsl и правится там же.
 # Нужны ради фонового задания: оно вызывает только экспортные методы общих модулей, а запрос и
-# чтение журнала с ограничением времени выполняются в нём.
+# чтение журнала с ограничением времени выполняются в нём. Файлы держат вызовы БСП отдельно от
+# модуля сервиса: в базе без БСП не компилируется только этот модуль и отказывает только /file.
 COMMON_MODULES = [
     ("Запросы", "Запросы MCP"),
     ("Журнал", "Журнал регистрации MCP"),
+    ("Файлы", "Присоединённые файлы MCP"),
 ]
+
+# Роли для пользователя коннектора без прав администратора. Права на объекты расширения роли
+# конфигурации дают только с флагом «Устанавливать права для новых объектов» (так у ПолныеПрава);
+# узкому пользователю без таких ролей коннектор без этих ролей отказывает на любой метод.
+# Роли дают только «Использование» методов сервиса; данных они не дают, их пользователь видит
+# своими ролями конфигурации. Отсюда и имена: использование коннектора, а не чтение данных.
+# (имя без префикса, синоним, шаблоны URL или None = все, исключённые шаблоны). Шаблон задаётся
+# по имени и закрывает все его методы; при None новый метод сервиса попадает в роль сам.
+# - Журнал регистрации показывает действия всех пользователей: узкому пользователю его не дают.
+# - Скачивание файлов отдельной ролью: данные базы пользователь может читать, а файлы скачивать
+#   только там, где ему дали эту роль (например, в одной базе из нескольких).
+ROLES = [
+    ("ИспользованиеКоннектора", "MCP: использование коннектора", None, {"eventlog", "file"}),
+    ("СкачиваниеФайлов", "MCP: скачивание файлов", {"file"}, set()),
+]
+
+
+def шаблоны_роли(включены, исключены):
+    return [
+        (имя, метод) for имя, _, метод, _ in ENDPOINTS
+        if (включены is None or имя in включены) and имя not in исключены
+    ]
+
+
+def проверить_роли():
+    """Неизвестный шаблон в описании роли — опечатка: метод молча попал бы в роль или выпал из неё."""
+    известные = {имя for имя, _, _, _ in ENDPOINTS}
+    for роль, _, включены, исключены in ROLES:
+        неизвестные = ((включены or set()) | исключены) - известные
+        if неизвестные:
+            raise SystemExit(f"роль {PREFIX}{роль} называет шаблоны, которых нет в ENDPOINTS: "
+                             + ", ".join(sorted(неизвестные)))
+        if not шаблоны_роли(включены, исключены):
+            raise SystemExit(f"роль {PREFIX}{роль} не даёт ни одного метода")
 
 
 разбор = argparse.ArgumentParser(description=__doc__)
@@ -311,7 +374,9 @@ def версия_формата():
 VER = версия_формата()
 EXT_VERSION = АРГУМЕНТЫ.ext_version or СОСТОЯНИЕ["version"] or "0.1.0.1"
 
-# Проверка идёт после вычисления версий: она о них рассказывает.
+# Проверки идут до записи любого файла; проверка состояния после вычисления версий: она о них
+# рассказывает.
+проверить_роли()
 проверить_состояние(СОСТОЯНИЕ, АРГУМЕНТЫ.allow_new_uuid)
 
 # Модуль сервиса сообщает клиенту версию коннектора (/configuration, поле connector.version).
@@ -368,7 +433,9 @@ def configuration_xml():
         f"\t\t\t</xr:ContainedObject>"
         for индекс, class_id in enumerate(CONTAINED_CLASS_IDS)
     )
-    modules = "".join(f"\t\t\t<CommonModule>{PREFIX}{имя}</CommonModule>\n" for имя, _ in COMMON_MODULES)
+    # Порядок разделов состава как в выгрузке конфигуратора: роли идут перед общими модулями.
+    modules = "".join(f"\t\t\t<Role>{PREFIX}{имя}</Role>\n" for имя, _, _, _ in ROLES)
+    modules += "".join(f"\t\t\t<CommonModule>{PREFIX}{имя}</CommonModule>\n" for имя, _ in COMMON_MODULES)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <MetaDataObject {NS_SHORT} version="{VER}">
 \t<Configuration uuid="{uid('configuration')}">
@@ -490,11 +557,47 @@ def common_module_xml(имя, синоним):
 </MetaDataObject>"""
 
 
+def role_xml(имя, синоним):
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject {NS_FULL} version="{VER}">
+\t<Role uuid="{uid(f'role:{имя}')}">
+\t\t<Properties>
+\t\t\t<Name>{PREFIX}{имя}</Name>
+{synonym(синоним, 3)}
+\t\t\t<Comment/>
+\t\t</Properties>
+\t</Role>
+</MetaDataObject>"""
+
+
+def rights_xml(включены, исключены):
+    # Права строятся из ENDPOINTS по описанию роли в ROLES (проверено до записи файлов).
+    objects = "".join(
+        f"\t<object>\n"
+        f"\t\t<name>HTTPService.{SERVICE_NAME}.URLTemplate.{name}.Method.{method.lower()}</name>\n"
+        f"\t\t<right>\n"
+        f"\t\t\t<name>Use</name>\n"
+        f"\t\t\t<value>true</value>\n"
+        f"\t\t</right>\n"
+        f"\t</object>\n"
+        for name, method in шаблоны_роли(включены, исключены)
+    )
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Rights" version="{VER}">
+\t<setForNewObjects>false</setForNewObjects>
+\t<setForAttributesByDefault>true</setForAttributesByDefault>
+\t<independentRightsOfChildObjects>false</independentRightsOfChildObjects>
+{objects}</Rights>"""
+
+
 write(SRC / "Configuration.xml", configuration_xml())
 write(SRC / "Languages/Русский.xml", language_xml())
 write(SRC / f"HTTPServices/{SERVICE_NAME}.xml", http_service_xml())
 for имя, синоним in COMMON_MODULES:
     write(SRC / f"CommonModules/{PREFIX}{имя}.xml", common_module_xml(имя, синоним))
+for имя, синоним, включены, исключены in ROLES:
+    write(SRC / f"Roles/{PREFIX}{имя}.xml", role_xml(имя, синоним))
+    write(SRC / f"Roles/{PREFIX}{имя}/Ext/Rights.xml", rights_xml(включены, исключены))
 
 # Модули живут в src и правятся там же: скрипт их не генерирует.
 модули = [SRC / f"HTTPServices/{SERVICE_NAME}/Ext/Module.bsl"]

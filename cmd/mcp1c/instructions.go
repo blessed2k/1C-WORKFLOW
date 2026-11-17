@@ -108,6 +108,7 @@ var instructionSections = []instrSection{
 	{head: "LIVE, read-only:", inline: true, lines: []instrLine{
 		{tools: []string{"execute_query"}, format: "%s (SELECT)"},
 		{tools: []string{"get_event_log", "get_predefined", "check_sync"}, format: "%s"},
+		{tools: []string{"get_attached_file"}, format: "%s (PDF/scan attached to a document)"},
 	}},
 	// Only the write profile has these tools, and it has nothing else: the line
 	// never shares the text with the read sections above.

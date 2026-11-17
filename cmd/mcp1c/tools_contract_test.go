@@ -220,6 +220,14 @@ var контрактыИнструментов = []контрактИнстру�
 		выходПоля:         []string{"conflicts", "form", "guidance", "sources"},
 	},
 	{
+		имя:               "get_attached_file",
+		режимы:            режимLive,
+		входОбязательные:  []string{"type", "ref"},
+		входПоля:          map[string]string{"base": "string", "ref": "string", "type": "string"},
+		выходОбязательные: []string{"base", "path", "size", "sha256"},
+		выходПоля:         []string{"base", "contentType", "name", "path", "sha256", "size"},
+	},
+	{
 		имя:               "get_configuration_info",
 		режимы:            режимОффлайн | режимLive,
 		входОбязательные:  []string{},
