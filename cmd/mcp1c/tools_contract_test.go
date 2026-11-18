@@ -264,8 +264,9 @@ var контрактыИнструментов = []контрактИнстру�
 		выходПоля:         []string{"generation", "stale", "warnings", "items", "totalCount", "nextCursor"},
 	},
 	{
+		// Live его нет: коннектор не отдаёт элементы формы, инструмент только падал.
 		имя:               "get_form_structure",
-		режимы:            режимОффлайн | режимLive,
+		режимы:            режимОффлайн,
 		входОбязательные:  []string{"type", "name"},
 		входПоля:          map[string]string{"form": "string", "name": "string", "type": "string"},
 		выходОбязательные: []string{"name"},
@@ -423,8 +424,9 @@ var контрактыИнструментов = []контрактИнстру�
 		выходПоля:         []string{"effective", "granting", "notGranting", "notGrantingCount", "note", "object", "profiles", "rightSummary", "totalRoles", "undetermined", "undeterminedCount"},
 	},
 	{
+		// Live его нет: коннектор не отдаёт тексты модулей, инструмент только падал.
 		имя:               "search_code",
-		режимы:            режимОффлайн | режимLive,
+		режимы:            режимОффлайн,
 		входОбязательные:  []string{"query"},
 		входПоля:          map[string]string{"ignoreCase": "boolean", "maxResults": "integer", "query": "string", "regex": "boolean", "scope": "string", "total": "boolean"},
 		выходОбязательные: []string{"query", "matches", "shown", "truncated"},

@@ -65,7 +65,7 @@ const instructionsPreamble = "1C (BSL) server; prefer these tools over raw XML/B
 var instructionSections = []instrSection{
 	{head: "CONTEXT:", inline: true, lines: []instrLine{
 		{tools: []string{"set_dump", "list_projects"}, format: "%s (offline)"},
-		{tools: []string{"set_base", "list_bases"}, format: "%s (live)"},
+		{tools: []string{"set_base", "list_bases"}, format: "%s (live; base= of each live tool lists the bases)"},
 		{tools: []string{"server_info"}, format: "%s=active"},
 	}},
 	{head: "START:", inline: true, lines: []instrLine{

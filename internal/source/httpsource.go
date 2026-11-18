@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // maxResponseBytes caps how much of a connector response is read.
@@ -118,7 +119,7 @@ func errorBodyText(contentType string, data []byte) string {
 	text := strings.TrimSpace(string(data))
 	if strings.Contains(strings.ToLower(contentType), "html") || strings.HasPrefix(text, "<") {
 		if m := htmlTitle.FindStringSubmatch(text); m != nil && strings.TrimSpace(m[1]) != "" {
-			text = strings.Join(strings.Fields(m[1]), " ") + " (страница веб-сервера, разметка опущена)"
+			text = strings.Join(strings.Fields(decodeWindows1251(m[1])), " ") + " (страница веб-сервера, разметка опущена)"
 		} else {
 			text = "страница веб-сервера без текста ошибки (разметка опущена)"
 		}
@@ -127,6 +128,40 @@ func errorBodyText(contentType string, data []byte) string {
 		text = string(r[:maxErrorBodyRunes]) + "…"
 	}
 	return text
+}
+
+// decodeWindows1251 reads s as windows-1251 when it is not valid UTF-8. IIS writes
+// its error pages in the codepage of the server (charset=windows-1251 on a Russian
+// Windows), and read as UTF-8 the title of such a page is a row of replacement
+// characters. Only the Cyrillic letters and a few signs are mapped; the rest of
+// the upper half becomes a space.
+func decodeWindows1251(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c < 0x80:
+			b.WriteByte(c)
+		case c >= 0xC0:
+			b.WriteRune('А' + rune(c-0xC0))
+		case c == 0xA8:
+			b.WriteRune('Ё')
+		case c == 0xB8:
+			b.WriteRune('ё')
+		case c == 0xB9:
+			b.WriteRune('№')
+		case c == 0x96, c == 0x97:
+			b.WriteRune('-')
+		case c == 0xAB, c == 0xBB:
+			b.WriteRune('"')
+		default:
+			b.WriteByte(' ')
+		}
+	}
+	return b.String()
 }
 
 // send is the transport every connector call shares: it authenticates the request,
@@ -439,7 +474,7 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 		DurationMS int      `json:"duration_ms"`
 	}
 	if err := s.post(ctx, "/query", body, &w); err != nil {
-		return nil, err
+		return nil, s.explainBareQueryFailure(ctx, params.Text, err)
 	}
 
 	rows := make([]map[string]any, 0, len(w.Rows))
@@ -458,6 +493,36 @@ func (s *HTTPSource) ExecuteQuery(ctx context.Context, params QueryParams) (*Que
 			"по этой части делать нельзя: посчитайте в самом запросе (КОЛИЧЕСТВО, СУММА), добавьте отбор или поднимите limit.", len(rows))
 	}
 	return res, nil
+}
+
+// codeQueryFailed is the envelope code of a query 1C refused to run; a failure
+// recovered by explainBareQueryFailure gets it too, so callers treat both alike.
+const codeQueryFailed = "query_failed"
+
+// explainBareQueryFailure recovers the text of a failed query from a connector
+// older than the error envelope. Such a connector answers with a bare HTTP 400
+// ("Неправильный запрос", about 180 times in the journals), the web server having
+// dropped the 1C text, while its /validate-query still reports the compile error
+// in the body. Any other failure, and a check that cannot run, keep the original.
+func (s *HTTPSource) explainBareQueryFailure(ctx context.Context, text string, err error) error {
+	var failure *ConnectorError
+	if !errors.As(err, &failure) || failure.Status != http.StatusBadRequest || failure.Code != "" {
+		return err
+	}
+	check, verr := s.ValidateQuery(ctx, text)
+	if verr != nil {
+		return err
+	}
+	if check.Valid {
+		return fmt.Errorf("%w; запрос компилируется (проверка запроса), значит ошибка при выполнении: "+
+			"чаще всего в params, даты этот коннектор параметром не принимает, пишите их в тексте ДАТАВРЕМЯ(2026, 9, 1). "+
+			"Текст ошибки 1С этот коннектор не передаёт: он старше конверта ошибок, нужен MCPКоннектор 0.3.0.0 или новее", err)
+	}
+	if check.Error == "" {
+		return err
+	}
+	return &ConnectorError{Path: failure.Path, Status: failure.Status, Code: codeQueryFailed,
+		Message: check.Error + " (текст получен проверкой запроса: коннектор этой базы старше конверта ошибок и отвечает на ошибку голым HTTP 400)"}
 }
 
 // ValidateQuery implements LiveSource via POST /validate-query.
@@ -480,6 +545,12 @@ var eventLevelToRussian = map[string]string{
 	"Information": "Информация",
 	"Note":        "Примечание",
 }
+
+// DefaultEventLogMaxComment cuts each comment when the caller sets no limit. The
+// connector's own default is 4000 characters: an error comment carries the whole
+// call stack, and with it answers reached 79 KB in the journals. The message and
+// the top of the stack fit in 1000; maxComment asks for more.
+const DefaultEventLogMaxComment = 1000
 
 // EventLog implements LiveSource via POST /eventlog.
 func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*EventLogResult, error) {
@@ -527,9 +598,11 @@ func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*Even
 	add("transaction", params.Transaction, params.Transaction != "")
 	add("order", params.Order, params.Order != "")
 	add("offset", params.Offset, params.Offset > 0)
-	if params.MaxComment > 0 {
-		body["max_comment"] = params.MaxComment
+	maxComment := params.MaxComment
+	if maxComment <= 0 {
+		maxComment = DefaultEventLogMaxComment
 	}
+	body["max_comment"] = maxComment
 
 	var w struct {
 		Events []struct {
