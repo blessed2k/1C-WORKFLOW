@@ -20,7 +20,7 @@ type EventLogGroup struct {
 
 // summaryCommentRunes cuts the comment shown for a group: the message and the
 // first frame of the stack, which is what tells one error from another.
-const summaryCommentRunes = 300
+const summaryCommentRunes = 200
 
 // summaryKeyRunes is how much of the normalized comment decides the group.
 const summaryKeyRunes = 200

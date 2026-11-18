@@ -548,9 +548,10 @@ var eventLevelToRussian = map[string]string{
 
 // DefaultEventLogMaxComment cuts each comment when the caller sets no limit. The
 // connector's own default is 4000 characters: an error comment carries the whole
-// call stack, and with it answers reached 79 KB in the journals. The message and
-// the top of the stack fit in 1000; maxComment asks for more.
-const DefaultEventLogMaxComment = 1000
+// call stack, and with it answers reached 79 KB in the journals. Twenty error
+// entries cut at 1000 still made 43 KB on the test base; the message and the top
+// frames of the stack fit in 500, and maxComment asks for more.
+const DefaultEventLogMaxComment = 500
 
 // EventLog implements LiveSource via POST /eventlog.
 func (s *HTTPSource) EventLog(ctx context.Context, params EventLogParams) (*EventLogResult, error) {

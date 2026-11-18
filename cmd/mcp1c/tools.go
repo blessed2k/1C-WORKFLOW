@@ -831,21 +831,28 @@ type eventLogInput struct {
 type eventLogOutput struct {
 	Base string `json:"base" jsonschema:"live base this answer came from"`
 	source.EventLogResult
-	Groups []source.EventLogGroup `json:"groups,omitempty" jsonschema:"with summary: groups of identical entries, the most frequent first"`
+	Groups      []source.EventLogGroup `json:"groups,omitempty" jsonschema:"with summary: groups of identical entries, the most frequent first"`
+	GroupsTotal int                    `json:"groupsTotal,omitempty" jsonschema:"with summary: how many groups the window has, when more than shown"`
 }
 
-// Window and comment limit of a summary when the caller sets none: the
-// connector's ceiling of one call, and enough of the comment to tell errors apart.
+// Window, comment limit and shown groups of a summary when the caller sets
+// none: the connector's ceiling of one call, enough of the comment to tell errors
+// apart, and the head of the list. About 300 error entries of a week on the test
+// base made 89 groups and 60 KB before the head was cut, 10 KB after.
 const (
 	summaryEventLogLimit      = 500
-	summaryEventLogMaxComment = 400
+	summaryEventLogMaxComment = 300
+	summaryEventLogGroups     = 20
 )
 
 // summaryNote says what a summary covers: the entries it was built from, and,
 // when the window was cut, that the rest of the period is not in it.
-func summaryNote(entries, groups int, truncated bool, order string) string {
+func summaryNote(entries, groups, shown int, truncated bool, order string) string {
 	note := fmt.Sprintf("Сводка по %d записям окна: %d групп, частые сверху. Записи одной группы читайте вызовом без summary "+
 		"с отбором по events, metadata или comment.", entries, groups)
+	if shown < groups {
+		note += fmt.Sprintf(" Показаны первые %d групп, редкие ищите с отбором по events или metadata.", shown)
+	}
 	if truncated {
 		shown := "последним"
 		if strings.EqualFold(order, "asc") {
@@ -995,9 +1002,13 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 		}
 		out := eventLogOutput{Base: name, EventLogResult: *res}
 		if in.Summary {
-			out.Groups = source.SummarizeEventLog(res.Entries)
+			groups := source.SummarizeEventLog(res.Entries)
+			out.Groups = groups
+			if len(groups) > summaryEventLogGroups {
+				out.Groups, out.GroupsTotal = groups[:summaryEventLogGroups], len(groups)
+			}
 			out.Entries = []source.EventLogEntry{}
-			out.Note = summaryNote(len(res.Entries), len(out.Groups), res.Truncated, params.Order)
+			out.Note = summaryNote(len(res.Entries), len(groups), len(out.Groups), res.Truncated, params.Order)
 		}
 		return nil, out, nil
 	})
