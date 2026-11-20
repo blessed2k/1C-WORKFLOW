@@ -152,8 +152,13 @@ type Project interface {
 type CommonModule struct {
 	Name   string
 	Global bool
-	// Where the module is compiled: its name means nothing elsewhere.
+	// Where the module's name is visible: where it is compiled, plus the
+	// client for a server module with «Вызов сервера». Elsewhere the name is
+	// free for a variable.
 	Availability Availability
+	// Runs is where the module's own code runs: a method without a
+	// directive inside it runs there.
+	Runs Availability
 	// Methods: lower-cased name -> the method; Export is true when any
 	// component declares it with Экспорт.
 	Methods map[string]MethodInfo

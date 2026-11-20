@@ -160,6 +160,8 @@ func (p *DiskProject) CommonModule(name string) (CommonModule, bool) {
 		cm.Global = cm.Global || info.global
 		cm.Availability.Client = cm.Availability.Client || info.avail.Client
 		cm.Availability.Server = cm.Availability.Server || info.avail.Server
+		cm.Runs.Client = cm.Runs.Client || info.runs.Client
+		cm.Runs.Server = cm.Runs.Server || info.runs.Server
 		bsl := filepath.Join(c.Root, "CommonModules", entry.name, "Ext", "Module.bsl")
 		decls, read := readDecls(bsl)
 		for k, d := range decls {
@@ -268,9 +270,11 @@ func dirXMLNames(dir string) map[string]string {
 type metaInfo struct {
 	global  bool
 	adopted bool
-	// avail: where a common module is compiled (Server, ExternalConnection,
-	// ClientManagedApplication).
+	// avail: where a common module's name is visible (Server, ExternalConnection;
+	// ClientManagedApplication or ServerCall for the client); runs: where its
+	// code runs (ServerCall does not bring it to the client).
 	avail Availability
+	runs  Availability
 	// attrs: top-level attributes and tabular sections, lower -> as written.
 	attrs map[string]string
 }
@@ -325,7 +329,13 @@ func parseMetaInfo(path string) metaInfo {
 				info.adopted = val == "Adopted"
 			case n == 4 && stack[2] == "Properties" && (stack[3] == "Server" || stack[3] == "ExternalConnection"):
 				info.avail.Server = info.avail.Server || val == "true"
+				info.runs.Server = info.runs.Server || val == "true"
 			case n == 4 && stack[2] == "Properties" && stack[3] == "ClientManagedApplication":
+				info.avail.Client = info.avail.Client || val == "true"
+				info.runs.Client = info.runs.Client || val == "true"
+			case n == 4 && stack[2] == "Properties" && stack[3] == "ServerCall":
+				// A server module with «Вызов сервера» is called from the
+				// client by name, so the name is taken there too.
 				info.avail.Client = info.avail.Client || val == "true"
 			case n == 6 && stack[2] == "ChildObjects" && (stack[3] == "Attribute" || stack[3] == "TabularSection") &&
 				stack[4] == "Properties" && stack[5] == "Name":

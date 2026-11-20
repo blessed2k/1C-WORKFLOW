@@ -65,6 +65,8 @@ func fixtureProject(t *testing.T) (cfg, ext string) {
 		commonModuleXML("ГлобальныйМодуль", "\t\t\t<Global>true</Global>\n\t\t\t<Server>true</Server>\n\t\t\t<ClientManagedApplication>true</ClientManagedApplication>\n"))
 	writeFile(t, cfg, workspace.DumpModulePath("CommonModule", "ГлобальныйМодуль", workspace.ModuleCommon),
 		"Функция ГлобальнаяФункция() Экспорт\nКонецФункции\n")
+	writeFile(t, cfg, workspace.DumpDeclarationPath("CommonModule", "ВызовСервераТест"),
+		commonModuleXML("ВызовСервераТест", "\t\t\t<Server>true</Server>\n\t\t\t<ServerCall>true</ServerCall>\n\t\t\t<ClientManagedApplication>false</ClientManagedApplication>\n"))
 	writeFile(t, cfg, workspace.DumpDeclarationPath("Document", "Заявка"),
 		documentXML("Заявка", "", "Сумма", "РучнаяКорректировка", "ТЧ:Товары"))
 	writeFile(t, cfg, workspace.DumpModulePath("Document", "Заявка", workspace.ModuleObject),
@@ -133,6 +135,16 @@ func TestDiskProjectCommonModules(t *testing.T) {
 	}
 	if cm.Methods["служебная"].Export {
 		t.Error("Служебная is not exported")
+	}
+	// «Вызов сервера»: the name is visible on the client, the code runs on the
+	// server only.
+	sc, ok := p.CommonModule("ВызовСервераТест")
+	if !ok || sc.Availability != (Availability{Client: true, Server: true}) || sc.Runs != (Availability{Server: true}) {
+		t.Errorf("ВызовСервераТест = %+v", sc)
+	}
+	draft := writeFile(t, cfg, workspace.DumpModulePath("CommonModule", "ВызовСервераТест", workspace.ModuleCommon), "")
+	if mc := ResolveModule(p, ModuleInput{Path: draft}, members); mc.Default != (Availability{Server: true}) {
+		t.Errorf("a method of a server-call module runs on the server: %+v", mc.Default)
 	}
 	if !p.GlobalExport("ГлобальнаяФункция") || p.GlobalExport("Метод") {
 		t.Error("only exports of global modules are global")

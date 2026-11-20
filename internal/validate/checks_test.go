@@ -95,6 +95,8 @@ func project() fakeProject {
 			"общегоназначенияклиент": {Name: "ОбщегоНазначенияКлиент", Complete: true, Availability: Availability{Client: true},
 				Methods: methods(true, "СообщитьПользователю")},
 			"заимствованный": {Name: "Заимствованный", Complete: false, Availability: server, Methods: methods(true, "ДобавленВРасширении")},
+			"модульвызовсервера": {Name: "МодульВызовСервера", Complete: true, Availability: Availability{Client: true, Server: true},
+				Runs: server, Methods: methods(true, "Получить")},
 		},
 	}
 }
@@ -324,6 +326,21 @@ func TestAssignToGlobalNameLocals(t *testing.T) {
 КонецФункции`, env(formModule()))
 
 	check(t, "form attribute", "&НаСервере\nПроцедура Заполнить()\n\tДокументы = 1;\nКонецПроцедуры", env(formModule("Документы")))
+
+	// The name is taken only where it is visible: a «Вызов сервера» module and
+	// a client module on the client, a server module on the server.
+	check(t, "visibility by context", `
+&НаКлиенте
+Процедура НаКлиенте()
+	МодульВызовСервера = 1;
+	ОбщегоНазначенияКлиент = 2;
+	ОбщегоНазначения = 3;
+КонецПроцедуры
+
+&НаСервере
+Процедура НаСервере()
+	ОбщегоНазначенияКлиент = 4;
+КонецПроцедуры`, env(formModule()), want{"AssignToGlobalName", "high", 4}, want{"AssignToGlobalName", "high", 5})
 
 	check(t, "server method of a form", "&НаСервере\nПроцедура Заполнить()\n\tДокументы = 1;\nКонецПроцедуры",
 		env(formModule()), want{"AssignToGlobalName", "high", 3})

@@ -334,8 +334,8 @@ func defaultAvailability(p *DiskProject, pm PathModule) Availability {
 	switch pm.Kind {
 	case KindCommon:
 		if p != nil {
-			if cm, ok := p.CommonModule(pm.Object); ok && cm.Availability != (Availability{}) {
-				return cm.Availability
+			if cm, ok := p.CommonModule(pm.Object); ok && cm.Runs != (Availability{}) {
+				return cm.Runs
 			}
 		}
 		return Availability{Client: true, Server: true}
