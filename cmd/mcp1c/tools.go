@@ -533,6 +533,9 @@ type syntaxCorpus interface {
 	Search(query string, limit int) []onec.SyntaxEntry
 	Lookup(query, owner string, limit int) syntax.Lookup
 	GlobalMethod(name string) (onec.SyntaxEntry, bool)
+	GlobalProperty(name string) (onec.SyntaxEntry, bool)
+	GlobalMethodNames() []string
+	MemberNames(prefixes ...string) map[string]bool
 }
 
 // syntaxCorpusErr reports why the platform syntax corpus cannot answer, if it

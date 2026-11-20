@@ -312,7 +312,7 @@ column says whether the tool is part of `--tools=core`.
 |---|---|---|---|
 | `get_query_schema` | offline | yes | fields and virtual tables of an object for the query language |
 | `bsl_syntax` | both | yes | syntax of a platform method, property or type; `owner=<type>` lists all members of a type compactly, `query=Type.Member` searches within a type, a lookup by type name shows its constructors (needs the syntax index) |
-| `validate_bsl` | offline | yes | references to missing metadata and wrong argument counts |
+| `validate_bsl` | offline | yes | against the dump on disk (configuration and extensions of `1c-project.json`) and the platform reference: missing metadata; wrong argument counts (variable for `СтрШаблон`, `Мин`, `Макс`) and a `СтрШаблон` template that does not match its values; a call without a module that nothing declares; `CommonModule.Method` with no such export method; an assignment to a common module or global property name (`Пользователи =`, `Документы =`), client and server told apart; `&НаКлиентеНаСервере` in a form module; an unborrowed attribute by bare name in an extension's object module; a loop counter named as an attribute; `УПОРЯДОЧИТЬ ПО ПРЕДСТАВЛЕНИЕ`. `path` (the draft's file) gives the module kind, object and extension. The same checks run from the command line: `mcp1c validate-bsl -project <dir> [files]` (`-files-from -` reads a `git diff --name-only` list; exit code 1 on high findings) |
 | `query_advisor` | offline | yes | query anti-patterns with rewrites, and index hints |
 
 **Live infobase**

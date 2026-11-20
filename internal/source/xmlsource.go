@@ -41,6 +41,13 @@ func NewXMLSource(root string) *XMLSource {
 	return &XMLSource{root: root}
 }
 
+// Roots returns the main export root and the roots of the project's remaining
+// components: validate_bsl resolves common modules and borrowed objects over
+// all of them.
+func (s *XMLSource) Roots() (string, []ComponentRoot) {
+	return s.root, s.otherComponents()
+}
+
 // otherComponents returns the roots of the project's remaining components.
 func (s *XMLSource) otherComponents() []ComponentRoot {
 	if s.OtherComponents == nil {

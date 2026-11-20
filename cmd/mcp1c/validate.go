@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -14,8 +16,10 @@ import (
 )
 
 type validateBSLInput struct {
-	Code   string `json:"code" jsonschema:"the BSL you just wrote (module or procedure)"`
-	Module string `json:"module,omitempty" jsonschema:"the module this code belongs to, as find_api names it (ОбщегоНазначения, Справочники.Номенклатура): its own methods are then not offered as ready-made ones"`
+	Code       string `json:"code" jsonschema:"the BSL you just wrote (module or procedure)"`
+	Module     string `json:"module,omitempty" jsonschema:"the module this code belongs to, as find_api names it (ОбщегоНазначения, Справочники.Номенклатура): its own methods are then not offered as ready-made ones"`
+	Path       string `json:"path,omitempty" jsonschema:"the .bsl file the code is (or goes) in, absolute or relative to the dump: gives the module kind (form, object, common...), its object and extension; the form-module and borrowed-attribute checks need it"`
+	ModuleKind string `json:"moduleKind,omitempty" jsonschema:"when there is no path yet: common, object, manager, form, recordset, valuemanager, command"`
 }
 
 type validateBSLOutput struct {
@@ -52,7 +56,7 @@ type readyMethodsFinder interface {
 func registerValidateBSL(server *mcp.Server, provide func() source.ConfigSource, idx syntaxCorpus, ready readyMethodsFinder) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "validate_bsl",
-		Description: "Checks BSL you just wrote against the configuration and the platform reference: references to metadata that does not exist (Справочники.X) and platform calls with a wrong argument count. For the procedures the draft declares (event handlers aside), readyMethods lists possible ready-made methods of БСП and the configuration found by the words of the name and comment: a lexical hint, most entries are unrelated, so read their summaries and replace your procedure only when one really does the same; an empty list proves nothing, find_api searches by the task. Call it after writing a module or procedure, before applying it. Offline; it neither compiles nor runs the code; findings are only what it can prove.",
+		Description: validateBSLDescription,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in validateBSLInput) (*mcp.CallToolResult, validateBSLOutput, error) {
 		if strings.TrimSpace(in.Code) == "" {
 			return nil, validateBSLOutput{}, errNoCode
@@ -66,30 +70,170 @@ func registerValidateBSL(server *mcp.Server, provide func() source.ConfigSource,
 		var checked []string
 
 		var meta validate.MetadataLookup
+		var project *validate.DiskProject
 		if src := provide(); src != nil {
-			if names, err := metadataNames(ctx, src); err == nil {
+			project = projectOfSource(src)
+			if names, err := projectMetadataNames(ctx, src, project); err == nil {
 				meta = func(mdType, name string) bool { return names[mdType+"."+strings.ToLower(name)] }
-				checked = append(checked, "ссылки на метаданные — по активной выгрузке")
+				checked = append(checked, "ссылки на метаданные — по активной выгрузке и её расширениям")
 			}
 		}
-		method := validate.MethodLookup(func(name string) (validate.Method, bool) {
-			e, ok := idx.GlobalMethod(name)
-			if !ok {
-				return validate.Method{}, false
-			}
-			req, total := syntax.ParamCounts(e)
-			return validate.Method{Signature: e.Signature, Required: req, Total: total}, true
-		})
-		checked = append(checked, "число аргументов вызовов глобального контекста — по справочнику платформы")
 		if meta == nil {
 			checked = append(checked, "ссылки на метаданные НЕ проверены: нет активной выгрузки (set_dump)")
 		}
+		path := in.Path
+		if project != nil && path != "" {
+			path = resolveDraftPath(project, path)
+		}
+		env := validateEnv(idx, meta, project)
+		env.Module = validate.ResolveModule(project, validate.ModuleInput{
+			Path: path, Module: in.Module, Kind: validate.ModuleKind(strings.ToLower(strings.TrimSpace(in.ModuleKind))),
+		}, idx.MemberNames)
+		checked = append(checked, checkedNotes(env)...)
 
-		findings := validate.BSL(in.Code, meta, method)
+		findings := validate.Check(in.Code, env)
 		out := validateBSLOutput{Count: len(findings), Findings: findings}
 		out.ReadyMethods, out.ReadyMethodsNote, out.Checked = readyMethodsFor(ctx, ready, in, checked)
 		return nil, out, nil
 	})
+}
+
+// validateBSLDescription is the tool description: what is checked, and what a
+// path adds. It names what stays out of reach, so a clean report is not read as
+// more than it is.
+const validateBSLDescription = "Checks BSL you just wrote against the configuration with its extensions (read from the dump on disk, " +
+	"not from the index) and the platform reference. Findings: metadata that does not exist (Справочники.X); platform calls " +
+	"with a wrong argument count (СтрШаблон and Мин/Макс take a variable count) and a literal СтрШаблон template whose %N " +
+	"do not match the values; a call without a module that nothing declares (not the draft, not the module, not the " +
+	"form/object context, not the platform, not an export of a global common module); ОбщийМодуль.Метод( where the module " +
+	"has no such export method (extension methods included); an assignment, loop variable or Перем-less write to a name " +
+	"owned by a common module or a global property (Пользователи =, Документы =: fails at run time); &НаКлиентеНаСервере " +
+	"in a form module; in an extension's object module a bare name of a base attribute the extension did not borrow; in " +
+	"an object module a loop counter named as an attribute (Для Номер = ...); УПОРЯДОЧИТЬ ПО ПРЕДСТАВЛЕНИЕ() or by its " +
+	"alias. Pass path (the .bsl file, absolute or relative to the dump): it tells the module kind, its object and " +
+	"extension; without it the module-specific checks do not run and context-dependent findings come as medium. " +
+	"moduleKind (form, object, common...) stands in for a file not written yet. For the procedures the draft declares " +
+	"(event handlers aside), readyMethods lists possible ready-made methods of БСП and the configuration found by the " +
+	"words of the name and comment: a lexical hint, most entries are unrelated; an empty list proves nothing, find_api " +
+	"searches by the task. Not checked: types, client/server availability, methods of objects other than common modules, " +
+	"query fields. Call it after writing a module or procedure, before applying it. Offline; it neither compiles nor runs " +
+	"the code; findings are only what it can prove."
+
+// validateEnv builds the platform and project lookups the checks lean on.
+func validateEnv(idx syntaxCorpus, meta validate.MetadataLookup, project *validate.DiskProject) validate.Env {
+	env := validate.Env{
+		Meta: meta,
+		Method: func(name string) (validate.Method, bool) {
+			e, ok := idx.GlobalMethod(name)
+			if !ok {
+				return validate.Method{}, false
+			}
+			req, max, known := syntax.Arity(e)
+			return validate.Method{Signature: e.Signature, Required: req, Total: max, Variadic: max < 0, Unknown: !known}, true
+		},
+		GlobalProperty: func(name string) (validate.Availability, bool) {
+			e, ok := idx.GlobalProperty(name)
+			if !ok {
+				return validate.Availability{}, false
+			}
+			return availabilityOf(e.Availability), true
+		},
+		GlobalMethodNames: idx.GlobalMethodNames,
+	}
+	if project != nil {
+		env.Project = project
+	}
+	return env
+}
+
+// availabilityOf reads the reference's availability line ("Сервер, толстый
+// клиент, внешнее соединение"): the thin or web client, the server. A name
+// only the thick client has counts as neither.
+func availabilityOf(s string) validate.Availability {
+	var a validate.Availability
+	for _, item := range strings.Split(strings.ToLower(s), ",") {
+		switch strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(item), ".")) {
+		case "сервер":
+			a.Server = true
+		case "тонкий клиент", "веб-клиент":
+			a.Client = true
+		}
+	}
+	return a
+}
+
+// projectOfSource builds the disk project over the active dump and the other
+// components of its manifest. A live source has no files: nil.
+func projectOfSource(src source.ConfigSource) *validate.DiskProject {
+	xs, ok := src.(*source.XMLSource)
+	if !ok {
+		return nil
+	}
+	root, others := xs.Roots()
+	comps := []validate.Component{{ID: "dump", Root: root, Extension: validate.IsExtensionDump(root)}}
+	for _, o := range others {
+		comps = append(comps, validate.Component{ID: o.Name, Root: o.Dir, Extension: validate.IsExtensionDump(o.Dir)})
+	}
+	return validate.NewDiskProject(comps)
+}
+
+// resolveDraftPath reads a relative path against the components: the first one
+// where the file exists, else the main dump.
+func resolveDraftPath(p *validate.DiskProject, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	comps := p.Components()
+	for _, c := range comps {
+		cand := filepath.Join(c.Root, path)
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	if len(comps) > 0 {
+		return filepath.Join(comps[0].Root, path)
+	}
+	return path
+}
+
+// projectNote says what the project-wide checks leaned on.
+func projectNote(env validate.Env) string {
+	switch {
+	case env.Project == nil:
+		return "вызовы без модуля, ОбщийМодуль.Метод и присваивания общим модулям НЕ проверены: нет выгрузки на диске"
+	case !env.Project.Complete():
+		return "вызовы без модуля НЕ проверены: в проекте нет основной конфигурации, только расширения; " +
+			"ОбщийМодуль.Метод проверены только для собственных модулей расширений"
+	default:
+		return "вызовы без модуля и ОбщийМодуль.Метод — по общим модулям конфигурации и расширений на диске; " +
+			"присваивания — по общим модулям и свойствам глобального контекста"
+	}
+}
+
+// checkedNotes says which of the context checks ran and on what.
+func checkedNotes(env validate.Env) []string {
+	var out []string
+	out = append(out, "число аргументов вызовов глобального контекста — по справочнику платформы (с переменным числом параметров у СтрШаблон, Мин, Макс)")
+	out = append(out, projectNote(env))
+	if env.Module != nil {
+		switch {
+		case env.Module.Kind == validate.KindUnknown:
+			out = append(out, "вид модуля не известен (нет path и moduleKind): проверки модуля формы, модуля объекта и заимствований не выполнялись, находки по контексту даны как medium")
+		case env.Module.Display != "":
+			note := "модуль черновика: " + env.Module.Display
+			if env.Module.Extension != "" {
+				note += ", расширение " + env.Module.Extension
+			}
+			if env.Module.Methods == nil {
+				note += "; методы модуля вне черновика не прочитаны"
+			}
+			out = append(out, note)
+		default:
+			out = append(out, "вид модуля: "+string(env.Module.Kind)+" (без файла: методы модуля вне черновика не известны)")
+		}
+	}
+	out = append(out, "запросы в строках: УПОРЯДОЧИТЬ ПО ПРЕДСТАВЛЕНИЕ и по его псевдониму")
+	return out
 }
 
 const readyMethodsNote = "Подсказка по словам имени и комментария процедуры, не находка: большинство названных методов к процедуре не относятся. " +
@@ -142,6 +286,35 @@ var errNoCode = errUsage("pass code: the BSL to check")
 type errUsage string
 
 func (e errUsage) Error() string { return string(e) }
+
+// projectMetadataNames is the metadata of every component: an extension's own
+// object (Справочники.кубик_X) is not in the configuration's tree, and judging
+// extension code against the configuration alone flags it as missing.
+func projectMetadataNames(ctx context.Context, src source.ConfigSource, project *validate.DiskProject) (map[string]bool, error) {
+	if project == nil {
+		return metadataNames(ctx, src)
+	}
+	out := map[string]bool{}
+	var firstErr error
+	read := 0
+	for _, c := range project.Components() {
+		names, err := metadataNames(ctx, source.NewXMLSource(c.Root))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		read++
+		for k := range names {
+			out[k] = true
+		}
+	}
+	if read == 0 {
+		return nil, firstErr
+	}
+	return out, nil
+}
 
 // metadataNames flattens the configuration into a lookup set keyed by
 // "Type.lowercasename".
