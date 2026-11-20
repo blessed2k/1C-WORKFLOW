@@ -60,6 +60,16 @@ func (b brokenCorpus) GlobalMethod(string) (onec.SyntaxEntry, bool) {
 	return onec.SyntaxEntry{NameRu: "Сообщить", Kind: "method", Signature: "Сообщить(<ТекстСообщения>)"}, true
 }
 
+func (b brokenCorpus) GlobalProperty(string) (onec.SyntaxEntry, bool) {
+	return onec.SyntaxEntry{NameRu: "Документы", Kind: "property"}, true
+}
+
+func (b brokenCorpus) GlobalMethodNames() []string { return []string{"Сообщить"} }
+
+func (b brokenCorpus) MemberNames(...string) map[string]bool {
+	return map[string]bool{"записать": true}
+}
+
 // TestBrokenSyntaxCorpusIsAToolError: the corpus is parsed on first use, so the
 // index value is never nil and a broken corpus can no longer be spotted by
 // looking at the pointer. A tool that leans on the corpus has to ask, because an

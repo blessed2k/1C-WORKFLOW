@@ -23,13 +23,17 @@ const serverName = "1C-WORKFLOW"
 var version = "0.1.0-dev"
 
 func main() {
-	// Единственное ветвление по подкоманде во всём mcp1c: `graph`
-	// уводит в graph-режим (cmd/mcp1c/graph.go), всё остальное — включая
-	// отсутствие аргументов и любой флаг, начинающийся с "-" — ведёт себя
-	// РОВНО как раньше, через parseFlags/newServer ниже. Обратная
+	// Ветвление по подкоманде: `graph` уводит в graph-режим
+	// (cmd/mcp1c/graph.go), `validate-bsl` проверяет .bsl файлы проверками
+	// validate_bsl и выходит (cmd/mcp1c/validatecli.go). Всё остальное —
+	// включая отсутствие аргументов и любой флаг, начинающийся с "-" — ведёт
+	// себя РОВНО как раньше, через parseFlags/newServer ниже. Обратная
 	// совместимость закрыта TestMainDispatchDefaultsToStdio.
 	if len(os.Args) > 1 && os.Args[1] == "graph" {
 		os.Exit(runGraph(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "validate-bsl" {
+		os.Exit(runValidateBSL(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 
 	opts, showVersion := parseFlags()

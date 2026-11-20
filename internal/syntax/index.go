@@ -57,6 +57,10 @@ type Index struct {
 
 	ownersOnce sync.Once
 	owners     map[string]ownerStat // lower-cased owner name -> stat
+
+	globalsOnce sync.Once
+	global      *globalNames // global-context methods and properties by lower-cased name
+	memberSets  memberCache  // MemberNames answers by prefix list
 }
 
 // LoadFile reads the index from path. A missing file is an ErrNotFound carrying
@@ -165,20 +169,12 @@ func (ix *Index) search(query, owner string, limit int) []onec.SyntaxEntry {
 // signature would invent an error. Not found means "nothing provable", not "does
 // not exist" — a local or common-module procedure lands here too.
 func (ix *Index) GlobalMethod(name string) (onec.SyntaxEntry, bool) {
-	ix.ensure()
-	n := strings.ToLower(strings.TrimSpace(name))
-	if n == "" {
+	g := ix.globals()
+	i, ok := g.methods[strings.ToLower(strings.TrimSpace(name))]
+	if !ok {
 		return onec.SyntaxEntry{}, false
 	}
-	for _, e := range ix.entries {
-		if e.Owner != "Глобальный контекст" || e.Kind != "method" {
-			continue
-		}
-		if strings.ToLower(e.NameRu) == n || strings.ToLower(e.NameEn) == n {
-			return e, true
-		}
-	}
-	return onec.SyntaxEntry{}, false
+	return ix.entries[i], true
 }
 
 // ParamCounts reads how many parameters a signature declares and how many of
