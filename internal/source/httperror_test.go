@@ -78,6 +78,101 @@ func TestHTTPSourceConnectorErrors(t *testing.T) {
 	}
 }
 
+// A connector older than the envelope answers a failed query with a bare HTTP 400;
+// the text is recovered from /validate-query and comes back as query_failed.
+func TestHTTPSourceBareQueryFailureUsesValidation(t *testing.T) {
+	cases := []struct {
+		name         string
+		queryStatus  int
+		queryBody    string
+		validateBody string
+		wantCode     string
+		wantText     string
+		wantValidate bool
+	}{
+		{
+			name:         "bare 400: the compile error comes from validate-query",
+			queryStatus:  http.StatusBadRequest,
+			queryBody:    "Неправильный запрос",
+			validateBody: `{"valid":false,"errors":["{(1, 30)}: Ожидается имя\nИЗ Справочник.Товары КАК <<?>>В"]}`,
+			wantCode:     "query_failed",
+			wantText:     "Ожидается имя",
+			wantValidate: true,
+		},
+		{
+			name:         "bare 400 on a query that compiles: the original error plus the likely cause",
+			queryStatus:  http.StatusBadRequest,
+			queryBody:    "Неправильный запрос",
+			validateBody: `{"valid":true,"errors":[]}`,
+			wantCode:     "",
+			wantText:     "запрос компилируется",
+			wantValidate: true,
+		},
+		{
+			name:         "an envelope error is not second-guessed",
+			queryStatus:  http.StatusOK,
+			queryBody:    `{"error":{"status":400,"code":"bad_request","message":"Параметр Дата: неизвестный тип"}}`,
+			validateBody: `{"valid":false,"errors":["не должна вызываться"]}`,
+			wantCode:     "bad_request",
+			wantText:     "неизвестный тип",
+			wantValidate: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validated := false
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/validate-query") {
+					validated = true
+					_, _ = w.Write([]byte(tc.validateBody))
+					return
+				}
+				w.WriteHeader(tc.queryStatus)
+				_, _ = w.Write([]byte(tc.queryBody))
+			}))
+			t.Cleanup(srv.Close)
+			s := NewHTTPSource(srv.URL, "", "")
+
+			_, err := s.ExecuteQuery(context.Background(), QueryParams{Text: "ВЫБРАТЬ 1 ИЗ Справочник.Товары КАК В"})
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if validated != tc.wantValidate {
+				t.Errorf("validate-query called = %v, want %v", validated, tc.wantValidate)
+			}
+			var ce *ConnectorError
+			if !errors.As(err, &ce) {
+				t.Fatalf("error %v is not a *ConnectorError", err)
+			}
+			if ce.Code != tc.wantCode {
+				t.Errorf("code = %q, want %q", ce.Code, tc.wantCode)
+			}
+			if !strings.Contains(err.Error(), tc.wantText) {
+				t.Errorf("error %q does not carry %q", err.Error(), tc.wantText)
+			}
+		})
+	}
+}
+
+// IIS writes its error pages in the server codepage (windows-1251 on a Russian
+// Windows); the title has to come out readable, not as replacement characters.
+func TestErrorBodyTextDecodesWindows1251Title(t *testing.T) {
+	// "500 - Внутренняя ошибка сервера." in windows-1251.
+	title := []byte{'5', '0', '0', ' ', '-', ' ', 0xC2, 0xED, 0xF3, 0xF2, 0xF0, 0xE5, 0xED, 0xED, 0xFF, 0xFF, ' ',
+		0xEE, 0xF8, 0xE8, 0xE1, 0xEA, 0xE0, ' ', 0xF1, 0xE5, 0xF0, 0xE2, 0xE5, 0xF0, 0xE0, '.'}
+	page := append([]byte(`<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"><html><head>`+
+		`<meta http-equiv="Content-Type" content="text/html; charset=windows-1251"/><title>`), title...)
+	page = append(page, []byte(`</title><style>body{margin:0}</style></head><body><h2>...</h2></body></html>`)...)
+
+	got := errorBodyText("text/html", page)
+	if !strings.HasPrefix(got, "500 - Внутренняя ошибка сервера.") {
+		t.Errorf("title not decoded: %q", got)
+	}
+	if strings.Contains(got, "<") || strings.Contains(got, "margin") {
+		t.Errorf("markup leaked into the error: %q", got)
+	}
+}
+
 // A successful answer whose JSON merely has no error must not be mistaken for an envelope.
 func TestHTTPSourceSuccessIsNotAnEnvelope(t *testing.T) {
 	m := newMockMCPService(t)

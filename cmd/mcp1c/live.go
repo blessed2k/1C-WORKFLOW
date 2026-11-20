@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/blessed2k/1C-WORKFLOW/internal/source"
@@ -201,6 +202,57 @@ func (l *liveState) desc() (string, string) {
 	return "live", l.name
 }
 
+// baseNamesMiddleware lists the configured bases in the schema of every base
+// argument, and of the name argument of set_base, as tools/list sends them. The
+// names exist only at startup (the bases file), so the struct tags cannot carry
+// them; without them the model asked list_bases first (234 calls in the journals
+// of 21.09-18.11.2026) or switched with set_base (45). The registered schemas
+// stay as they are: an unknown name still reaches the handler, whose error lists
+// the bases, instead of failing schema validation with a bare enum mismatch.
+func (l *liveState) baseNamesMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		res, err := next(ctx, method, req)
+		if err != nil || method != "tools/list" {
+			return res, err
+		}
+		list, ok := res.(*mcp.ListToolsResult)
+		names := l.names()
+		if !ok || list == nil || len(names) == 0 {
+			return res, err
+		}
+		out := *list
+		out.Tools = make([]*mcp.Tool, len(list.Tools))
+		for i, t := range list.Tools {
+			out.Tools[i] = withBaseNames(t, names)
+		}
+		return &out, nil
+	}
+}
+
+// withBaseNames returns t with the base names as the enum of its base argument
+// (name for set_base). The tool and its schema are copied: tools/list hands out
+// the registered tool itself, and the registry must not change under it.
+func withBaseNames(t *mcp.Tool, names []string) *mcp.Tool {
+	key, desc := "base", "live base for this call only, without changing the active one; one of the configured bases (enum), no list_bases call needed"
+	if t.Name == "set_base" {
+		key, desc = "name", "name of a configured base (enum); omit it to be asked"
+	}
+	schema, ok := t.InputSchema.(*jsonschema.Schema)
+	if !ok || schema == nil || schema.Properties[key] == nil {
+		return t
+	}
+	schema = schema.CloneSchemas()
+	prop := schema.Properties[key]
+	prop.Description = desc
+	prop.Enum = make([]any, len(names))
+	for i, n := range names {
+		prop.Enum[i] = n
+	}
+	copied := *t
+	copied.InputSchema = schema
+	return &copied
+}
+
 type baseInfo struct {
 	Name    string `json:"name"`
 	URL     string `json:"url"`
@@ -242,7 +294,7 @@ type listBasesOutput struct {
 func registerBaseSwitching(server *mcp.Server, ls *liveState) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_bases",
-		Description: "Lists the configured live 1C bases (name and URL, passwords never shown). Switch the active one with set_base.",
+		Description: "Lists the configured live 1C bases (name and URL, passwords never shown) and the active one. The names are already listed in the base argument of every live tool; switch the active base with set_base.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ emptyInput) (*mcp.CallToolResult, listBasesOutput, error) {
 		bases := ls.listInfo()
 		return nil, listBasesOutput{Current: ls.currentName(), Count: len(bases), Bases: bases}, nil

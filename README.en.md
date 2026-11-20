@@ -319,16 +319,18 @@ column says whether the tool is part of `--tools=core`.
 
 | Tool | Purpose |
 |---|---|
-| `execute_query` | run a SELECT and return the rows |
-| `validate_query`, `analyze_query` | check a query without running it; find heavy constructs |
-| `get_event_log` | event log filtered by dates, level and user |
+| `execute_query` | run a SELECT and return the rows; a 1C error from the known set (keyword as an alias, `ОБЪЕДИНИТЬ` after `УПОРЯДОЧИТЬ`, `ПРЕДСТАВЛЕНИЕ` in ordering and conditions, `МАКСИМУМ` over a reference, a string of unlimited length) gets a hint on what to change |
+| `validate_query`, `analyze_query` | check a query without running it (with the same hint); find heavy constructs |
+| `get_event_log` | event log filtered by dates, level and user; `summary=true` groups identical entries with a count and the last date |
 | `get_predefined`, `get_subsystem` | predefined items; subsystem composition |
 | `get_attached_file` | download an attached file (PDF, scan) to a temporary file kept for the session; needs connector 0.4.0.0 |
 | `data_health` | whether a register or catalog is actually maintained: row count, first and last record, growth |
 | `access_profiles`, `access_diagnose` | access group profiles as data; where a user's access chain breaks |
 | `check_sync` | compare the infobase with an XML export before a load or dump |
 
-Every live tool is part of `core`.
+Every live tool is part of `core`. Each takes `base=<name>`: the names from the `--bases` file
+are listed in the schema of that argument, so no `list_bases` call is needed first. Live,
+`get_object_structure`, `get_metadata_tree` and `object_exists` take `base` too.
 
 **Index tools (both modes, only with `--projects-root`, all in `core`)**
 

@@ -358,7 +358,7 @@ type EventLogParams struct {
 	Transaction       string         `json:"transaction,omitempty" jsonschema:"transaction id, as transaction of an entry"`
 	Order             string         `json:"order,omitempty" jsonschema:"desc: the last entries of the window, newest first. asc: the first entries of the window, oldest first; works when at most 5000 entries match. Omitted: the last entries, oldest first"`
 	Offset            int            `json:"offset,omitempty" jsonschema:"entries to skip in the chosen order, for paging"`
-	MaxComment        int            `json:"maxComment,omitempty" jsonschema:"cut each comment to this many characters (default 4000; an error comment carries a whole call stack)"`
+	MaxComment        int            `json:"maxComment,omitempty" jsonschema:"cut each comment to this many characters (default 500: the message and the top of the call stack; ask for more to read the whole stack)"`
 }
 
 // EventLogResult holds registration-log entries.

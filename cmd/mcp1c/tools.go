@@ -418,8 +418,10 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 		})
 		surface := newToolSurface()
 		surfaces.Store(server, surface)
-		registerCoreTools(server, ls.desc,
-			&serverInfoState{project: liveProjectInfo(indexDeps.projects), profile: profile, core: core}, ls.source, idx)
+		registerServerInfo(server, ls.desc,
+			&serverInfoState{project: liveProjectInfo(indexDeps.projects), profile: profile, core: core})
+		registerBSLSyntax(server, idx)
+		registerLiveConfigTools(server, ls)
 		registerResources(server, ls.source)
 		registerStandardsResources(server)
 		registerLiveTools(server, ls)
@@ -427,6 +429,7 @@ func newServerWithCloser(opts options) (*mcp.Server, io.Closer) {
 		registerAttachedFile(server, ls, files)
 		registerCheckSync(server, ls.live)
 		registerBaseSwitching(server, ls)
+		server.AddReceivingMiddleware(ls.baseNamesMiddleware)
 		finishSurface(server, surface, indexDeps, indexAvailable, profile)
 		core.warm()
 		return server, surfaceCloser{server: server, core: core, files: files, next: indexDeps.closer()}
@@ -564,11 +567,56 @@ func registerServerInfo(server *mcp.Server, describe func() (string, string), in
 	}, serverInfoHandler(describe, info))
 }
 
-// registerCoreTools wires server_info, bsl_syntax and the ConfigSource tools.
-// provide returns the active source for each call (nil when none is configured).
+// registerCoreTools wires server_info, bsl_syntax and the ConfigSource tools of
+// offline mode. provide returns the active source for each call (nil when none
+// is configured). Live mode wires the first two and registerLiveConfigTools
+// instead (liveconfig.go): there every call names its base.
 func registerCoreTools(server *mcp.Server, describe func() (string, string), info *serverInfoState, provide func() source.ConfigSource, idx syntaxCorpus) {
 	registerServerInfo(server, describe, info)
+	registerBSLSyntax(server, idx)
+	registerDumpConfigTools(server, provide)
+}
 
+// Descriptions shared by the offline config tools and their live variants,
+// which add the base argument (liveconfig.go).
+const (
+	configurationInfoDescription = "Returns the configuration's name, synonym, vendor, version and per-type object counts. Use it to get your bearings in an unfamiliar configuration, or to confirm the right export is active."
+	metadataTreeDescription      = "Configuration objects grouped by type (Catalog, Document, CommonModule, ...). Use it to find the exact name of an object you know approximately; narrow it with type= and like=, a full tree runs to hundreds of thousands of characters. For a yes/no question call object_exists."
+	objectExistsDescription      = "Whether an object of this type and name is in the active configuration, with near matches when it is not. Use it for the yes/no question instead of the metadata tree."
+	objectStructureDescription   = "Attributes (with types), tabular sections, forms and commands of one object (type=Catalog name=Контрагенты), from the export or the live base. parts=forms (or attributes, tabular, commands, other) returns one section. Use it when you need an object's fields; when the index is available, get_object adds subscriptions, jobs and rights, and context_pack adds modules and usages."
+)
+
+// metadataTreeAnswer, objectExistsAnswer and objectStructureAnswer are the
+// bodies the offline and the live variant of each tool share; the variants only
+// differ in how they pick the source.
+func metadataTreeAnswer(ctx context.Context, src source.ConfigSource, in metadataTreeInput) (source.MetadataTree, error) {
+	tree, err := src.MetadataTree(ctx)
+	if err != nil {
+		return source.MetadataTree{}, err
+	}
+	return filterTree(*tree, in.Type, in.Like), nil
+}
+
+func objectExistsAnswer(ctx context.Context, src source.ConfigSource, in objectExistsInput) (objectExistsOutput, error) {
+	tree, err := src.MetadataTree(ctx)
+	if err != nil {
+		return objectExistsOutput{}, err
+	}
+	return lookupObject(*tree, in.Type, in.Name), nil
+}
+
+func objectStructureAnswer(ctx context.Context, server *mcp.Server, src source.ConfigSource, in objectStructureInput) (objectStructureOutput, error) {
+	obj, err := src.ObjectStructure(ctx, in.Type, in.Name)
+	if err != nil {
+		return objectStructureOutput{}, err
+	}
+	steps := nextStepsFor(*obj, surfaceOf(server).has)
+	applyParts(obj, in.Parts)
+	return objectStructureOutput{ObjectStructure: *obj, NextSteps: steps}, nil
+}
+
+// registerBSLSyntax wires bsl_syntax, which every read mode has.
+func registerBSLSyntax(server *mcp.Server, idx syntaxCorpus) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "bsl_syntax",
 		Description: "Look up 1C BSL / platform syntax by Russian or English name (function, method, property, type, constructor). Returns signature, parameters, return value and description. Consult it WHILE writing BSL, before calling a platform method you are recalling from memory. Pass queries=[...] to look up everything a block of code needs in one call. owner=<type> (e.g. ТаблицаЗначений) restricts matches to that type, and alone lists all its members compactly; query=Type.Member is the same as owner+query. A query that names a type also reports its constructors.",
@@ -600,10 +648,15 @@ func registerCoreTools(server *mcp.Server, describe func() (string, string), inf
 		}
 		return nil, out, nil
 	})
+}
 
+// registerDumpConfigTools wires the ConfigSource tools of offline mode over the
+// active export. search_code and get_form_structure exist only here: the live
+// connector exposes neither module text nor form items.
+func registerDumpConfigTools(server *mcp.Server, provide func() source.ConfigSource) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_configuration_info",
-		Description: "Returns the configuration's name, synonym, vendor, version and per-type object counts. Use it to get your bearings in an unfamiliar configuration, or to confirm the right export is active.",
+		Description: configurationInfoDescription,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ emptyInput) (*mcp.CallToolResult, source.ConfigurationInfo, error) {
 		src := provide()
 		if src == nil {
@@ -618,49 +671,38 @@ func registerCoreTools(server *mcp.Server, describe func() (string, string), inf
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_metadata_tree",
-		Description: "Configuration objects grouped by type (Catalog, Document, CommonModule, ...). Use it to find the exact name of an object you know approximately; narrow it with type= and like=, a full tree runs to hundreds of thousands of characters. For a yes/no question call object_exists.",
+		Description: metadataTreeDescription,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in metadataTreeInput) (*mcp.CallToolResult, source.MetadataTree, error) {
 		src := provide()
 		if src == nil {
 			return nil, source.MetadataTree{}, errNoSource
 		}
-		tree, err := src.MetadataTree(ctx)
-		if err != nil {
-			return nil, source.MetadataTree{}, err
-		}
-		return nil, filterTree(*tree, in.Type, in.Like), nil
+		tree, err := metadataTreeAnswer(ctx, src, in)
+		return nil, tree, err
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "object_exists",
-		Description: "Whether an object of this type and name is in the active configuration, with near matches when it is not. Use it for the yes/no question instead of the metadata tree.",
+		Description: objectExistsDescription,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in objectExistsInput) (*mcp.CallToolResult, objectExistsOutput, error) {
 		src := provide()
 		if src == nil {
 			return nil, objectExistsOutput{}, errNoSource
 		}
-		tree, err := src.MetadataTree(ctx)
-		if err != nil {
-			return nil, objectExistsOutput{}, err
-		}
-		return nil, lookupObject(*tree, in.Type, in.Name), nil
+		out, err := objectExistsAnswer(ctx, src, in)
+		return nil, out, err
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_object_structure",
-		Description: "Attributes (with types), tabular sections, forms and commands of one object (type=Catalog name=Контрагенты), from the export or the live base. parts=forms (or attributes, tabular, commands, other) returns one section. Use it when you need an object's fields; when the index is available, get_object adds subscriptions, jobs and rights, and context_pack adds modules and usages.",
+		Description: objectStructureDescription,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in objectStructureInput) (*mcp.CallToolResult, objectStructureOutput, error) {
 		src := provide()
 		if src == nil {
 			return nil, objectStructureOutput{}, errNoSource
 		}
-		obj, err := src.ObjectStructure(ctx, in.Type, in.Name)
-		if err != nil {
-			return nil, objectStructureOutput{}, err
-		}
-		steps := nextStepsFor(*obj, surfaceOf(server).has)
-		applyParts(obj, in.Parts)
-		return nil, objectStructureOutput{ObjectStructure: *obj, NextSteps: steps}, nil
+		out, err := objectStructureAnswer(ctx, server, src, in)
+		return nil, out, err
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -777,16 +819,59 @@ type validateQueryLiveInput struct {
 type validateQueryOutput struct {
 	Base string `json:"base" jsonschema:"live base this answer came from"`
 	source.ValidateResult
+	Hint string `json:"hint,omitempty" jsonschema:"what to change, when the error is one of the known mistakes"`
 }
 
 type eventLogInput struct {
 	source.EventLogParams
-	Base string `json:"base,omitempty" jsonschema:"run against this base for this call only, without changing the active one (see list_bases)"`
+	Summary bool   `json:"summary,omitempty" jsonschema:"group identical entries (level, event, object, comment up to the numbers in it) with count and first/last date instead of listing them; reads up to 500 entries of the window"`
+	Base    string `json:"base,omitempty" jsonschema:"run against this base for this call only, without changing the active one (see list_bases)"`
 }
 
 type eventLogOutput struct {
 	Base string `json:"base" jsonschema:"live base this answer came from"`
 	source.EventLogResult
+	Groups      []source.EventLogGroup `json:"groups,omitempty" jsonschema:"with summary: groups of identical entries, the most frequent first"`
+	GroupsTotal int                    `json:"groupsTotal,omitempty" jsonschema:"with summary: how many groups the window has, when more than shown"`
+}
+
+// Window, comment limit and shown groups of a summary when the caller sets
+// none: the connector's ceiling of one call, enough of the comment to tell errors
+// apart, and the head of the list. About 300 error entries of a week on the test
+// base made 89 groups and 60 KB before the head was cut, 10 KB after.
+const (
+	summaryEventLogLimit      = 500
+	summaryEventLogMaxComment = 300
+	summaryEventLogGroups     = 20
+)
+
+// summaryNote says what a summary covers: the entries it was built from, and,
+// when the window was cut, that the rest of the period is not in it.
+func summaryNote(entries, groups, shown int, truncated bool, order string) string {
+	note := fmt.Sprintf("Сводка по %d записям окна: %d групп, частые сверху. Записи одной группы читайте вызовом без summary "+
+		"с отбором по events, metadata или comment.", entries, groups)
+	if shown < groups {
+		note += fmt.Sprintf(" Показаны первые %d групп, редкие ищите с отбором по events или metadata.", shown)
+	}
+	if truncated {
+		shown := "последним"
+		if strings.EqualFold(order, "asc") {
+			shown = "первым"
+		}
+		note += fmt.Sprintf(" Окно обрезано: сводка только по %s %d записям, не по всему периоду; сузьте окно по времени или добавьте level.",
+			shown, entries)
+	}
+	return note
+}
+
+// queryFailureHint is the hint for a query 1C refused to run, "" for any other
+// failure: a timeout or an unreachable base has nothing to do with the text.
+func queryFailureHint(err error, text string) string {
+	var failure *source.ConnectorError
+	if !errors.As(err, &failure) || failure.Code != "query_failed" {
+		return ""
+	}
+	return source.QueryErrorHint(failure.Message, text)
 }
 
 type subsystemLiveInput struct {
@@ -867,6 +952,9 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 		}
 		res, err := live.ExecuteQuery(ctx, in.QueryParams)
 		if err != nil {
+			if hint := queryFailureHint(err, in.Text); hint != "" {
+				return nil, queryOutput{}, fmt.Errorf("base %s: %w\nПодсказка: %s", name, err, hint)
+			}
 			return nil, queryOutput{}, fmt.Errorf("base %s: %w", name, err)
 		}
 		return nil, queryOutput{Base: name, QueryResult: *res}, nil
@@ -884,22 +972,45 @@ func registerLiveTools(server *mcp.Server, lp liveProvider) {
 		if err != nil {
 			return nil, validateQueryOutput{}, fmt.Errorf("base %s: %w", name, err)
 		}
-		return nil, validateQueryOutput{Base: name, ValidateResult: *res}, nil
+		out := validateQueryOutput{Base: name, ValidateResult: *res}
+		if !res.Valid {
+			out.Hint = source.QueryErrorHint(res.Error, in.Text)
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_event_log",
-		Description: "Reads the registration log of the live base and names the base it read. Use it to investigate what actually happened in the base: an error, who changed a document, what a session did. Filter on the server side instead of reading the whole window: date range, level (Error/Warning/Information/Note), user, events, metadata, sessions, applications, data (a reference from execute_query refs=true), transaction. An entry carries eventId, metadataId, applicationId and session, so the next call can filter by them. order=asc reads the first entries of the window, order=desc the last ones newest first, offset pages through. Pass base=<name> to target one base for this call.",
+		Description: "Reads the registration log of the live base and names the base it read. Use it to investigate what actually happened in the base: an error, who changed a document, what a session did. Start an error hunt with summary=true level=Error: identical errors come as one group with count and last date. Filter on the server side instead of reading the whole window: date range, level (Error/Warning/Information/Note), user, events, metadata, sessions, applications, data (a reference from execute_query refs=true), transaction. An entry carries eventId, metadataId, applicationId and session, so the next call can filter by them. order=asc reads the first entries of the window, order=desc the last ones newest first, offset pages through. Pass base=<name> to target one base for this call.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in eventLogInput) (*mcp.CallToolResult, eventLogOutput, error) {
 		live, name, err := resolveLive(lp, in.Base)
 		if err != nil {
 			return nil, eventLogOutput{}, err
 		}
-		res, err := live.EventLog(ctx, in.EventLogParams)
+		params := in.EventLogParams
+		if in.Summary {
+			if params.Limit <= 0 {
+				params.Limit = summaryEventLogLimit
+			}
+			if params.MaxComment <= 0 {
+				params.MaxComment = summaryEventLogMaxComment
+			}
+		}
+		res, err := live.EventLog(ctx, params)
 		if err != nil {
 			return nil, eventLogOutput{}, fmt.Errorf("base %s: %w", name, err)
 		}
-		return nil, eventLogOutput{Base: name, EventLogResult: *res}, nil
+		out := eventLogOutput{Base: name, EventLogResult: *res}
+		if in.Summary {
+			groups := source.SummarizeEventLog(res.Entries)
+			out.Groups = groups
+			if len(groups) > summaryEventLogGroups {
+				out.Groups, out.GroupsTotal = groups[:summaryEventLogGroups], len(groups)
+			}
+			out.Entries = []source.EventLogEntry{}
+			out.Note = summaryNote(len(res.Entries), len(groups), len(out.Groups), res.Truncated, params.Order)
+		}
+		return nil, out, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

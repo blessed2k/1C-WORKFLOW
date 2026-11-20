@@ -124,6 +124,18 @@ func TestHTTPSourceEventLogRejectsIgnoredFilter(t *testing.T) {
 	}
 }
 
+// Without maxComment the connector would cut at its own 4000 characters, and a
+// hundred error comments with their stacks made answers of up to 79 KB.
+func TestHTTPSourceEventLogDefaultMaxComment(t *testing.T) {
+	s, body := eventLogServer(t, map[string]any{"events": []any{}, "total": 0})
+	if _, err := s.EventLog(context.Background(), EventLogParams{}); err != nil {
+		t.Fatalf("EventLog: %v", err)
+	}
+	if (*body)["max_comment"] != float64(DefaultEventLogMaxComment) {
+		t.Errorf("max_comment = %v, want %d", (*body)["max_comment"], DefaultEventLogMaxComment)
+	}
+}
+
 func TestHTTPSourceEventLogSendsTimeout(t *testing.T) {
 	ConfigureLive(30 * time.Second)
 	t.Cleanup(func() { ConfigureLive(0) })
